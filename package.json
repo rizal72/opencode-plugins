@@ -1,0 +1,13 @@
+{
+  "name": "oc-plugins",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@opencode/plugin": "^2.0.32",
+    "@types/node": "^26.6.5",
+    "typescript": "^5.9.3"
+  }
+}

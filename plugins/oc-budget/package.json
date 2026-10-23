@@ -1,0 +1,9 @@
+{
+  "name": "oc-budget",
+  "type": "module",
+  "exports": {
+    ".": "./index.ts",
+    "./tui": "./tui.tsx",
+    "./rpc": "./rpc.ts"
+  }
+}

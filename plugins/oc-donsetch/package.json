@@ -1,0 +1,5 @@
+{
+  "name": "oc-donsetch",
+  "type": "module",
+  "exports": "./index.ts"
+}
