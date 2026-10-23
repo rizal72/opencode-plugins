@@ -1,12 +1,23 @@
 {
 	"name": "@rizal72/oc-models-pro",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "OpenCode v2 model picker with prices, context, intelligence, Go credit and the cost of a request",
 	"license": "MIT",
-	"files": ["*.ts", "*.tsx", "README.md"],
-	"keywords": ["opencode", "opencode-plugin", "models", "pricing"],
-	"publishConfig": { "access": "public" },
+	"files": [
+		"*.ts",
+		"*.tsx",
+		"README.md"
+	],
+	"keywords": [
+		"opencode",
+		"opencode-plugin",
+		"models",
+		"pricing"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
 	"exports": {
 		".": "./index.ts",
 		"./tui": "./tui.tsx"

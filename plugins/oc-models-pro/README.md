@@ -20,12 +20,12 @@ Or by hand, one line in `~/.config/opencode/opencode.jsonc`:
 
 ## Use
 
-`/models-pro`, the `<leader>p` keybind, or the command palette — inside a session.
+`/models-pro`, or `Ctrl+X` then `p` (the `<leader>p` bind), or the command palette — inside a session.
 
 | key | does |
 |---|---|
 | `↑` `↓` | move the selection |
-| `Invio` | switch to the model and close |
+| `Enter` | switch to the model and close |
 | `ctrl+o` | sort: effective, in, out, in+out, ctx, int, speed, recent, name |
 | `ctrl+s` | scope: all → favourites → paying |
 | `ctrl+g` | provider groups on/off |
