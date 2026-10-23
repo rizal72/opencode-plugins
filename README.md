@@ -29,3 +29,5 @@ Each plugin directory is a package of its own: a `package.json`, an `index.ts` f
 
 The four marked `—` are here to be read: they assume something about my setup (a wallet, a rules file, a
 binary), so packaging them would only sell you a config you do not have.
+
+Where these came from: [Why I left OpenCode for Pi, then came back for v2](https://www.reddit.com/r/opencodeCLI/comments/1xcgnpr/why_i_left_opencode_for_pi_then_came_back_for_v2/).
