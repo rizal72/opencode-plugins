@@ -27,5 +27,5 @@ opencode plugin add @rizal72/oc-session-search
 Each plugin directory is a package of its own: a `package.json`, an `index.ts` for the server half and a
 `tui.tsx` for the half that draws. `npm run check` type-checks all of them.
 
-The five marked `—` are here to be read: they assume something about my setup (a wallet, a rules file, a
+The four marked `—` are here to be read: they assume something about my setup (a wallet, a rules file, a
 binary), so packaging them would only sell you a config you do not have.
