@@ -3,6 +3,10 @@
 	"version": "0.1.1",
 	"type": "module",
 	"description": "OpenCode v2 model picker with prices, context, intelligence, Go credit and the cost of a request",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/rizal72/opencode-plugins.git"
+	},
 	"license": "MIT",
 	"files": [
 		"*.ts",

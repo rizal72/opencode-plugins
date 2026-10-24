@@ -3,9 +3,25 @@
 	"version": "0.1.0",
 	"type": "module",
 	"description": "The session_search tool: keyword search over past OpenCode sessions, with project and date filters",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/rizal72/opencode-plugins.git"
+	},
 	"license": "MIT",
-	"files": ["*.ts", "*.tsx", "README.md"],
-	"keywords": ["opencode", "opencode-plugin", "search", "sessions", "sqlite"],
-	"publishConfig": { "access": "public" },
+	"files": [
+		"*.ts",
+		"*.tsx",
+		"README.md"
+	],
+	"keywords": [
+		"opencode",
+		"opencode-plugin",
+		"search",
+		"sessions",
+		"sqlite"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
 	"exports": "./index.ts"
 }

@@ -250,15 +250,27 @@ function modelRow(row: Row, mine: boolean, favourite: boolean, f: Fit): string {
 
 const TRACE = join(tmpdir(), "oc-models-pro.log")
 
+/** The tail is the part worth reading; the file is trimmed at startup, never during a session. */
+const TRACE_LINES = 1000
+
 function trace(message: string): void {
 	try {
 		appendFileSync(TRACE, new Date().toISOString() + " " + message + "\n")
 	} catch {}
 }
 
+/** Keeps the log to its last `TRACE_LINES` lines, so it neither grows without bound nor loses the recent past. */
+function trimTrace(): void {
+	try {
+		const lines = readFileSync(TRACE, "utf8").split("\n")
+		if (lines.length > TRACE_LINES) writeFileSync(TRACE, lines.slice(-TRACE_LINES).join("\n"))
+	} catch {}
+}
+
 export default Plugin.define({
 	id: "oc-models-pro",
 	setup(context: any) {
+		trimTrace()
 		const ui = context.ui
 		const themeColour = (...paths: string[][]): any => {
 			for (const path of paths) {
@@ -417,6 +429,13 @@ export default Plugin.define({
 		}
 
 		const Panel = (props: { panel: any }) => {
+			// Who had the focus before the panel took it: the prompt itself. The renderer can hand it back,
+			// and nothing else in the API can — no host command focuses the prompt from a plugin.
+			const previousFocus = context.renderer?.currentFocusedRenderable
+			trace(
+				"panel: previous focus=" +
+					(previousFocus ? (previousFocus.constructor?.name ?? "?") : "none"),
+			)
 			const [selected, setSelected] = createSignal<string | undefined>(undefined)
 			/** The panel's width, in columns, and the layout it buys — reactive: the host resizes it. */
 			const width = createMemo(() => Math.floor(Number(props.panel.width) || 0), undefined, { equals: Object.is })
@@ -448,8 +467,31 @@ export default Plugin.define({
 			let field: any
 			/** Diagnostic: more than one mount per open means the panel is being rebuilt under us. */
 			let inputMounts = 0
-			/** Whether the field holds the focus — the host resets it on some reflows. */
-			let focused = false
+			/**
+			 * Who the host's renderer has focus on: the truth the blur/refocus guessing could only infer.
+			 * Clicking a row or the field moves it without necessarily firing a blur on the input.
+			 */
+			const holdsField = (): boolean => Boolean(field) && context.renderer?.currentFocusedRenderable === field
+			/**
+			 * Hands the focus back to whoever held it before the panel opened — the prompt. The host does not
+			 * do it for a panel closed by a click, and there is no command that focuses the prompt: this is
+			 * the renderer's own method, and it is what makes a click on a row behave like `esc`.
+			 */
+			const focusPrompt = (): void => {
+				try {
+					if (!previousFocus || previousFocus.isDestroyed || !context.renderer?.focusRenderable) {
+						trace("focus: no target")
+						return
+					}
+					context.renderer.focusRenderable(previousFocus)
+					trace(
+						"focus: restored, current=" +
+							(context.renderer.currentFocusedRenderable === previousFocus ? "yes" : "no"),
+					)
+				} catch (error) {
+					fail("focus", error)
+				}
+			}
 			const clear = (): void => {
 				setQuery("")
 				if (field && !field.isDestroyed) field.value = ""
@@ -600,7 +642,13 @@ export default Plugin.define({
 					selectable().find((entry) => prefKey(entry.providerID, entry.modelID) === wanted)
 				if (!row) return
 				trace("choose: " + prefKey(row.providerID, row.modelID))
+				// Esc closes with the search field focused and the host hands the prompt its focus back; a
+				// click leaves it on the row, so the field takes it again before the panel goes away.
+				if (field && !field.isDestroyed) field.focus?.()
 				props.panel.close()
+				// The host returns the prompt's focus on its own only most of the time, and never while its
+				// unmount is still running: the saved renderable takes it back once the panel is gone.
+				if (props.panel.presentation === "panel") setTimeout(focusPrompt, 40)
 				void (async () => {
 					if (!(await selectModel(row))) {
 						// The native never fails here — it writes the selection itself — so this is the one
@@ -692,6 +740,8 @@ export default Plugin.define({
 						description: "",
 					})),
 				})) as string | undefined
+				// A dialog takes the focus and does not hand it back either: the same command, once it closed.
+				setTimeout(focusPrompt, 40)
 				// Cancelling leaves the model without a variant, and the question will come back, as in
 				// the native picker.
 				if (chosen === undefined) return
@@ -762,7 +812,8 @@ export default Plugin.define({
 				fitted()
 				hints()
 				const element = field
-				if (focused || !element || element.isDestroyed || !props.panel.focused) return
+				if (!element || element.isDestroyed || !props.panel.focused || holdsField()) return
+				trace("reflow: field takes the focus back")
 				element.focus()
 			})
 
@@ -824,6 +875,12 @@ export default Plugin.define({
 						borderColor={BORDER}
 						paddingLeft={1}
 						paddingRight={1}
+						onMouseDown={() => {
+							// A click inside the field moves the host's focus elsewhere; take it back a tick later.
+							setTimeout(() => {
+								if (field && !field.isDestroyed) field.focus()
+							}, 1)
+						}}
 					>
 						<input
 							ref={(element: any) => {
@@ -838,8 +895,6 @@ export default Plugin.define({
 									if (!element.isDestroyed) element.focus()
 								}, 1)
 							}}
-							onFocus={() => (focused = true)}
-							onBlur={() => (focused = false)}
 							placeholder="Search (ctrl+u clear)"
 							flexGrow={1}
 							placeholderColor={themeColour(["text", "faint"])}

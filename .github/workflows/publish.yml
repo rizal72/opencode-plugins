@@ -1,0 +1,45 @@
+name: publish
+
+# Publishes the plugins whose version is not on the registry yet. No token and no secret: npm accepts
+# this workflow through OIDC, with the trusted publisher configured per package on npmjs.com.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          # Never cache in a release build: a stale tree must not decide what ships.
+          package-manager-cache: false
+      - name: Publish the new versions
+        run: |
+          set -eu
+          for dir in plugins/*/; do
+            name=$(node -p "require('./${dir}package.json').name")
+            version=$(node -p "require('./${dir}package.json').version")
+            case "$name" in @rizal72/*) ;; *) continue ;; esac
+            published=$(npm view "$name" version 2>/dev/null || echo none)
+            if [ "$published" = "$version" ]; then
+              echo "$name@$version is already on the registry"
+              continue
+            fi
+            # Only forward: publishing an older number would move the `latest` tag back.
+            if [ "$published" != none ] &&
+               [ "$(printf '%s\n%s\n' "$published" "$version" | sort -V | tail -1)" != "$version" ]; then
+              echo "$name@$version is behind the registry's $published, skipped"
+              continue
+            fi
+            echo "publishing $name@$version (registry has $published)"
+            (cd "$dir" && npm publish)
+          done

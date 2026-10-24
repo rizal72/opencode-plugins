@@ -3,10 +3,25 @@
 	"version": "0.1.0",
 	"type": "module",
 	"description": "Keeps the Mac awake while the agent works: cup badge in the footer, /coffee command",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/rizal72/opencode-plugins.git"
+	},
 	"license": "MIT",
-	"files": ["*.ts", "*.tsx", "README.md"],
-	"keywords": ["opencode", "opencode-plugin", "macos", "caffeinate"],
-	"publishConfig": { "access": "public" },
+	"files": [
+		"*.ts",
+		"*.tsx",
+		"README.md"
+	],
+	"keywords": [
+		"opencode",
+		"opencode-plugin",
+		"macos",
+		"caffeinate"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
 	"exports": {
 		".": "./index.ts",
 		"./tui": "./tui.tsx"

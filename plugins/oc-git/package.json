@@ -3,10 +3,26 @@
 	"version": "0.1.0",
 	"type": "module",
 	"description": "The sidebar's repository state: branch, the three counts, ahead/behind; the three counts also in the footer while the repository is dirty",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/rizal72/opencode-plugins.git"
+	},
 	"license": "MIT",
-	"files": ["*.ts", "*.tsx", "README.md"],
-	"keywords": ["opencode", "opencode-plugin", "git", "git-status", "sidebar"],
-	"publishConfig": { "access": "public" },
+	"files": [
+		"*.ts",
+		"*.tsx",
+		"README.md"
+	],
+	"keywords": [
+		"opencode",
+		"opencode-plugin",
+		"git",
+		"git-status",
+		"sidebar"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
 	"exports": {
 		".": "./index.ts",
 		"./tui": "./tui.tsx"
