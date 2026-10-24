@@ -15,12 +15,15 @@ import { join } from "node:path"
 import { benchFor, benchIndex, type Bench } from "./bench.ts"
 import { credits, goPlan, key, type Credits } from "./multipliers.ts"
 import { LEGEND_MIN, fit, hintLines, rowWidth, type Fit } from "./fit.ts"
+import { tagsFor } from "./tags.ts"
 
 interface Row {
 	name: string
 	providerID: string
 	modelID: string
 	provider: string
+	/** Two letters from `tags.ts`: the provider's, unique in the catalogue. */
+	tag: string
 	/** Undefined when the catalogue has no price for the model: an unknown figure, not a free one. */
 	input?: number
 	output?: number
@@ -179,17 +182,9 @@ function cell(text: string, width: number, align: "start" | "end" = "end"): stri
 	return align === "end" ? cut.padStart(width) : cut.padEnd(width)
 }
 
-/** Two letters, so a row carries its provider without a column that eats the width. */
-const TAGS: Record<string, string> = {
-	opencode: "OC",
-	"opencode-go": "GO",
-	openrouter: "OR",
-	deepseek: "DS",
-}
-
-function tag(providerID: string): string {
-	// Always four characters, even for a one-letter provider id, or the name column shifts left.
-	return ((TAGS[providerID] ?? providerID.slice(0, 2)).toUpperCase().padEnd(2) + "  ").slice(0, 4)
+/** Two letters and the gap after them: always four characters, or the name column shifts left. */
+function padTag(letters: string): string {
+	return (letters.padEnd(2) + "  ").slice(0, 4)
 }
 
 /**
@@ -235,7 +230,7 @@ function modelRow(row: Row, mine: boolean, favourite: boolean, f: Fit): string {
 	const notes = [row.peak ? "peak*" + row.peak : "", row.promo ? "+" + row.promo + "x" : ""].filter(Boolean)
 	return [
 		(mine ? "●" : " ") + (favourite ? "*" : " "),
-		tag(row.providerID),
+		padTag(row.tag),
 		label(row.name, f.name),
 		price(row.input, 6),
 		price(row.output, 6),
@@ -355,6 +350,7 @@ export default Plugin.define({
 			const providers = new Map<string, string>(
 				listProviders().map((provider: any) => [provider.id, provider.name]),
 			)
+			const tags = tagsFor([...providers].map(([id, name]) => ({ id, name })))
 			const result: Row[] = []
 			for (const model of listModels()) {
 				const cost = (model.cost ?? []).find((entry: any) => !entry.tier) ?? model.cost?.[0]
@@ -367,6 +363,7 @@ export default Plugin.define({
 					// The host names an account-bound provider `<account> / <Provider>`, which in a group
 					// header reads as if the account were the thing: provider first, account in brackets.
 					provider: (providers.get(model.providerID) ?? model.providerID).replace(/^(.+?) \/ (.+)$/, "$2 ($1)"),
+					tag: tags.get(model.providerID) ?? model.providerID.slice(0, 2).toUpperCase(),
 					// A missing figure stays missing: a 0 here would put an unknown model at the top of the
 					// cheapest list and claim a context window it never declared.
 					input: typeof cost?.input === "number" ? cost.input : undefined,
