@@ -1,6 +1,6 @@
 {
 	"name": "@rizal72/oc-ponytail-widget",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "Unofficial ponytail level badge for OpenCode v2: the level in the prompt footer, next to the coffee cup",
 	"repository": {
@@ -10,7 +10,7 @@
 	"license": "MIT",
 	"files": [
 		"*.ts",
-		"*.tsx",
+		"tui.js",
 		"README.md"
 	],
 	"keywords": [
@@ -24,6 +24,6 @@
 	},
 	"exports": {
 		".": "./index.ts",
-		"./tui": "./tui.tsx"
+		"./tui": "./tui.js"
 	}
 }

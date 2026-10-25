@@ -1,6 +1,6 @@
 {
 	"name": "@rizal72/oc-session-search",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "The session_search tool: keyword search over past OpenCode sessions, with project and date filters",
 	"repository": {

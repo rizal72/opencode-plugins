@@ -1,6 +1,6 @@
 {
 	"name": "@rizal72/oc-coffee",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "Keeps the Mac awake while the agent works: cup badge in the footer, /coffee command",
 	"repository": {
@@ -10,7 +10,7 @@
 	"license": "MIT",
 	"files": [
 		"*.ts",
-		"*.tsx",
+		"tui.js",
 		"README.md"
 	],
 	"keywords": [
@@ -24,6 +24,6 @@
 	},
 	"exports": {
 		".": "./index.ts",
-		"./tui": "./tui.tsx"
+		"./tui": "./tui.js"
 	}
 }
