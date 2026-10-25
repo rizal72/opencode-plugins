@@ -11,7 +11,6 @@ Plugins I build for my own workflow. The sources are here to be read and forked.
 | `@rizal72/oc-session-search` | `session_search`: keyword search over the transcripts of past sessions | ✓ |
 | `oc-context` | the Context block in the sidebar, with the window its percent is a percent of | — redraws a built-in |
 | `oc-budget` | the paying provider's budget: sidebar, footer, `/budget` | — my wallet |
-| `core-instructions` | puts a global rules file into every request | — my rules file |
 | `oc-donsetch` | keeps the `donsetch` binary current | — needs that binary |
 
 ## Install

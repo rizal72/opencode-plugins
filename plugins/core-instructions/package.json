@@ -1,5 +1,0 @@
-{
-  "name": "core-instructions",
-  "type": "module",
-  "exports": "./index.ts"
-}
