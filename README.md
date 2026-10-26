@@ -2,6 +2,12 @@
 
 Plugins I build for my own workflow. The sources are here to be read and forked.
 
+The TUI with the widgets below, and the model picker:
+
+![The TUI with the sidebar blocks and the footer badges](screenshots/annotated.png)
+
+![The models-pro picker: prices, context, intelligence index, the Go credit](screenshots/models-pro.png)
+
 | plugin | what it does | npm |
 |---|---|---|
 | `@rizal72/oc-models-pro` | `/models-pro`: every model with its price, context and the Go credit, in a session panel | ✓ |
