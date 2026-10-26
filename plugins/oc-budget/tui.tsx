@@ -57,6 +57,7 @@ const FALLBACK_YELLOW = "#d29922"
 const FALLBACK_RED = "#f85149"
 const FALLBACK_DIM = "#8b949e"
 const FALLBACK_TEXT = "#c9d1d9"
+const FALLBACK_ACCENT = "#79c0ff"
 
 /** md-speedometer, the budget slot's mark; mdi trending-up, the peak marker. Carried in
  *  the text rather than the row's icon so the widget reads the same wherever it lands. */
@@ -136,6 +137,11 @@ function windowPercent(window: UsageWindow | undefined): number | null {
 	return typeof window?.percent === "number" ? window.percent : null
 }
 
+/** A percent as the panel prints it — a dash, never a fake zero, when there is no number. */
+function percentText(percent: number | null): string {
+	return percent === null ? "—" : `${Math.round(percent)}%`
+}
+
 /** Which wallet pays, read from the model first: a Zen selection never uses the Go
  *  subscription however much of the quota is left, and a Go model falls back to the Zen
  *  balance once the month is exhausted. */
@@ -183,18 +189,19 @@ export default Plugin.define({
 			return undefined
 		}
 
-		// The theme gives plugins no success/warning/error tokens: green and red come from
-		// the diff hues (the add/remove pair every theme defines), yellow from the warm
-		// syntax hues, grey from the muted text step. Hex only if a theme defines none.
-		// The theme's own semantic colours first (`text.feedback.*`, which every theme maps to its
-		// success/warning/error hues); the diff/syntax hues only as a fallback for a theme that
-		// defines none, and the hex only after that.
+		// Colours come from the theme, never from a hex literal: each role takes the first token the
+		// theme defines. Green and red lean on the diff pair, the one hue every theme guarantees;
+		// yellow takes the theme's own warning semantics first, because no syntax hue is reliably
+		// warm. Hex only when a theme defines none of the candidates.
 		const GREEN = themeColour(["syntax", "string"], ["diff", "text", "added"], ["text", "feedback", "success", "base"]) ?? FALLBACK_GREEN
 		const RED = themeColour(["diff", "text", "removed"], ["syntax", "keyword"], ["text", "feedback", "error", "base"]) ?? FALLBACK_RED
 		const YELLOW = themeColour(["text", "feedback", "warning", "base"], ["syntax", "type"], ["syntax", "number"]) ?? FALLBACK_YELLOW
 		const DIM = themeColour(["text", "muted"], ["text", "faint"]) ?? FALLBACK_DIM
 		/** The heading and the glyph read as ordinary text, not as a muted aside. */
 		const TEXT = themeColour(["text", "base"]) ?? FALLBACK_TEXT
+		/** The one accent for a *value* rather than a state — the workspace name, the same blue as the
+		 *  branch in oc-git: `syntax.function` is the identity hue in most themes. */
+		const ACCENT = themeColour(["syntax", "function"], ["syntax", "variable"], ["text", "base"]) ?? FALLBACK_ACCENT
 
 		const rpc = context.client.rpc(Budget)
 		const [snapshot, setSnapshot] = createRoot(() => createSignal<BudgetSnapshot | null>(null))
@@ -257,6 +264,9 @@ export default Plugin.define({
 			return value <= warn ? YELLOW : GREEN
 		}
 
+		/** The console's figure: spendable credit, which is the balance unless it went under. */
+		const zenCredit = (zen: BudgetSnapshot["zen"]) => zen?.available ?? zen?.balance
+
 		// ---------------------------------------------------------------------------
 		// Rows
 		// ---------------------------------------------------------------------------
@@ -278,7 +288,7 @@ export default Plugin.define({
 							<text fg={goColor(goPercent)}>GO</text>
 							<text> </text>
 							<text fg={goColor(goPercent)}>
-								{bar(goPercent ?? 0)} {goPercent === null ? "—" : `${Math.round(goPercent)}%`}
+								{goPercent === null ? "—" : `${bar(goPercent)} ${percentText(goPercent)}`}
 							</text>
 							{peak ? <text fg={RED}> {PEAK_GLYPH}</text> : null}
 						</box>,
@@ -287,20 +297,35 @@ export default Plugin.define({
 						<box flexDirection="row">
 							<text fg={DIM}>5h </text>
 							<text fg={goColor(windowPercent(snap.go.rolling))}>
-								{windowPercent(snap.go.rolling) ?? "—"}%
+								{percentText(windowPercent(snap.go.rolling))}
 							</text>
 							<text> </text>
 							<text fg={DIM}>wk </text>
 							<text fg={goColor(windowPercent(snap.go.weekly))}>
-								{windowPercent(snap.go.weekly) ?? "—"}%
+								{percentText(windowPercent(snap.go.weekly))}
 							</text>
 							<text> </text>
 							<text fg={DIM}>mo </text>
-							<text fg={goColor(goPercent)}>{goPercent ?? "—"}%</text>
+							<text fg={goColor(goPercent)}>{percentText(goPercent)}</text>
 						</box>,
 					)
 					const reset = countdown(snap.go.monthly?.resetsAt)
 					if (reset) out.push(<text fg={DIM}>reset {reset}</text>)
+					// After the reset, as a line of its own: the label dim, the name in the accent oc-git uses
+					// for the branch.
+					if (snap.zen?.org && (snap.zen.peers ?? 0) > 1) {
+						out.push(
+							<box flexDirection="row">
+								<text fg={DIM}>workspace: </text>
+								<text fg={ACCENT}>{snap.zen.org}</text>
+							</box>,
+						)
+					}
+					// A dim rule closes the Go block, so the wallets below read as a separate group. Fixed, not
+					// measured: the panel does not know how wide the sidebar is. 20 columns clears every line the
+					// block prints short of exhaustion — `5h 3% wk 1% mo 1%` is 17, two-digit percents 19; only
+					// `5h 100% wk 100% mo 100%` (23) runs past it.
+					out.push(<text fg={DIM}>{"─".repeat(20)}</text>)
 				} else if (snap?.go?.error) {
 					out.push(<text fg={DIM}>GO —</text>)
 					out.push(<text fg={DIM}>{snap.go.error}</text>)
@@ -329,7 +354,9 @@ export default Plugin.define({
 				}
 
 				if (snap?.zen && !snap.zen.error) {
-					out.push(<text fg={balanceColor(snap.zen.balance, ZEN_WARN_USD)}>ZEN {usd(snap.zen.balance)}</text>)
+					out.push(
+						<text fg={balanceColor(zenCredit(snap.zen), ZEN_WARN_USD)}>ZEN {usd(zenCredit(snap.zen))}</text>,
+					)
 				} else if (snap?.zen?.error) {
 					out.push(<text fg={DIM}>ZEN —</text>)
 				}
@@ -351,8 +378,7 @@ export default Plugin.define({
 		/** Appended to the footer, and the footer stays OpenCode's own: the folder (which is
 		 *  clickable), the working spinner, the esc hint, the usage, the cost and the
 		 *  shortcuts are all native. Taking that row over was tried and gave every one of
-		 *  them up for a single string, so what we add is only the budget and the same
-		 *  context figure with the total the native one leaves out. */
+		 *  them up for a single string, so what we add is the paying wallet alone. */
 		const Footer = () => {
 			const budget = createMemo(() => {
 				const snap = snapshot()
@@ -368,8 +394,8 @@ export default Plugin.define({
 				}
 				if (wallet === "zen") {
 					return {
-						color: balanceColor(snap?.zen?.balance, ZEN_WARN_USD),
-						body: `ZEN ${snap?.zen?.error ? "—" : usd(snap?.zen?.balance)}`,
+						color: balanceColor(zenCredit(snap?.zen), ZEN_WARN_USD),
+						body: `ZEN ${snap?.zen?.error ? "—" : usd(zenCredit(snap?.zen))}`,
 						marker: "",
 					}
 				}
@@ -421,20 +447,23 @@ export default Plugin.define({
 				none: "No budget provider selected",
 			}
 			lines.push(label[wallet])
+			if (snap?.zen?.org) lines.push(`workspace: ${snap.zen.org}`)
 			lines.push("")
 
-			const goWindow = (name: string, window: UsageWindow | undefined) => {
+			// `pays` is true for the monthly window only: that is the window the paying wallet rule
+			// reads, so flagging an exhausted five-hour window would claim ZEN pays when it does not.
+			const goWindow = (name: string, window: UsageWindow | undefined, pays: boolean) => {
 				if (!window || typeof window.percent !== "number") return `  ${name.padEnd(8)} (no data)`
 				const percent = Math.round(window.percent)
 				const reset = countdown(window.resetsAt)
-				const flag = window.status === "rate-limited" ? "  ZEN paying" : ""
+				const flag = pays && window.status === "rate-limited" ? "  ZEN paying" : ""
 				return `  ${name.padEnd(8)} ${bar(percent)} ${String(percent).padStart(3)}%${reset ? `  reset in ${reset}` : ""}${flag}`
 			}
 
 			if (snap?.go && !snap.go.error) {
-				lines.push(goWindow("5h", snap.go.rolling))
-				lines.push(goWindow("weekly", snap.go.weekly))
-				lines.push(goWindow("monthly", snap.go.monthly))
+				lines.push(goWindow("5h", snap.go.rolling, false))
+				lines.push(goWindow("weekly", snap.go.weekly, false))
+				lines.push(goWindow("monthly", snap.go.monthly, true))
 			} else if (snap?.go?.error) {
 				lines.push(`  ${"go".padEnd(8)} ${snap.go.error}`)
 			}
@@ -461,8 +490,10 @@ export default Plugin.define({
 			}
 
 			if (snap?.zen && !snap.zen.error) {
-				const workspace = snap.zen.org ? `   workspace ${snap.zen.org}` : ""
-				lines.push(`  ${"zen".padEnd(8)} ${usd(snap.zen.balance)}${workspace}`)
+				// The console's figure, with the ledger beside it only when the account is under: the
+				// clamped credit would hide those cents, and they are spent money, not a rounding.
+				const debt = snap.zen.balance !== undefined && snap.zen.balance < 0 ? `  (debt ${usd(-snap.zen.balance)})` : ""
+				lines.push(`  ${"zen".padEnd(8)} ${usd(zenCredit(snap.zen))}${debt}`)
 			} else if (snap?.zen?.error) {
 				lines.push(`  ${"zen".padEnd(8)} ${snap.zen.error}`)
 			}
