@@ -1,0 +1,49 @@
+name: A plugin does not work
+description: A plugin fails to load, or does the wrong thing
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Four fields, no prose. The error line matters more than the description: one line from the log usually names the cause.
+  - type: input
+    id: opencode
+    attributes:
+      label: opencode version
+      description: Output of `opencode --version`
+      placeholder: v2.1.4
+    validations:
+      required: true
+  - type: input
+    id: plugin
+    attributes:
+      label: plugin and version
+      description: Name and version, as `opencode plugin list` shows them
+      placeholder: "@rizal72/oc-coffee 0.1.1"
+    validations:
+      required: true
+  - type: dropdown
+    id: installed
+    attributes:
+      label: how it was installed
+      options:
+        - opencode plugin add from npm
+        - pointed at a folder in the config
+        - both
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: platform
+      description: OS and architecture, plus the terminal if the TUI is involved
+      placeholder: macOS 27.0 arm64, ghostty
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: the error
+      description: The line from the log (`opencode --print-logs`), or the text on screen
+      render: text
+    validations:
+      required: true

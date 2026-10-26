@@ -19,6 +19,8 @@ The TUI with the widgets below, and the model picker:
 | `oc-budget` | the paying provider's budget: sidebar, footer, `/budget` | — my wallet |
 | `oc-donsetch` | keeps the `donsetch` binary current | — needs that binary |
 
+Something broken? Open an issue: https://github.com/rizal72/opencode-plugins/issues — paste the error line and the opencode version. That is the whole form.
+
 ## Install
 
 ```sh
