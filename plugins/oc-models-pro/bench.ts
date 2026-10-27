@@ -18,7 +18,8 @@ import { dirname, join } from "node:path"
 
 export const CATALOG = "https://catalog.stencil.so/models.json"
 
-const CACHE = join(homedir(), ".cache", "oc-models-pro", "bench.json")
+const CACHE_DIR = process.env.XDG_CACHE_HOME || join(homedir(), ".cache")
+const CACHE = join(CACHE_DIR, "oc-models-pro", "bench.json")
 const GRACE_MS = 6 * 60 * 60 * 1000
 
 export interface Bench {

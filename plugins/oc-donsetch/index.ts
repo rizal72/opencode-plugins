@@ -16,7 +16,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 
-const STAMP = join(homedir(), ".cache", "oc-donsetch", "last-check")
+const CACHE_DIR = process.env.XDG_CACHE_HOME || join(homedir(), ".cache")
+const STAMP = join(CACHE_DIR, "oc-donsetch", "last-check")
 
 /** `DONSETCH_BINARY` wins; otherwise the binary on PATH, which is where `npm i -g` puts it. */
 function resolveBinary(): string | undefined {

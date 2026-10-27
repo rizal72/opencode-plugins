@@ -54,7 +54,8 @@ export interface Credits {
 	peak?: number
 }
 
-const CACHE = join(homedir(), ".cache", "oc-models-pro", "go-limits.json")
+const CACHE_DIR = process.env.XDG_CACHE_HOME || join(homedir(), ".cache")
+const CACHE = join(CACHE_DIR, "oc-models-pro", "go-limits.json")
 
 function text(html: string): string {
 	return html

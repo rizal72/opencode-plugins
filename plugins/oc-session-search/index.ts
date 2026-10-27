@@ -11,9 +11,14 @@ import { searchSessions } from "./search.ts"
 const input = {
 	type: "object",
 	properties: {
-		query: { type: "string", description: "Case-insensitive regular expression." },
+		query: {
+			type: "string",
+			description:
+				"Words to look for, all of them scored: a message holding more of them ranks first. Written as a regular expression when it contains regex syntax.",
+		},
 		project: { type: "string", description: "Substring of the project directory, e.g. OpenCode." },
-		since: { type: "string", description: "Earliest date, YYYY-MM-DD." },
+		since: { type: "string", description: "Earliest date, YYYY-MM-DD, inclusive." },
+		until: { type: "string", description: "Latest date, YYYY-MM-DD, inclusive." },
 		limit: { type: "number", description: "Max hits, default 10, max 40." },
 	},
 	required: ["query"],
