@@ -10,7 +10,7 @@ The TUI with the widgets below, and the model picker:
 
 | plugin | what it does | npm |
 |---|---|---|
-| `@rizal72/oc-models-pro` | `/models-pro`: every model with its price, context, intelligence index, throughput and the Go credit, in a session panel | ✓ |
+| `@rizal72/oc-models-pro` | `/models-pro`: every model with its price, context, intelligence index, tok/s and the Go credit, in a session panel | ✓ |
 | `@rizal72/oc-git` | the repository in the sidebar: branch, the three counts, ahead/behind; the counts in the footer while dirty | ✓ |
 | `@rizal72/oc-coffee` | keeps the Mac awake while the agent works: cup badge in the footer, `/coffee` — macOS only | ✓ |
 | `@rizal72/oc-ponytail-widget` | the ponytail level as a badge in the prompt footer | ✓ |
