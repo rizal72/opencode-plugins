@@ -21,7 +21,9 @@ import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "so
 import { appendFileSync, readFileSync, renameSync, watch, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
-import { benchFor, benchIndex } from "./bench.ts";
+import { benchFor, benchIndex, benchKey } from "./bench.ts";
+import { aaIndex } from "./aa.ts";
+import { speedIndex } from "./tps.ts";
 import { credits, goPlan, key } from "./multipliers.ts";
 import { LEGEND_MIN, fit, hintLines, rowWidth } from "./fit.ts";
 import { tagsFor } from "./tags.ts";
@@ -138,7 +140,7 @@ const SORTS = [{
 }, {
   label: "speed",
   short: "speed↓",
-  value: row => -(row.tps ?? -1)
+  value: row => -(row.measured ?? row.tps ?? -1)
 }, {
   label: "recently used",
   short: "recent",
@@ -197,11 +199,36 @@ function free(row) {
 function headerRow(f) {
   return ["  ", "    ", "model".padEnd(f.name), cell("in", 6), cell("out", 6), ...(f.ctx ? [cell("ctx", 5)] : []), ...(f.int ? [cell("int", 5)] : []), ...(f.tkps ? [cell("tok/s", 6)] : []), cell("cred", 4), ...(f.note ? [cell("note", 6)] : [])].join(" ");
 }
-function modelRow(row, mine, favourite, f) {
+
+/** The speed cell on its own, so the renderer can colour it apart from the rest of the row. */
+function speedCell(row, f) {
+  if (!f.tkps) return "";
+  const text = row.measured !== undefined ? String(Math.round(row.measured)) : row.tps !== undefined ? "~" + Math.round(row.tps) : "";
+  return cell(text, 6);
+}
+
+/** A row in three pieces: everything before the speed, the speed, everything after. */
+function rowParts(row, mine, favourite, f) {
   const notes = [row.peak ? "peak*" + row.peak : "", row.promo ? "+" + row.promo + "x" : ""].filter(Boolean);
-  return [(mine ? "●" : " ") + (favourite ? "*" : " "), padTag(row.tag), label(row.name, f.name), price(row.input, 6), price(row.output, 6), ...(f.ctx ? [cell(tokens(row.context), 5)] : []), ...(f.int ? [cell(row.int !== undefined ? row.int.toFixed(1) : "", 5)] : []), ...(f.tkps ? [cell(row.tps !== undefined ? "~" + Math.round(row.tps) : "", 6)] : []),
+  const head = [(mine ? "●" : " ") + (favourite ? "*" : " "), padTag(row.tag), label(row.name, f.name), price(row.input, 6), price(row.output, 6), ...(f.ctx ? [cell(tokens(row.context), 5)] : []), ...(f.int ? [cell(row.int !== undefined ? row.int.toFixed(1) : "", 5)] : [])];
+  const tail = [
   // Any credit other than 1 changes the effective price, so any of them is shown.
-  cell(row.credit !== 1 ? "×" + row.credit : "", 4), ...(f.note ? [cell(notes.join(" "), 6)] : [])].join(" ");
+  cell(row.credit !== 1 ? "×" + row.credit : "", 4), ...(f.note ? [cell(notes.join(" "), 6)] : [])];
+  const speed = speedCell(row, f);
+  if (!speed) return {
+    before: head.concat(tail).join(" "),
+    speed: "",
+    after: ""
+  };
+  return {
+    before: head.join(" ") + " ",
+    speed,
+    after: tail.length ? " " + tail.join(" ") : ""
+  };
+}
+function modelRow(row, mine, favourite, f) {
+  const parts = rowParts(row, mine, favourite, f);
+  return parts.before + parts.speed + parts.after;
 }
 const TRACE = join(tmpdir(), "oc-models-pro.log");
 
@@ -254,6 +281,10 @@ export default Plugin.define({
     prefs = readPrefs();
     let creditIndex = new Map();
     let bench = new Map();
+    /** Measured on this machine, keyed `providerID/modelID`: it wins over any catalogue figure. */
+    let measured = new Map();
+    /** From Artificial Analysis, for the models this machine never ran. */
+    let estimated = new Map();
     /** False when the Go page could not be read and no cache was there: the credits are all 1. */
     let creditsKnown = false;
     // Signals, not plain variables: the header shows them, and a plain variable left the title
@@ -296,6 +327,10 @@ export default Plugin.define({
         const cost = (model.cost ?? []).find(entry => !entry.tier) ?? model.cost?.[0];
         const limit = model.limit ?? {};
         const score = benchFor(bench, model.name, model.modelID);
+        // Three sources, one order: what this machine measured, then Artificial Analysis, then
+        // the catalogue. A measured figure is never displaced by an estimate.
+        const mine = measured.get(model.providerID + "/" + model.modelID);
+        const theirs = mine === undefined ? estimated.get(benchKey(model.name)) ?? estimated.get(benchKey(model.modelID)) ?? score?.tps : undefined;
         result.push({
           name: model.name,
           providerID: model.providerID,
@@ -316,7 +351,8 @@ export default Plugin.define({
           promo: isGo(model.providerID) ? creditIndex.get(key(model.modelID))?.promo : undefined,
           peak: isGo(model.providerID) ? creditIndex.get(key(model.modelID))?.peak : undefined,
           int: score?.int,
-          tps: score?.tps,
+          tps: theirs,
+          measured: mine,
           enabled: model.enabled !== false
         });
       }
@@ -340,7 +376,21 @@ export default Plugin.define({
       // One fetch a day at most; a failure only costs the credit column and the effective ordering.
       const plan = await goPlan();
       creditIndex = plan ? credits(plan) : new Map();
-      bench = await benchIndex();
+      // The three reads run together: the panel waits for the slowest, not for their sum. Measured
+      // comes first in the ordering below — the only figure that is this provider's own behaviour.
+      const started = Date.now();
+      const [benchmarks, speeds, estimates] = await Promise.all([benchIndex(), speedIndex(), aaIndex()]);
+      bench = benchmarks;
+      measured = new Map([...speeds.speeds].map(([key, speed]) => [key, speed.tps]));
+      estimated = estimates;
+      // How many of the models on offer actually come out with a figure: the one number that says
+      // whether a thin column is a thin source or a broken key.
+      const offer = listModels();
+      const withSpeed = offer.filter(model => {
+        if (measured.has(model.providerID + "/" + model.modelID)) return true;
+        return estimated.get(benchKey(model.name)) !== undefined || estimated.get(benchKey(model.modelID)) !== undefined;
+      }).length;
+      trace("open: tps=" + speeds.turns + " turns, " + measured.size + " measured, " + estimated.size + " from AA, " + withSpeed + "/" + offer.length + " with a speed, " + (Date.now() - started) + " ms");
       creditsKnown = creditIndex.size > 0;
       trace("open: models=" + listModels().length + " bench=" + bench.size + " plan=" + (plan ? "$" + plan.price + " " + plan.limits.length + " rows" : "none") + " credits=" + creditIndex.size + " prefs=" + prefs.favorite.size + "/" + prefs.recent.size);
       if (!ui.panel.open("oc-models-pro")) {
@@ -899,29 +949,43 @@ export default Plugin.define({
               return scope() !== "favorites" && prefs.favorite.has(key);
             };
             return (() => {
-              var _el$19 = _$createElement("box"),
-                _el$20 = _$createElement("text");
-              _$insertNode(_el$19, _el$20);
+              var _el$19 = _$createElement("box");
               _$setProp(_el$19, "id", "mp-" + key);
               _$setProp(_el$19, "height", 1);
+              _$setProp(_el$19, "flexDirection", "row");
               _$setProp(_el$19, "onMouseOver", () => hover(key));
               _$setProp(_el$19, "onMouseMove", () => hover(key));
               _$setProp(_el$19, "onMouseDown", () => {
                 setSelected(key);
                 choose(row);
               });
-              _$setProp(_el$20, "wrapMode", "none");
-              _$insert(_el$20, () => modelRow(row, mine(), favourite(), fitted()));
-              _$effect(_p$ => {
-                var _v$6 = active() ? SELECTED : undefined,
-                  _v$7 = active() ? ON_SELECTED : mine() ? ACCENT : BASE;
-                _v$6 !== _p$.e && (_p$.e = _$setProp(_el$19, "backgroundColor", _v$6, _p$.e));
-                _v$7 !== _p$.t && (_p$.t = _$setProp(_el$20, "fg", _v$7, _p$.t));
-                return _p$;
-              }, {
-                e: undefined,
-                t: undefined
+              _$insert(_el$19, () => {
+                const parts = rowParts(row, mine(), favourite(), fitted());
+                const fg = active() ? ON_SELECTED : mine() ? ACCENT : BASE;
+                // Dim marks the borrowed figure; the tilde says it too, for a reader who
+                // cannot see the colour. Measured values keep the row's own colour.
+                const speedFg = active() ? ON_SELECTED : row.tps !== undefined ? DIM : fg;
+                return [(() => {
+                  var _el$20 = _$createElement("text");
+                  _$setProp(_el$20, "fg", fg);
+                  _$setProp(_el$20, "wrapMode", "none");
+                  _$insert(_el$20, () => parts.before);
+                  return _el$20;
+                })(), _$memo(() => _$memo(() => !!parts.speed)() ? (() => {
+                  var _el$21 = _$createElement("text");
+                  _$setProp(_el$21, "fg", speedFg);
+                  _$setProp(_el$21, "wrapMode", "none");
+                  _$insert(_el$21, () => parts.speed);
+                  return _el$21;
+                })() : null), _$memo(() => _$memo(() => !!parts.after)() ? (() => {
+                  var _el$22 = _$createElement("text");
+                  _$setProp(_el$22, "fg", fg);
+                  _$setProp(_el$22, "wrapMode", "none");
+                  _$insert(_el$22, () => parts.after);
+                  return _el$22;
+                })() : null)];
               });
+              _$effect(_$p => _$setProp(_el$19, "backgroundColor", active() ? SELECTED : undefined, _$p));
               return _el$19;
             })();
           }
@@ -934,14 +998,14 @@ export default Plugin.define({
             return hints();
           },
           children: line => (() => {
-            var _el$21 = _$createElement("box"),
-              _el$22 = _$createElement("text");
-            _$insertNode(_el$21, _el$22);
-            _$setProp(_el$21, "height", 1);
-            _$setProp(_el$22, "fg", DIM);
-            _$setProp(_el$22, "wrapMode", "none");
-            _$insert(_el$22, line);
-            return _el$21;
+            var _el$23 = _$createElement("box"),
+              _el$24 = _$createElement("text");
+            _$insertNode(_el$23, _el$24);
+            _$setProp(_el$23, "height", 1);
+            _$setProp(_el$24, "fg", DIM);
+            _$setProp(_el$24, "wrapMode", "none");
+            _$insert(_el$24, line);
+            return _el$23;
           })()
         }));
         _$effect(_p$ => {

@@ -1,10 +1,7 @@
 # @rizal72/oc-models-pro
 
-A model picker for OpenCode v2 that shows what a request costs, not just a list of names.
-
-It lists every model with its input and output price, context window, intelligence index, `tok/s`
-when a source has it, the Go credit multiplier, and the effective price per request; it sorts by
-what a request actually costs and switches the model on Enter.
+A model picker that shows what a request costs: price in and out, context, intelligence, `tok/s` and
+the Go credit, sorted by what a request actually costs. Enter switches.
 
 ## Install
 
@@ -20,7 +17,7 @@ Or by hand, one line in `~/.config/opencode/opencode.jsonc`:
 
 ## Use
 
-`/models-pro`, or `Ctrl+X` then `p` (the `<leader>p` bind), or the command palette — inside a session.
+`/models-pro`, or `Ctrl+X` then `p`, inside a session.
 
 | key | does |
 |---|---|
@@ -33,21 +30,29 @@ Or by hand, one line in `~/.config/opencode/opencode.jsonc`:
 | `ctrl+u` | clear the search |
 | `esc` | clear the search, else close |
 
-## What it reads
+## Where the numbers come from
 
-- prices and context from the host's own catalogue;
-- the intelligence index from `catalog.stencil.so`, cached six hours;
-- the Go credit from OpenCode's Go plan page, cached one day — `opencode-go` models only;
-- favourites and recent models from the app's own `~/.local/state/opencode/model.json`, so they are
-  the same ones the native picker keeps.
+| column | source |
+|---|---|
+| price, ctx | the host's own catalogue |
+| int | catalog.stencil.so, cached 6 h |
+| tok/s | this machine's own sessions: last 7 days, or all history when that window is thin |
+| ~tok/s | Artificial Analysis, with a free key |
+| cred | the Go plan page, cached 1 day, `opencode-go` only |
 
-No API key is needed, and nothing leaves the machine except those two public fetches.
+Favourites and recents are the native picker's (`~/.local/state/opencode/model.json`), so both agree.
 
-## One caveat
+## Optional: tok/s for models you have not run
 
-A plugin still cannot pick the model directly, so the panel switches it the long way: it borrows the
-app's own switch command and restores what it borrowed a moment later. There is an open issue upstream
-([anomalyco/opencode#57771](https://github.com/anomalyco/opencode/issues/57771)) that would let a plugin
-do it in one call — when it lands, the workaround goes and nothing else changes.
+`tok/s` is measured from your own sessions, so a model you never used has no number. A free key from
+<https://artificialanalysis.ai/> (1,000 requests a day) fills those cells with a `~`:
 
-Requires OpenCode v2. TypeScript, no build step, no runtime dependencies.
+```sh
+# macOS and Linux, zsh or bash
+echo 'export ARTIFICIAL_ANALYSIS_API_KEY="your-key"' >> ~/.zshrc && source ~/.zshrc
+```
+
+```powershell
+# Windows
+setx ARTIFICIAL_ANALYSIS_API_KEY "your-key"
+```

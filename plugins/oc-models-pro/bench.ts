@@ -7,8 +7,9 @@
 // stripped of the labels a catalogue attaches (`latest`, `contributor`, `free`, `preview`) and of
 // snapshot stamps (`1017`, `0731`); the model id is the fallback when the name finds nothing.
 //
-// `int` is on 4612 of 9050 entries; `tps` is on none of them today (measured 2026-10-19), so the
-// speed column stands empty until a source carries it. A figure that is not there is never guessed.
+// `int` is on most entries; `tps` was on none of them when this was last measured (2026-10-19), so the
+// speed column is fed by `tps.ts` and `aa.ts` instead — this file's `tps` stays only as the last resort.
+// A figure that is not there is never guessed.
 //
 // Runnable standalone for its self-check: node plugins/oc-models-pro/bench.ts --self-check
 

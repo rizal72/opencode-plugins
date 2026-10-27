@@ -6,11 +6,11 @@ The TUI with the widgets below, and the model picker:
 
 ![The TUI with the sidebar blocks and the footer badges](screenshots/annotated.png)
 
-![The models-pro picker: prices, context, intelligence index, the Go credit](screenshots/models-pro.png)
+![The models-pro picker: prices, context, intelligence index, tok/s, the Go credit](screenshots/models-pro.png)
 
 | plugin | what it does | npm |
 |---|---|---|
-| `@rizal72/oc-models-pro` | `/models-pro`: every model with its price, context, intelligence index and the Go credit, in a session panel | ✓ |
+| `@rizal72/oc-models-pro` | `/models-pro`: every model with its price, context, intelligence index, throughput and the Go credit, in a session panel | ✓ |
 | `@rizal72/oc-git` | the repository in the sidebar: branch, the three counts, ahead/behind; the counts in the footer while dirty | ✓ |
 | `@rizal72/oc-coffee` | keeps the Mac awake while the agent works: cup badge in the footer, `/coffee` — macOS only | ✓ |
 | `@rizal72/oc-ponytail-widget` | the ponytail level as a badge in the prompt footer | ✓ |
@@ -38,3 +38,5 @@ The four marked `—` are here to be read: they assume something about my setup 
 binary), so packaging them would only sell you a config you do not have.
 
 Where these came from: [Why I left OpenCode for Pi, then came back for v2](https://www.reddit.com/r/opencodeCLI/comments/1xcgnpr/why_i_left_opencode_for_pi_then_came_back_for_v2/).
+
+Speed figures that `models-pro` shows with a `~` come from [Artificial Analysis](https://artificialanalysis.ai/), used under their free API terms.
