@@ -142,6 +142,13 @@ function percentText(percent: number | null): string {
 	return percent === null ? "—" : `${Math.round(percent)}%`
 }
 
+/** How old a reading is, in the shortest form that still says something. */
+function ageText(ms: number): string {
+	const minutes = Math.floor(ms / 60_000)
+	if (minutes < 60) return `${minutes}m`
+	return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
+}
+
 /** Which wallet pays, read from the model first: a Zen selection never uses the Go
  *  subscription however much of the quota is left, and a Go model falls back to the Zen
  *  balance once the month is exhausted. */
@@ -206,13 +213,18 @@ export default Plugin.define({
 		const rpc = context.client.rpc(Budget)
 		const [snapshot, setSnapshot] = createRoot(() => createSignal<BudgetSnapshot | null>(null))
 		const [ready, setReady] = createRoot(() => createSignal(false))
+		/** Why the last read failed. Kept, because a failed read used to be indistinguishable from a
+		 *  fresh one: the panel showed the previous numbers and said nothing (eleven hours, 2026-10-27). */
+		const [failure, setFailure] = createRoot(() => createSignal<string | null>(null))
 
 		const load = async (force: boolean) => {
 			try {
 				const next = await withTimeout(rpc.snapshot(force ? { force: true } : {}), RPC_TIMEOUT_MS)
 				setSnapshot(next as BudgetSnapshot)
-			} catch {
-				// Keep the last good snapshot rather than blanking the widget.
+				setFailure(null)
+			} catch (error) {
+				// Keep the last good snapshot rather than blanking the widget — but say so.
+				setFailure(error instanceof Error ? error.message : String(error))
 			} finally {
 				setReady(true)
 			}
@@ -281,6 +293,14 @@ export default Plugin.define({
 				const out: any[] = []
 
 				if (!ready()) out.push(<text fg={DIM}>reading…</text>)
+				// A reading older than two polls is not fresh, and saying so is the difference between
+				// "the numbers" and "the numbers from an hour ago".
+				const readAt = snap?.at
+				if (typeof readAt === "number" && Date.now() - readAt > 2 * REFRESH_MS) {
+					out.push(<text fg={YELLOW}>stale {ageText(Date.now() - readAt)}</text>)
+				}
+				if (ready() && !snap) out.push(<text fg={RED}>budget —</text>)
+				if (failure()) out.push(<text fg={DIM}>{failure()}</text>)
 
 				if (snap?.go && !snap.go.error) {
 					out.push(

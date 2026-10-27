@@ -211,7 +211,9 @@ async function collectOpenRouter(ctx: any): Promise<BudgetSnapshot["or"]> {
 			const monthly = keyBody?.data?.usage_monthly
 			if (typeof monthly === "number") result.usageMonthly = monthly
 			const regions = keyBody?.data?.allowed_data_regions
-			if (Array.isArray(regions)) result.regions = regions
+			// Filtered to strings: an array item of another type cannot be encoded against the
+			// contract, and that failure is a silent `rpc.invalid_output` — an HTTP 500 logged nowhere.
+			if (Array.isArray(regions)) result.regions = regions.filter((r: unknown) => typeof r === "string")
 		} catch {
 			// keep the balance
 		}
@@ -251,11 +253,24 @@ async function collectZen(ctx: any): Promise<BudgetSnapshot["zen"]> {
 		return {
 			balance: microCentsToDollars(balance),
 			available: microCentsToDollars(available),
-			org: org.name,
+			...(typeof org.name === "string" ? { org: org.name } : {}),
 			...(await consolePeers(ctx).then((peers) => (peers === undefined ? {} : { peers }))),
 		}
 	} catch (error) {
 		return { error: message(error) }
+	}
+}
+
+/** A snapshot that says why the read failed, in every wallet. A rejected handler answered HTTP 500 and
+ *  left the panel blank with nothing to read; this one is visible where the numbers would be. */
+function failedSnapshot(error: unknown): BudgetSnapshot {
+	const text = message(error)
+	return {
+		at: Date.now(),
+		go: { error: text },
+		ds: { error: text },
+		or: { error: text },
+		zen: { error: text },
 	}
 }
 
@@ -289,6 +304,7 @@ export default {
 				if (force) await inFlight?.catch(() => {})
 				if (inFlight) return inFlight
 				inFlight = collect()
+					.catch(failedSnapshot)
 					.then((snapshot) => {
 						cache = snapshot
 						cacheAt = Date.now()
