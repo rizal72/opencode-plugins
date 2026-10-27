@@ -65,8 +65,10 @@ type Plan = { kind: "regex"; source: string } | { kind: "terms"; terms: string[]
 const CHUNK = 1_000
 /** Each term is a pass over every message, so the count is capped: the longest words are kept. */
 const MAX_TERMS = 6
-/** Messages whose JSON is read before the final cut. Reading 2.500 bodies to discard 2.450 is waste. */
+/** Messages whose JSON is read per round. Reading 2.500 bodies to discard 2.450 is waste. */
 const FIELD = 120
+/** Rounds of `FIELD` bodies: the word-bounded test may reject a whole page of substring noise. */
+const ROUNDS = 5
 /** Beyond this many candidates the scan stops. Only a corpus this size makes it a real limit. */
 const CANDIDATES = 30_000
 const SNIPPET_BEFORE = 120
@@ -85,7 +87,9 @@ export function terms(query: string): string[] {
 		const key = word.toLowerCase()
 		if (seen.has(key)) continue
 		seen.add(key)
-		out.push(word)
+		// Lowercase because SQL's `instr` is case-sensitive while the JS judge is not: the
+		// prefilter has to stay a superset of what the judge will accept.
+		out.push(key)
 		if (out.length === MAX_TERMS) break
 	}
 	return out
@@ -93,7 +97,7 @@ export function terms(query: string): string[] {
 
 /** A term and, for a plural, its singular. Substring matching already covers the other direction. */
 export function variants(term: string): string[] {
-	return term.length >= 6 && /[^s]s$/i.test(term) ? [term, term.slice(0, -1)] : [term]
+	return term.length >= 5 && /[^s]s$/i.test(term) ? [term, term.slice(0, -1)] : [term]
 }
 
 /** A query carrying regex syntax is run as one, unchanged; anything else is split into words. */
@@ -101,9 +105,9 @@ export function looksLikeRegex(query: string): boolean {
 	return /[.*+?^$()[\]{}|\\]/.test(query)
 }
 
-/** The longest literal run of an expression: the only part SQL can prefilter. */
-export function needle(query: string): string | undefined {
-	return query.match(/[A-Za-z0-9_]{2,}/g)?.sort((a, b) => b.length - a.length)[0]
+/** Every literal run of an expression: SQL can only prefilter on those, and `a|b` needs both. */
+export function literals(query: string): string[] {
+	return [...new Set((query.match(/[A-Za-z0-9_]{2,}/g) ?? []).map((run) => run.toLowerCase()))]
 }
 
 /** JSON escapes turned back into text, so the match runs on prose and the snippet is readable. */
@@ -115,7 +119,7 @@ export function plain(data: string): string {
 		.replace(/\u0000/g, "\\")
 }
 
-/** The prose of a message: `text`, or the text parts of a reply, tool calls and reasoning excluded. */
+/** The prose of a message: `text`, or the text parts of a reply — tool calls and their output excluded. */
 export function textOf(data: string): string | undefined {
 	try {
 		const entry = JSON.parse(data) as { text?: unknown; content?: unknown }
@@ -143,8 +147,13 @@ function literal(text: string): string {
 function day(date: string, end: boolean): number | null {
 	const parts = date.match(/^(\d{4})-(\d{2})-(\d{2})$/)
 	if (!parts) return null
-	const time = new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]) + (end ? 1 : 0)).getTime()
-	return Number.isNaN(time) ? null : time
+	const year = Number(parts[1])
+	const month = Number(parts[2])
+	const dayOfMonth = Number(parts[3])
+	const start = new Date(year, month - 1, dayOfMonth)
+	// A real date round-trips; the constructor turns 2025-02-30 into March without complaining.
+	if (start.getFullYear() !== year || start.getMonth() !== month - 1 || start.getDate() !== dayOfMonth) return null
+	return new Date(year, month - 1, dayOfMonth + (end ? 1 : 0)).getTime()
 }
 
 /** One connection for the whole search. `bun:sqlite` returns in a promise so both paths look alike. */
@@ -201,8 +210,13 @@ async function openStore(database: string): Promise<Store> {
 /** One term, or one regex, as SQL: the rows that may match, and one presence column per term. */
 function sqlFor(plan: Plan): { where: string; cols: string[] } {
 	if (plan.kind === "regex") {
-		const run = needle(plan.source)
-		return { where: "instr(m.data, " + literal(run ?? "") + ") > 0", cols: [] }
+		const runs = literals(plan.source)
+		return {
+			// An expression with no literal run (`.`, `\d+`) has nothing to prefilter on: every row is
+			// a candidate, and the cap below is what keeps that survivable.
+			where: runs.length === 0 ? "1 = 1" : runs.map((run) => "instr(m.data, " + literal(run) + ") > 0").join(" or "),
+			cols: [],
+		}
 	}
 	const one = (term: string) =>
 		variants(term)
@@ -219,6 +233,7 @@ async function scan(store: Store, plan: Plan, options: SearchOptions): Promise<{
 	candidates: Candidate[]
 	sessions: number
 	weights: number[]
+	capped?: boolean
 	stalled?: string
 }> {
 	const { where, cols } = sqlFor(plan)
@@ -226,16 +241,21 @@ async function scan(store: Store, plan: Plan, options: SearchOptions): Promise<{
 	const since = options.since ? day(options.since, false) : undefined
 	const until = options.until ? day(options.until, true) : undefined
 	if (since === null || until === null)
-		return { candidates: [], sessions: 0, weights: [], stalled: "Date must be YYYY-MM-DD." }
+		return { candidates: [], sessions: 0, weights: [], stalled: "Dates must be real dates, YYYY-MM-DD." }
 	const low = through(since)
 	const high = through(until)
+	if (low && high && Number(low) >= Number(high))
+		return { candidates: [], sessions: 0, weights: [], stalled: "`since` is after `until`." }
 	if (low) bounds.push("m.time_created >= " + low)
 	if (high) bounds.push("m.time_created < " + high)
-	const project = options.project ? "instr(s.directory, " + literal(options.project.toLowerCase()) + ") > 0" : undefined
+	const project = options.project
+		? "instr(lower(s.directory), " + literal(options.project.toLowerCase()) + ") > 0"
+		: undefined
 
 	const top = await store.query("select max(rowid) as top from session_message")
 	const max = Number(top[0]?.top ?? 0)
 	const candidates: Candidate[] = []
+	let capped = false
 	for (let lo = 0; lo < max; lo += CHUNK) {
 		if (options.signal?.aborted) break
 		const sql =
@@ -253,7 +273,10 @@ async function scan(store: Store, plan: Plan, options: SearchOptions): Promise<{
 			(bounds.length > 0 ? " and " + bounds.join(" and ") : "") +
 			(project ? " and " + project : "")
 		for (const row of await store.query(sql)) candidates.push(row as Candidate)
-		if (candidates.length > CANDIDATES) break
+		if (candidates.length > CANDIDATES) {
+			capped = true
+			break
+		}
 		await tick()
 	}
 	// Rarity weighting without a second pass. Every message holding a term is a candidate, so the
@@ -272,7 +295,7 @@ async function scan(store: Store, plan: Plan, options: SearchOptions): Promise<{
 		}
 	}
 	const sessions = new Set(candidates.map((c) => c.sid)).size
-	return { candidates, sessions, weights }
+	return { candidates, sessions, weights, capped }
 }
 
 function through(value: number | null | undefined): string | undefined {
@@ -374,43 +397,45 @@ export async function searchSessions(options: SearchOptions): Promise<{
 
 	const store = await openStore(database)
 	try {
-		const { candidates, sessions, weights, stalled } = await scan(store, plan, options)
+		const { candidates, weights, capped, stalled } = await scan(store, plan, options)
 		if (stalled) return { hits: [], sessions: 0, text: stalled }
 		// Ranked before anything is read or cut: score first, recency as the tiebreak.
 		candidates.sort((a, b) => b.score - a.score || b.ts - a.ts)
-
-		const field = candidates.slice(0, FIELD)
-		const bodies =
-			field.length === 0
-				? []
-				: await store.query(
-						"select m.rowid as rid, m.data as data from session_message m where m.rowid in (" +
-							field.map((c) => c.rid).join(",") +
-							")",
-					)
-		const byId = new Map<number, string>(bodies.map((row: any) => [Number(row.rid), String(row.data)]))
 
 		// Prose first, tool payloads only as filler: a search for a discussed topic wants the
 		// sentence, not the command that happened to name it. Judged here, because SQL reads JSON
 		// and cannot tell the two apart.
 		const test = judge(plan, weights)
 		const scored: Array<{ candidate: Candidate; prose: boolean; at: number; matched: number; source: string }> = []
-		for (const candidate of field) {
-			const data = byId.get(candidate.rid)
-			if (data === undefined) continue
-			const prose = textOf(data)
-			if (prose !== undefined) {
-				const found = test(prose)
+		// The substring score decides which bodies are read; the word-bounded test decides what is
+		// returned. A page of substring noise can hide real matches, so read on while the list is short.
+		for (let taken = 0; taken < candidates.length && scored.length < limit && taken < FIELD * ROUNDS; taken += FIELD) {
+			const field = candidates.slice(taken, taken + FIELD)
+			if (field.length === 0) break
+			const bodies = await store.query(
+				"select m.rowid as rid, m.data as data from session_message m where m.rowid in (" +
+					field.map((c) => c.rid).join(",") +
+					")",
+			)
+			const byId = new Map<number, string>(bodies.map((row: any) => [Number(row.rid), String(row.data)]))
+			for (const candidate of field) {
+				const data = byId.get(candidate.rid)
+				if (data === undefined) continue
+				const prose = textOf(data)
+				if (prose !== undefined) {
+					const found = test(prose)
+					if (found.matched > 0) {
+						scored.push({ candidate, prose: true, at: found.at, matched: found.matched, source: prose })
+						continue
+					}
+				}
+				const raw = plain(data)
+				const found = test(raw)
 				if (found.matched > 0) {
-					scored.push({ candidate, prose: true, at: found.at, matched: found.matched, source: prose })
-					continue
+					scored.push({ candidate, prose: false, at: found.at, matched: found.matched, source: raw })
 				}
 			}
-			const raw = plain(data)
-			const found = test(raw)
-			if (found.matched > 0) {
-				scored.push({ candidate, prose: false, at: found.at, matched: found.matched, source: raw })
-			}
+			await tick()
 		}
 		// Prose first, then the rarity-weighted score from the scan, then date. Re-sorting by the
 		// count of words present would throw away the weighting that the scan just computed.
@@ -435,7 +460,12 @@ export async function searchSessions(options: SearchOptions): Promise<{
 		}
 		take(1)
 		take(limit)
-		return { hits, sessions, text: format(hits, options.query, sessions) }
+		// The header counts what was actually judged, not what the loose substring prefilter let through.
+		const matched = new Set(scored.map((entry) => entry.candidate.sid)).size
+		const note = capped
+			? "\nStopped after " + CANDIDATES + " candidates: the ranking covers those only. Narrow the query or the dates."
+			: ""
+		return { hits, sessions: matched, text: format(hits, options.query, matched) + note }
 	} finally {
 		store.close()
 	}
@@ -454,10 +484,20 @@ if (process.argv[2] === "--self-check") {
 		if (miss.hits.length !== 0) throw new Error("self-check: expected no hits")
 
 		const filtered = await searchSessions({ query: "session_search", project: "OpenCode", limit: 2 })
+		if (filtered.hits.length === 0) throw new Error("self-check: the project filter found nothing")
 		if (filtered.hits.some((h) => h.project !== "OpenCode")) throw new Error("self-check: project filter leaked")
 
 		const bad = await searchSessions({ query: "([unclosed" })
 		if (!/Invalid regular expression/.test(bad.text)) throw new Error("self-check: bad regex not reported")
+
+		// Regression: the SQL prefilter is case-sensitive, the judge is not. A mixed-case query must
+		// still find the lowercase rows.
+		const mixed = await searchSessions({ query: "GitHub", limit: 2 })
+		if (mixed.hits.length === 0) throw new Error("self-check: a capitalised query lost the lowercase rows")
+
+		// Regression: a regex prefilter on one branch hides the others.
+		const alternation = await searchSessions({ query: "pairing|ponytail", limit: 2 })
+		if (alternation.hits.length === 0) throw new Error("self-check: an alternation lost its branches")
 
 		// Regression: a word that lives across many sessions must not come back as one day only.
 		const spread = await searchSessions({ query: "mirror github", limit: 10 })
@@ -474,6 +514,10 @@ if (process.argv[2] === "--self-check") {
 
 		const wrongDate = await searchSessions({ query: "session", since: "01/01/2025" })
 		if (!/YYYY-MM-DD/.test(wrongDate.text)) throw new Error("self-check: a malformed date must be reported")
+		const impossible = await searchSessions({ query: "session", since: "2025-02-30" })
+		if (!/real dates/.test(impossible.text)) throw new Error("self-check: an impossible date must be reported")
+		const inverted = await searchSessions({ query: "session", since: "2026-06-01", until: "2026-05-01" })
+		if (!/since.*is after/.test(inverted.text)) throw new Error("self-check: an inverted range must be reported")
 
 		console.log(
 			"self-check ok: " +
