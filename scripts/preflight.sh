@@ -7,7 +7,16 @@
 # runs by hand because the workflow sees the commit only after it is already on main.
 #
 #   scripts/preflight.sh        exit 1 and name the packages to bump
+#   scripts/preflight.sh --allow   push anyway, for a change that does not move the package
 set -eu
+
+ALLOW=""
+for arg in "$@"; do
+	case "$arg" in
+	--allow) ALLOW="yes" ;;
+	*) echo "unknown option: $arg" >&2; exit 2 ;;
+	esac
+done
 
 root=$(git rev-parse --show-toplevel)
 cd "$root"
@@ -39,6 +48,10 @@ for dir in plugins/*/; do
 done
 
 if [ -n "$blocked" ]; then
+	if [ "$ALLOW" = yes ]; then
+		echo "warning: content without a version bump:$blocked — pushed anyway, npm stays where it is" >&2
+		exit 0
+	fi
 	echo "the content moved but the version did not:" >&2
 	for entry in $blocked; do
 		echo "  $entry" >&2
