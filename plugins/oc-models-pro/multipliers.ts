@@ -54,6 +54,15 @@ export interface Credits {
 	peak?: number
 }
 
+/** The native DeepSeek tariff doubles at peak, and the catalogue lists the **off-peak** figure: measured
+ *  2026-10-28 against DeepSeek's own pricing page — `deepseek-flash` $0.15 off-peak / $0.30 peak, and the
+ *  catalogue carries 0.15. Duplicated from `oc-budget/peak.ts` on purpose: the two packages are published
+ *  apart and neither may import the other, so each carries the one fact it needs. That copy also owns the
+ *  clock and the wallet; this one only knows which *list* price doubles, so the note stays static. */
+export function nativePeak(providerID: string): number | undefined {
+	return providerID === "deepseek" ? 2 : undefined
+}
+
 const CACHE_DIR = process.env.XDG_CACHE_HOME || join(homedir(), ".cache")
 const CACHE = join(CACHE_DIR, "oc-models-pro", "go-limits.json")
 

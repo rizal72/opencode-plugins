@@ -1,7 +1,7 @@
 # @rizal72/oc-models-pro
 
-A model picker that shows what a request costs: price in and out, context, intelligence, `tok/s` and
-the Go credit, sorted by what a request actually costs. Enter switches.
+A model picker that shows what a request costs: price in and out, context, intelligence, `tok/s` and the
+Go credit, sorted by what a request actually costs. Enter switches.
 
 ## Install
 
@@ -15,7 +15,7 @@ Or by hand, one line in `~/.config/opencode/opencode.jsonc`:
 "plugins": ["@rizal72/oc-models-pro"]
 ```
 
-## Use
+## TUI
 
 `/models-pro`, or `Ctrl+X` then `p`, inside a session.
 
@@ -30,7 +30,12 @@ Or by hand, one line in `~/.config/opencode/opencode.jsonc`:
 | `ctrl+u` | clear the search |
 | `esc` | clear the search, else close |
 
-## Where the numbers come from
+## GUI
+
+The same table as a side panel: `mod+shift+m`, `/models-pro`, or the session menu. Click a column to sort
+by it, a star to favourite, a row to switch. The search box, the scope buttons and a refresh sit above it.
+
+## How it works
 
 | column | source |
 |---|---|
@@ -40,7 +45,8 @@ Or by hand, one line in `~/.config/opencode/opencode.jsonc`:
 | ~tok/s | Artificial Analysis, with a free key |
 | cred | the Go plan page, cached 1 day, `opencode-go` only |
 
-Favourites and recents are the native picker's (`~/.local/state/opencode/model.json`), so both agree.
+Favourites and recents are the native picker's (`~/.local/state/opencode/model.json`), so both agree. The
+switch is the app's own path, never a write to the session or that file.
 
 ## Optional: tok/s for models you have not run
 

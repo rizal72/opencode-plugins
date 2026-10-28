@@ -1,8 +1,8 @@
 {
 	"name": "@rizal72/oc-ponytail-widget",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"type": "module",
-	"description": "Unofficial ponytail level badge for OpenCode v2: the level in the prompt footer, next to the coffee cup",
+	"description": "Unofficial ponytail level for OpenCode v2: the level in the prompt footer, next to the coffee cup, and a pill on the desktop that sets it",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/rizal72/opencode-plugins.git"
@@ -11,7 +11,8 @@
 	"files": [
 		"*.ts",
 		"tui.js",
-		"README.md"
+		"README.md",
+		"dist"
 	],
 	"keywords": [
 		"opencode",
@@ -24,6 +25,8 @@
 	},
 	"exports": {
 		".": "./index.ts",
-		"./tui": "./tui.js"
+		"./tui": "./tui.js",
+		"./rpc": "./rpc.ts",
+		"./gui-experimental": "./dist/gui-experimental.cjs"
 	}
 }

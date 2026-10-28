@@ -13,6 +13,9 @@ permissions:
 
 jobs:
   publish:
+    # The manual run exists to retry a push that failed, not to publish another branch: `workflow_dispatch`
+    # lets the operator pick any ref, and a run from one would ship it with none of the local gates.
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

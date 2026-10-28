@@ -91,7 +91,10 @@ export async function benchIndex(): Promise<Map<string, Bench>> {
 	const previous = await cached()
 	if (previous && Date.now() - previous.fetched < GRACE_MS) return indexOf(previous)
 	try {
-		const response = await fetch(CATALOG, { headers: { "user-agent": "oc-models-pro" } })
+		const response = await fetch(CATALOG, {
+			headers: { "user-agent": "oc-models-pro" },
+			signal: AbortSignal.timeout(20_000),
+		})
 		if (!response.ok) throw new Error("HTTP " + response.status)
 		const built = buildIndex(await response.json())
 		if (built.size === 0) throw new Error("catalog shape changed")
@@ -115,7 +118,7 @@ export function benchFor(index: Map<string, Bench>, name: string, id: string): B
 // Self-check: node plugins/oc-models-pro/bench.ts --self-check
 if (process.argv[2] === "--self-check") {
 	const run = async () => {
-		const response = await fetch(CATALOG)
+		const response = await fetch(CATALOG, { signal: AbortSignal.timeout(20_000) })
 		if (!response.ok) throw new Error("self-check: HTTP " + response.status)
 		const index = buildIndex(await response.json())
 		if (index.size < 200) throw new Error("self-check: only " + index.size + " models keyed")

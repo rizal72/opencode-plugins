@@ -32,8 +32,8 @@ import { createElement as _$createElement } from "@opentui/solid";
 // The block is hidden whenever git cannot answer — outside a repository, or on a machine without
 // git — because an empty block is worse than no block.
 import { Plugin } from "@opencode/plugin/tui";
-import { execFile } from "node:child_process";
 import { createSignal } from "solid-js";
+import { read } from "./git.ts";
 
 /** The two glyphs pi's own widget uses, copied from there — verified by reading the codepoints
  *  back out of this file, never from memory. */
@@ -43,39 +43,6 @@ const REFRESH_MS = 3000;
 const FALLBACK_ACCENT = "#79c0ff";
 const FALLBACK_YELLOW = "#d29922";
 const FALLBACK_DIM = "#8b949e";
-/** `git status --porcelain=v2 --branch` -> the block's six numbers. */
-function parse(text) {
-  let branch;
-  let ahead;
-  let behind;
-  let added = 0;
-  let modified = 0;
-  let untracked = 0;
-  for (const line of text.split("\n")) {
-    if (line.startsWith("# branch.head ")) {
-      branch = line.slice("# branch.head ".length).trim();
-    } else if (line.startsWith("# branch.ab ")) {
-      const match = line.match(/\+(\d+)\s+-(\d+)/);
-      if (match) {
-        ahead = Number(match[1]);
-        behind = Number(match[2]);
-      }
-    } else if (line.startsWith("? ")) {
-      untracked += 1;
-    } else if (line.startsWith("1 ") || line.startsWith("2 ") || line.startsWith("u ")) {
-      if (line[2] === "A") added += 1;else modified += 1;
-    }
-  }
-  if (branch === undefined) return undefined;
-  return {
-    branch,
-    ahead,
-    behind,
-    added,
-    modified,
-    untracked
-  };
-}
 export default Plugin.define({
   id: "oc-git.tui",
   setup(context) {
@@ -104,12 +71,9 @@ export default Plugin.define({
       const directory = location?.directory;
       if (!directory) return;
       reading = true;
-      execFile("git", ["status", "--porcelain=v2", "--branch"], {
-        cwd: directory,
-        maxBuffer: 8 * 1024 * 1024
-      }, (error, stdout) => {
+      void read(directory).then(status => {
         reading = false;
-        setState(error ? undefined : parse(stdout));
+        setState(status);
       });
     }
     refresh();

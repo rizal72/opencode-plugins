@@ -25,30 +25,45 @@
 // fixed values only if a theme does not define them.
 import { Plugin } from "@opencode/plugin/tui"
 import { createEffect, createMemo, createRoot, createSignal, Show } from "solid-js"
+// The tariff is the same fact on both surfaces: `peak.ts` holds it, and these names are the ones the
+// widget was written with.
+import { clock, doubles as peakDoubles, isPeak as isDeepseekPeak, nextChange as nextRegimeChange } from "./peak.ts"
 import { Budget } from "./rpc.ts"
 import type { BudgetSnapshot, UsageWindow } from "./rpc.ts"
+import {
+	DS_WARN_USD,
+	GO_WARN_PERCENT,
+	OR_WARN_USD,
+	ZEN_WARN_USD,
+	ageText,
+	payingWallet,
+	windowPercent,
+	type ModelRef,
+	type Wallet,
+} from "./budget.ts"
 
 const REFRESH_MS = 5 * 60 * 1000
 
-/** A stalled RPC must not leave the widget saying "reading…" for ever. */
+/** A stalled RPC must not leave the widget saying "reading…" for ever. The timer is cleared with the
+ *  answer: a poll every five minutes would otherwise keep a fifteen-second timer around for nothing. */
 const RPC_TIMEOUT_MS = 15_000
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-	return Promise.race([
-		promise,
-		new Promise<T>((_resolve, reject) => setTimeout(() => reject(new Error(`rpc timed out after ${ms}ms`)), ms)),
-	])
+	return new Promise<T>((resolve, reject) => {
+		const timer = setTimeout(() => reject(new Error(`rpc timed out after ${ms}ms`)), ms)
+		promise.then(
+			(value) => {
+				clearTimeout(timer)
+				resolve(value)
+			},
+			(error) => {
+				clearTimeout(timer)
+				reject(error)
+			},
+		)
+	})
 }
 
-// Thresholds, unchanged from pi-budget: the point at which the colour turns is a
-// decision about consequence, not an estimate. Go alerts at 90% of the month; the Zen
-// wallet at the console's own $5 auto-recharge threshold; DeepSeek at $2 and
-// OpenRouter at $5 (its credits are bought in blocks and expire, so the useful warning
-// is "time to top up" and $2 would fire too late to act on).
-const GO_WARN_PERCENT = 90
-const DS_WARN_USD = 2
-const OR_WARN_USD = 5
-const ZEN_WARN_USD = 5
 
 /** Last-resort colours, used only when the active theme defines none of the token
  *  candidates below. */
@@ -64,51 +79,6 @@ const FALLBACK_ACCENT = "#79c0ff"
 const BUDGET_GLYPH = "\u{f04c5}"
 const PEAK_GLYPH = "\u{f0535}"
 const SHIELD_GLYPH = "\u{f0565}"
-
-/** DeepSeek's peak windows, in UTC: 01:00-04:00 and 06:00-10:00, Mon-Fri. Everything
- *  else is half price. UTC is deliberate: it makes the arithmetic DST-proof. A Chinese
- *  public holiday is not encoded, so it reads as peak — over-warning, which is the safe
- *  direction. */
-const PEAK_WINDOWS_UTC: ReadonlyArray<readonly [number, number]> = [
-	[1, 4],
-	[6, 10],
-]
-const PEAK_EDGES_UTC = [1, 4, 6, 10]
-
-type Wallet = "go" | "zen" | "ds" | "or" | "none"
-
-interface ModelRef {
-	providerID?: string
-	modelID?: string
-	variant?: string
-}
-
-function isDeepseekPeak(at = Date.now()): boolean {
-	const date = new Date(at)
-	const day = date.getUTCDay()
-	if (day === 0 || day === 6) return false
-	const hour = date.getUTCHours() + date.getUTCMinutes() / 60
-	return PEAK_WINDOWS_UTC.some(([from, to]) => hour >= from && hour < to)
-}
-
-/** The next instant the regime flips, and what it flips to. Candidates are the window
- *  edges over the next ten days; the first that actually changes the state wins, which
- *  skips the weekend edges that open and close nothing. */
-function nextRegimeChange(at = Date.now()): { peak: boolean; at: number } {
-	const now = isDeepseekPeak(at)
-	const midnight = new Date(at)
-	midnight.setUTCHours(0, 0, 0, 0)
-	const edges: number[] = []
-	for (let offset = 0; offset <= 10; offset++) {
-		for (const hour of PEAK_EDGES_UTC) {
-			const time = midnight.getTime() + offset * 86_400_000 + hour * 3_600_000
-			if (time > at) edges.push(time)
-		}
-	}
-	edges.sort((a, b) => a - b)
-	for (const time of edges) if (isDeepseekPeak(time) !== now) return { peak: !now, at: time }
-	return { peak: !now, at: edges[edges.length - 1] }
-}
 
 function bar(percent: number, cells = 10): string {
 	const filled = Math.max(0, Math.min(cells, Math.round((percent / 100) * cells)))
@@ -133,45 +103,14 @@ function usd(value: number | undefined): string {
 	return `$${value.toFixed(2)}`
 }
 
-function windowPercent(window: UsageWindow | undefined): number | null {
-	return typeof window?.percent === "number" ? window.percent : null
-}
-
 /** A percent as the panel prints it — a dash, never a fake zero, when there is no number. */
 function percentText(percent: number | null): string {
 	return percent === null ? "—" : `${Math.round(percent)}%`
 }
 
-/** How old a reading is, in the shortest form that still says something. */
-function ageText(ms: number): string {
-	const minutes = Math.floor(ms / 60_000)
-	if (minutes < 60) return `${minutes}m`
-	return `${Math.floor(minutes / 60)}h ${minutes % 60}m`
-}
-
-/** Which wallet pays, read from the model first: a Zen selection never uses the Go
- *  subscription however much of the quota is left, and a Go model falls back to the Zen
- *  balance once the month is exhausted. */
-function payingWallet(model: ModelRef | undefined, snapshot: BudgetSnapshot | null): Wallet {
-	const provider = model?.providerID ?? ""
-	if (provider === "deepseek") return "ds"
-	if (provider === "openrouter") return "or"
-	if (provider === "opencode" || provider === "opencode-zen") return "zen"
-	if (provider === "opencode-go") return snapshot?.go?.monthly?.status === "rate-limited" ? "zen" : "go"
-	return "none"
-}
-
 /** True when the active model's price doubles inside a peak window: native DeepSeek, and
  *  the DeepSeek ids on Go while the subscription pays. Zen never does — its DeepSeek
  *  price is flat at the peak figure, a constant and not a doubling. */
-function peakDoubles(model: ModelRef | undefined, wallet: Wallet): boolean {
-	if (!isDeepseekPeak()) return false
-	const provider = model?.providerID ?? ""
-	if (provider === "deepseek") return true
-	if (provider === "opencode-go" && wallet === "go") return /^deepseek/.test(model?.modelID ?? "")
-	return false
-}
-
 /** True when OpenRouter's account regions pin something narrower than the default
  *  multi-region — the only place the guardrail is visible. */
 function regionPinned(regions: string[] | undefined): boolean {
@@ -288,7 +227,7 @@ export default Plugin.define({
 			// snapshot/model change and rebuilds the rows from the current values.
 			const rows = createMemo(() => {
 				const snap = snapshot()
-				const peak = peakDoubles(model(), payingWallet(model(), snap)) ? PEAK_GLYPH : ""
+				const peak = peakDoubles(model(), payingWallet(model(), snap), clock()) ? PEAK_GLYPH : ""
 				const goPercent = windowPercent(snap?.go?.monthly)
 				const out: any[] = []
 
@@ -409,7 +348,7 @@ export default Plugin.define({
 					return {
 						color: goColor(percent),
 						body: percent === null ? "GO —" : `GO ${Math.round(percent)}%`,
-						marker: peakDoubles(model(), wallet) ? PEAK_GLYPH : "",
+						marker: peakDoubles(model(), wallet, clock()) ? PEAK_GLYPH : "",
 					}
 				}
 				if (wallet === "zen") {
@@ -423,7 +362,7 @@ export default Plugin.define({
 					return {
 						color: balanceColor(snap?.ds?.balance, DS_WARN_USD),
 						body: `DS ${snap?.ds?.error ? "—" : usd(snap?.ds?.balance)}`,
-						marker: peakDoubles(model(), wallet) ? PEAK_GLYPH : "",
+						marker: peakDoubles(model(), wallet, clock()) ? PEAK_GLYPH : "",
 					}
 				}
 				return {
@@ -520,9 +459,9 @@ export default Plugin.define({
 
 			// The price regime only means something where the tariff moves.
 			if (wallet === "ds" || (wallet === "go" && /^deepseek/.test(model()?.modelID ?? ""))) {
-				const next = nextRegimeChange()
+				const next = nextRegimeChange(clock())
 				lines.push("")
-				lines.push(`  ${"peak".padEnd(8)} ${isDeepseekPeak() ? "PEAK — paying double" : "off-peak (half price)"}`)
+				lines.push(`  ${"peak".padEnd(8)} ${isDeepseekPeak(clock()) ? "PEAK — paying double" : "off-peak (half price)"}`)
 				lines.push(
 					`  ${"next".padEnd(8)} ${next.peak ? "peak" : "off-peak"} in ${countdown(new Date(next.at).toISOString())}`,
 				)

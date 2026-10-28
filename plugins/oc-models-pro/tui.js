@@ -18,138 +18,23 @@ import { createElement as _$createElement } from "@opentui/solid";
 // is the first row whatever it costs: the free/paying split never buries it.
 import { Plugin } from "@opencode/plugin/tui";
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js";
-import { appendFileSync, readFileSync, renameSync, watch, writeFileSync } from "node:fs";
+import { appendFileSync, readFileSync, watch, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 import { benchFor, benchIndex, benchKey } from "./bench.ts";
 import { aaIndex } from "./aa.ts";
 import { speedIndex } from "./tps.ts";
-import { credits, goPlan, key } from "./multipliers.ts";
+import { credits, goPlan, key, nativePeak } from "./multipliers.ts";
 import { LEGEND_MIN, fit, hintLines, rowWidth } from "./fit.ts";
 import { tagsFor } from "./tags.ts";
+import { prefKey, readFavourites, readPrefs, toggleFavorite, writeFavourites, PREFS_FILE } from "./prefs.ts";
+import { ORDER, ORDERS, arrange, compare, isFree } from "./rows.ts";
 const SCOPES = ["all", "favorites", "paying"];
-const prefKey = (providerID, modelID) => providerID + "/" + modelID;
-
-/** The picker's own state file: `favorite[]` and `recent[]` are `{ providerID, modelID }`. */
-
-const PREFS_FILE = join(homedir(), ".local/state/opencode/model.json");
-/** Same directory, a leading dot: the host watches `model.json.*`, not this. */
-const TEMP_FILE = join(homedir(), ".local/state/opencode", ".model.json.tmp");
 let prefs = {
   favorite: new Set(),
   recent: new Map(),
   variants: new Map()
 };
-
-/** The host's `favorite[]` as it is in the file: a key cannot be split back — a model id may hold a slash. */
-function readFavourites() {
-  try {
-    const data = JSON.parse(readFileSync(PREFS_FILE, "utf8"));
-    if (!Array.isArray(data.favorite)) return [];
-    return data.favorite.filter(entry => typeof entry?.providerID === "string" && typeof entry?.modelID === "string");
-  } catch (error) {
-    // A missing file is not an error: starting empty creates it on the write. Anything else is.
-    if (error?.code === "ENOENT") return [];
-    trace("favourites: " + (error instanceof Error ? error.message : String(error)));
-    return undefined;
-  }
-}
-
-/** Rewrites `favorite[]` with the rest of the file untouched. The host watches this path and
- *  `model.json.*`, so the atomic rename is seen and the native picker, `model.cycle_favorite` and this
- *  list stay in step; a dot in front keeps the temp name outside that glob. */
-function writeFavourites(list) {
-  try {
-    let raw;
-    try {
-      raw = JSON.parse(readFileSync(PREFS_FILE, "utf8"));
-    } catch (error) {
-      if (error?.code !== "ENOENT") throw error;
-      raw = {};
-    }
-    raw.favorite = list;
-    writeFileSync(TEMP_FILE, JSON.stringify(raw));
-    renameSync(TEMP_FILE, PREFS_FILE);
-    return true;
-  } catch (error) {
-    trace("favourites: " + (error instanceof Error ? error.message : String(error)));
-    return false;
-  }
-}
-function toggleFavorite(providerID, modelID) {
-  const key = prefKey(providerID, modelID);
-  const list = readFavourites();
-  if (!list) return undefined;
-  const kept = list.filter(entry => prefKey(entry.providerID, entry.modelID) !== key);
-  const on = kept.length === list.length;
-  return writeFavourites(on ? [...kept, {
-    providerID,
-    modelID
-  }] : kept) ? on : undefined;
-}
-function readPrefs() {
-  const parsed = {
-    favorite: new Set(),
-    recent: new Map(),
-    variants: new Map()
-  };
-  try {
-    const data = JSON.parse(readFileSync(PREFS_FILE, "utf8"));
-    for (const entry of data.favorite ?? []) parsed.favorite.add(prefKey(entry.providerID, entry.modelID));
-    for (const [index, entry] of (data.recent ?? []).entries()) parsed.recent.set(prefKey(entry.providerID, entry.modelID), index);
-    for (const [model, variant] of Object.entries(data.variant ?? {})) if (typeof variant === "string") parsed.variants.set(model, variant);
-  } catch (error) {
-    // A corrupt state file empties the favourites and the recent list: say so instead of pretending.
-    trace("prefs unreadable: " + (error instanceof Error ? error.message : String(error)));
-  }
-  return parsed;
-}
-
-/** What the Go plan makes a model cost: the figure the effective order sorts by. An unknown price is
- *  not zero — it sorts last, or it would sit at the top of the cheapest list forever. */
-function effective(row) {
-  if (row.input === undefined) return Number.POSITIVE_INFINITY;
-  return row.input / (row.credit || 1);
-}
-const SORTS = [{
-  label: "effective price",
-  short: "effective↑",
-  value: effective
-}, {
-  label: "input price",
-  short: "in↑",
-  value: row => row.input ?? Number.POSITIVE_INFINITY
-}, {
-  label: "output price",
-  short: "out↑",
-  value: row => row.output ?? Number.POSITIVE_INFINITY
-}, {
-  label: "input + output",
-  short: "in+out↑",
-  value: row => row.input === undefined || row.output === undefined ? Number.POSITIVE_INFINITY : (row.input + row.output) / (row.credit || 1)
-}, {
-  label: "context window",
-  short: "ctx↓",
-  value: row => row.context === undefined ? Number.POSITIVE_INFINITY : -row.context
-},
-// A missing score sorts last, never first: Pi's rule, and the honest one.
-{
-  label: "intelligence",
-  short: "int↓",
-  value: row => -(row.int ?? -1)
-}, {
-  label: "speed",
-  short: "speed↓",
-  value: row => -(row.measured ?? row.tps ?? -1)
-}, {
-  label: "recently used",
-  short: "recent",
-  value: row => prefs.recent.get(prefKey(row.providerID, row.modelID)) ?? 1e9
-}, {
-  label: "name",
-  short: "name",
-  value: row => 0
-}];
 
 /** Fallbacks, used only when the theme defines none of the candidates. */
 const FALLBACK_DIM = "#8a8a8a";
@@ -192,9 +77,6 @@ function price(value, width) {
 }
 function isGo(providerID) {
   return providerID === "opencode-go";
-}
-function free(row) {
-  return row.input === 0 && row.output === 0;
 }
 function headerRow(f) {
   return ["  ", "    ", "model".padEnd(f.name), cell("in", 6), cell("out", 6), ...(f.ctx ? [cell("ctx", 5)] : []), ...(f.int ? [cell("int", 5)] : []), ...(f.tkps ? [cell("tok/s", 6)] : []), cell("cred", 4), ...(f.note ? [cell("note", 6)] : [])].join(" ");
@@ -289,7 +171,7 @@ export default Plugin.define({
     let creditsKnown = false;
     // Signals, not plain variables: the header shows them, and a plain variable left the title
     // saying "effective price" whatever the list was actually sorted by.
-    const [sort, setSort] = createSignal(0);
+    const [sort, setSort] = createSignal("effective");
     const [grouped, setGrouped] = createSignal(true);
     const [scope, setScope] = createSignal("all");
     function fail(label, error) {
@@ -349,7 +231,9 @@ export default Plugin.define({
           // "DeepSeek V4.1 Flash" inherited the Go credit.
           credit: isGo(model.providerID) ? creditIndex.get(key(model.modelID))?.credit ?? 1 : 1,
           promo: isGo(model.providerID) ? creditIndex.get(key(model.modelID))?.promo : undefined,
-          peak: isGo(model.providerID) ? creditIndex.get(key(model.modelID))?.peak : undefined,
+          // Measured on the Go plan first, then the native rule: the catalogue lists one
+          // DeepSeek price, so only the second can say it doubles.
+          peak: (isGo(model.providerID) ? creditIndex.get(key(model.modelID))?.peak : undefined) ?? nativePeak(model.providerID),
           int: score?.int,
           tps: theirs,
           measured: mine,
@@ -502,66 +386,35 @@ export default Plugin.define({
         const needle = query().trim().toLowerCase();
         let list = rows().filter(row => row.enabled);
         if (scope() === "favorites") list = list.filter(row => prefs.favorite.has(prefKey(row.providerID, row.modelID)) || prefKey(row.providerID, row.modelID) === mine);
-        if (scope() === "paying") list = list.filter(row => !free(row) || prefKey(row.providerID, row.modelID) === mine);
+        if (scope() === "paying") list = list.filter(row => !isFree(row) || prefKey(row.providerID, row.modelID) === mine);
         if (needle) list = list.filter(row => (row.name + " " + row.provider + " " + row.providerID).toLowerCase().includes(needle));
         list = [...list].sort((a, b) => {
           const mineA = prefKey(a.providerID, a.modelID) === mine;
           const mineB = prefKey(b.providerID, b.modelID) === mine;
           if (mineA !== mineB) return mineA ? -1 : 1;
-          if (SORTS[sort()].label !== "name") {
-            const delta = SORTS[sort()].value(a) - SORTS[sort()].value(b);
-            if (delta) return delta;
-          }
-          return a.name.localeCompare(b.name);
+          return compare(sort(), a, b, {
+            recent: prefs.recent
+          });
         });
 
         // Free models never enter the price order: they are not cheap, they are unmetered, and at
         // the top they hide everything that costs something. Grouped, each one still sits under
         // its own provider, after that provider's paying rows — the group answers "who serves
         // this", and a global "Free" bucket would answer it wrong. Flat, they keep one bucket.
+        // What is drawn, and in which order, is `arrange`'s business — the same function the
+        // desktop panel calls. This half only turns sections into the headers and rows a
+        // terminal list wants.
         const items = [];
-        if (grouped()) {
-          const groups = new Map();
-          for (const row of list) {
-            const bucket = groups.get(row.provider) ?? [];
-            bucket.push(row);
-            groups.set(row.provider, bucket);
-          }
-          // Two bits: the model in use first, then the active order inside each of the two classes.
-          // It leads its group even when it is free — it is the state of the session, not a price.
-          for (const bucket of groups.values()) bucket.sort((a, b) => {
-            const mineA = prefKey(a.providerID, a.modelID) === mine;
-            const mineB = prefKey(b.providerID, b.modelID) === mine;
-            if (mineA !== mineB) return mineA ? -1 : 1;
-            return Number(free(a)) - Number(free(b));
+        for (const section of arrange(list, {
+          inUse: mine,
+          grouped: grouped()
+        })) {
+          if (section.title) items.push({
+            header: section.title
           });
-          const names = [...groups.keys()].sort((a, b) => a.localeCompare(b));
-          // The provider of the model in use comes first, like the native picker.
-          const mineProvider = list.find(row => prefKey(row.providerID, row.modelID) === mine)?.provider;
-          if (mineProvider) names.sort((a, b) => a === mineProvider ? -1 : b === mineProvider ? 1 : 0);
-          for (const name of names) {
-            items.push({
-              header: name
-            });
-            for (const row of groups.get(name)) items.push({
-              row
-            });
-          }
-        } else {
-          // The model in use leads the list, free or not: it is the state of the session, not a
-          // price to compare. The other free models keep the bucket at the end.
-          for (const row of list) if (!free(row) || prefKey(row.providerID, row.modelID) === mine) items.push({
+          for (const row of section.rows) items.push({
             row
           });
-          const freeRows = list.filter(row => free(row) && prefKey(row.providerID, row.modelID) !== mine);
-          if (freeRows.length) {
-            items.push({
-              header: "Free"
-            });
-            for (const row of freeRows) items.push({
-              row
-            });
-          }
         }
         return items;
       });
@@ -713,10 +566,10 @@ export default Plugin.define({
         trace("variant set: " + chosen + " -> " + applied);
       }
       function cycleSort() {
-        setSort((sort() + 1) % SORTS.length);
+        setSort(ORDER[(ORDER.indexOf(sort()) + 1) % ORDER.length]);
       }
       function recentSort() {
-        setSort(SORTS.findIndex(entry => entry.label === "recently used"));
+        setSort("recent");
       }
       function toggleGroups() {
         setGrouped(!grouped());
@@ -873,7 +726,7 @@ export default Plugin.define({
         _$insertNode(_el$6, _el$8);
         _$setProp(_el$6, "fg", DIM);
         _$setProp(_el$6, "wrapMode", "none");
-        _$insert(_el$6, () => "sort: " + SORTS[sort()].short, _el$8);
+        _$insert(_el$6, () => "sort: " + ORDERS[sort()].short, _el$8);
         _$insertNode(_el$9, _el$0);
         _$setProp(_el$9, "fg", BASE);
         _$setProp(_el$9, "wrapMode", "none");

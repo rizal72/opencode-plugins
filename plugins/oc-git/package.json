@@ -1,6 +1,6 @@
 {
 	"name": "@rizal72/oc-git",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"type": "module",
 	"description": "The sidebar's repository state: branch, the three counts, ahead/behind; the three counts also in the footer while the repository is dirty",
 	"repository": {
@@ -11,7 +11,8 @@
 	"files": [
 		"*.ts",
 		"tui.js",
-		"README.md"
+		"README.md",
+		"dist"
 	],
 	"keywords": [
 		"opencode",
@@ -25,6 +26,7 @@
 	},
 	"exports": {
 		".": "./index.ts",
-		"./tui": "./tui.js"
+		"./tui": "./tui.js",
+		"./gui-experimental": "./dist/gui-experimental.cjs"
 	}
 }

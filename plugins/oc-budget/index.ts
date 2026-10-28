@@ -274,6 +274,13 @@ function failedSnapshot(error: unknown): BudgetSnapshot {
 	}
 }
 
+/** The shape that crosses the wire, which is JSON: `goMeter` and `goWindow` leave fields `undefined` when
+ *  the endpoint omits them, and the output schema is strict — a present `undefined` is not a `string` and
+ *  not a missing key, so the whole answer is rejected **after** the handler ran (a 500 with `http.span=1`,
+ *  measured 2026-10-28: every poll failed from 07:00 to 12:26 and the pill vanished). `JSON.stringify`
+ *  drops them, which is exactly what the transport would do, only before validation instead of after. */
+const wire = (snapshot: BudgetSnapshot): BudgetSnapshot => JSON.parse(JSON.stringify(snapshot))
+
 export default {
 	id: "oc-budget",
 	async setup(ctx: any) {
@@ -306,9 +313,9 @@ export default {
 				inFlight = collect()
 					.catch(failedSnapshot)
 					.then((snapshot) => {
-						cache = snapshot
+						cache = wire(snapshot)
 						cacheAt = Date.now()
-						return snapshot
+						return cache
 					})
 					.finally(() => {
 						inFlight = null

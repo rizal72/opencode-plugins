@@ -1,8 +1,8 @@
 {
 	"name": "@rizal72/oc-coffee",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"type": "module",
-	"description": "Keeps the Mac awake while the agent works: cup badge in the footer, /coffee command",
+	"description": "Keeps the Mac awake while the agent works: the server owns the level, the terminal draws a cup badge, the desktop a pill",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/rizal72/opencode-plugins.git"
@@ -11,7 +11,8 @@
 	"files": [
 		"*.ts",
 		"tui.js",
-		"README.md"
+		"README.md",
+		"dist"
 	],
 	"keywords": [
 		"opencode",
@@ -24,6 +25,8 @@
 	},
 	"exports": {
 		".": "./index.ts",
-		"./tui": "./tui.js"
+		"./tui": "./tui.js",
+		"./rpc": "./rpc.ts",
+		"./gui-experimental": "./dist/gui-experimental.cjs"
 	}
 }
