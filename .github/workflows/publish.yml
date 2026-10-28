@@ -36,9 +36,11 @@ jobs:
         run: npm ci --no-audit --no-fund
 
       # Before any build: once a `tui.js` sits beside its `tui.tsx`, `check-source` refuses the tree, and
-      # that refusal is the point of the check.
+      # that refusal is the point of the check. `check:ci` rather than `check`: the SDK-versus-app version
+      # gate needs the CLI installed, and in a runner there is no app to compare against — that gate is a
+      # local developer's, the compiler is the runner's.
       - name: Check
-        run: npm run check
+        run: npm run check:ci
 
       - name: Compile the halves
         run: |

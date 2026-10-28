@@ -3,7 +3,8 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"check": "node scripts/check-source.mjs && scripts/check-sdk.sh && tsc --noEmit"
+		"check": "node scripts/check-source.mjs && scripts/check-sdk.sh && tsc --noEmit",
+		"check:ci": "node scripts/check-source.mjs && tsc --noEmit"
 	},
 	"devDependencies": {
 		"@babel/core": "^7.29.7",
