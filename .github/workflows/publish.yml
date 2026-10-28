@@ -2,6 +2,12 @@ name: publish
 
 # Publishes the plugins whose version is not on the registry yet. No token and no secret: npm accepts
 # this workflow through OIDC, with the trusted publisher configured per package on npmjs.com.
+#
+# The repository holds sources: `tui.tsx`, `gui.tsx`, no compiled half and no `dist/`. The two builds and
+# the manifest rewrite happen here, in the runner, because a `.tsx` inside `node_modules` is compiled by
+# the host with the wrong JSX runtime and the plugin stops existing — the failure a user hit on
+# 2026-10-25. So the package the registry receives is a function of a commit, produced once, on the way
+# out; nothing generated is committed.
 on:
   push:
     branches: [main]
@@ -25,6 +31,40 @@ jobs:
           registry-url: https://registry.npmjs.org
           # Never cache in a release build: a stale tree must not decide what ships.
           package-manager-cache: false
+
+      - name: Install
+        run: npm ci --no-audit --no-fund
+
+      # Before any build: once a `tui.js` sits beside its `tui.tsx`, `check-source` refuses the tree, and
+      # that refusal is the point of the check.
+      - name: Check
+        run: npm run check
+
+      - name: Compile the halves
+        run: |
+          node scripts/build-tui.mjs --out plugins
+          node scripts/build-gui.mjs
+
+      # What the registry gets is not what the repository holds: `./tui` points at the compiled file, and
+      # the whitelist drops every `.tsx`. `dist/` rides along only for the packages that build a GUI half.
+      - name: Rewrite the manifests
+        run: |
+          set -eu
+          for dir in plugins/*/; do
+            name=$(node -p "require('./${dir}package.json').name")
+            case "$name" in @rizal72/*) ;; *) continue ;; esac
+            [ -f "${dir}tui.tsx" ] || continue
+            node -e '
+              const fs = require("fs")
+              const file = process.argv[1]
+              const manifest = JSON.parse(fs.readFileSync(file, "utf8"))
+              manifest.exports = { ...manifest.exports, "./tui": "./tui.js" }
+              const declared = Array.isArray(manifest.files) ? manifest.files : []
+              manifest.files = ["*.ts", "tui.js", "README.md", ...(declared.includes("dist") ? ["dist"] : [])]
+              fs.writeFileSync(file, JSON.stringify(manifest, null, "\t") + "\n")
+            ' "${dir}package.json"
+          done
+
       - name: Publish the new versions
         run: |
           set -eu

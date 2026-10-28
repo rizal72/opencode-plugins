@@ -1,0 +1,10 @@
+node_modules/
+.DS_Store
+
+# Compiled halves: produced at publish time by the workflow, never committed.
+plugins/*/tui.js
+plugins/*/dist/
+
+# Local only: the instructions and the config of my own machine.
+AGENTS.md
+opencode.jsonc
