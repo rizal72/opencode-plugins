@@ -118,5 +118,6 @@ block sits beside the existing ones.
   reads the local remote-tracking ref and never touches the network. Yellow means "behind what this
   repository knows", and a `fetch` is what makes it true again.
 
-Published as `@rizal72/oc-git@0.1.0` on 2026-10-23, `0.1.1` on 2026-10-25 with the compiled TUI half;
-procedure in `docs/publishing.md`.
+Published as `@rizal72/oc-git@0.1.0` on 2026-10-23, `0.1.1` on 2026-10-25 with the compiled TUI half,
+`0.2.0` on 2026-10-28 with the desktop pill, `0.2.1` on 2026-10-28 with the divergence warning and the two
+arrows; procedure in `docs/publishing.md`.
