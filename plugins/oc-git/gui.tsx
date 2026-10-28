@@ -77,37 +77,46 @@ export default Plugin.define({
 				const added = status.added ?? 0
 				const modified = status.modified ?? 0
 				const untracked = status.untracked ?? 0
-				// As in the TUI block: `↑0 ↓0` is printed when an upstream exists, and nothing at all when it
+				// As in the TUI block: the pair is printed when an upstream exists, and nothing at all when it
 				// does not — `ahead` is absent then, which is a different fact from being zero.
-				const upstream = [
-					status.ahead === undefined ? "" : `↑${status.ahead}`,
-					status.behind === undefined ? "" : `↓${status.behind}`,
+				const upstream =
+					status.ahead === undefined ? undefined : `↑${status.ahead} ↓${status.behind ?? 0}`
+				// The capsule carries the pair only when it carries news: with nothing committed there is nothing
+				// to push, so its zero says nothing the absence does not. The branch is capped by what follows
+				// it, because the host truncates the end and the pair sits there.
+				const arrows = [
+					(status.ahead ?? 0) > 0 ? `↑${status.ahead}` : "",
+					(status.behind ?? 0) > 0 ? `↓${status.behind}` : "",
 				]
 					.filter(Boolean)
 					.join(" ")
-				// Capped here, not left to the pill: the host truncates the end of the label, and the end is
-				// where the three counts are — a long branch name would take them with it.
 				const branch = status.branch ?? ""
-				const shown = branch.length > 20 ? branch.slice(0, 19) + "…" : branch
+				// Never below one: those counts are absurd, but a negative slice would mangle the name instead.
+				const room = Math.max(1, 20 - (arrows ? arrows.length + 1 : 0))
+				const shown = branch.length > room ? branch.slice(0, room - 1) + "…" : branch
 
 				// One rule for the capsule and for each row: yellow while there is something to do, green
 				// when the answer is zero. `open-file` because `file-document` is a name the app's drawing
 				// set does not carry — it draws a `plus`, which is already the added row's mark.
 				const sum = added + modified + untracked
 				const tone = (count: number) => (count > 0 ? "warning" : "success")
+				// Behind is the figure that is never a resting state, so it turns the capsule yellow on its
+				// own; `ahead` alone does not, because waiting for a push is what a working branch does.
+				const capsuleTone = sum > 0 || (status.behind ?? 0) > 0 ? "warning" : "success"
 
 				return {
 					icon: "branch",
-					label: `${shown} +${added} ±${modified} ?${untracked}`,
+					label: `${shown} +${added} ±${modified} ?${untracked}${arrows ? " " + arrows : ""}`,
 					title: "Git status",
-					tone: sum > 0 ? "warning" : "success",
+					tone: capsuleTone,
 					rows: [
 						// The name is the news, so it is the row's own text: `detail` is muted, and a muted
 						// value on the one line that matters reads as an aside.
-						{ id: "branch", label: branch, icon: "branch", tone: tone(sum) },
+						{ id: "branch", label: branch, icon: "branch", tone: capsuleTone },
 						// Its own row, and only when there is an upstream: sharing the branch row's end lost it
-						// to a long branch name, which is exactly where it is wanted.
-						...(upstream ? [{ id: "upstream", label: upstream }] : []),
+						// to a long branch name, which is exactly where it is wanted. Always the row's own
+						// text: `detail` is drawn as a bordered chip at the far right, not as muted text here.
+						...(upstream === undefined ? [] : [{ id: "upstream", label: upstream }]),
 						{ id: "added", label: `+${added} added`, icon: "plus", tone: tone(added) },
 						{ id: "modified", label: `±${modified} changed`, icon: "pencil-line", tone: tone(modified) },
 						{ id: "untracked", label: `?${untracked} untracked`, icon: "open-file", tone: tone(untracked) },

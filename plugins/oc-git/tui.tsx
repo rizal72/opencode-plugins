@@ -14,7 +14,9 @@
 //
 // Colour: the title in bold white, the branch in the theme's accent, and each count on its own — the
 // warning yellow when that figure is not zero, grey when it is. A clean repository is therefore three
-// grey zeros, which is the point: it should not catch the eye.
+// grey zeros, which is the point: it should not catch the eye. The ahead/behind line has two weights and
+// no alarms: `↑n` white when it is not zero, `↓n` yellow, because a branch can wait for a push and cannot
+// rest behind its upstream.
 //
 // Data: `git status --porcelain=v2 --branch`, one read-only call, chosen over the plugin API's
 // `ctx.vcs` because that one exposes the branch and the file list but not the counts this block is
@@ -99,8 +101,12 @@ export default Plugin.define({
 					<span style={{ fg: state()!.untracked > 0 ? YELLOW : DIM }}>?{state()!.untracked}</span>
 				</text>
 				{state()!.ahead !== undefined ? (
-					<text fg={DIM}>
-						↑{state()!.ahead} ↓{state()!.behind}
+					<text>
+						{/* Two weights, not two alarms: ahead is white — it is news, and a presentation does not raise
+						    it to a warning; behind is yellow, because a branch can wait for a push but cannot rest
+						    behind its upstream. */}
+						<span style={{ fg: (state()!.ahead ?? 0) > 0 ? BASE : DIM }}>↑{state()!.ahead} </span>
+						<span style={{ fg: (state()!.behind ?? 0) > 0 ? YELLOW : DIM }}>↓{state()!.behind}</span>
 					</text>
 				) : null}
 			</box>

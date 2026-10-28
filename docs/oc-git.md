@@ -22,13 +22,23 @@ The desktop has no sidebar to put the block in, so the pill carries what the blo
 `desktop +0 ±5 ?6` — and it stays visible when the repository is clean, because there the branch is the
 news and nothing else would say it.
 
-- label: branch, then added / changed / untracked. `tone` is one rule for the capsule and every row:
-  `warning` while the figure is above zero, `success` at zero — so the branch icon is green on a clean
-  repository and yellow when there is something to do, and each of the three rows says the same about
-  its own count. Icons: `branch`, `plus`, `pencil-line`, `open-file` (not `file-document`, which the
-  app's drawing set does not carry: it draws a `plus`, already the added row's mark).
+- label: branch, then added / changed / untracked, then the two arrows. `tone` is one rule for the
+  capsule and every row: `warning` while there is something to do, `success` when the answer is zero — so
+  the branch icon is green on a clean, synchronised repository and yellow when there is anything to
+  commit **or when the branch is behind its upstream**. Behind is the figure that is never a resting
+  state; `ahead` alone stays green, because waiting for a push is what a working branch does, and the
+  number in the label is the news. Icons: `branch`, `plus`, `pencil-line`, `open-file` (not
+  `file-document`, which the app's drawing set does not carry: it draws a `plus`, already the added row's
+  mark).
+- the arrows enter the label **only when they are not zero**: nothing committed is nothing to push, so a
+  zero adds nothing the absence does not say — the pair appears when there is news and not before. It sits
+  at the end of the capsule, where the host truncates, so the branch is capped by what follows it (20
+  characters minus the pair) and the pair cannot be the part that goes.
 - rows on a click: the branch name as the row's own text — the name is the news, and `detail` is muted;
-  `↑ahead ↓behind` on its own row and only when an upstream exists; then the three groups by name.
+  `↑ahead ↓behind` on its own row, only when an upstream exists, **always as the row's own text**. It was
+  tried in `detail` to grey the pair at zero, and the host draws `detail` as a bordered chip at the far
+  right of the row, not as muted text: the colour option a row seemed to offer is not there. Then the three
+  groups by name.
 - data: the same `git status --porcelain=v2 --branch` every 3 s, read **on the session's own server** — a
   GUI window has no Node built-ins — through `Git.status` in `rpc.ts`, asking that server's client at every
   call: a restarted server gets a new one under the same id. `git.ts` holds the parser and the read for
@@ -77,12 +87,15 @@ capital only — `Git status`. The two glyphs are pi's own (`U+E702` git, `U+E72
 widget this one is meant to resemble and verified by reading the codepoints back out of the source; they
 are plane 0, which renders in the TUI exactly as it does in pi.
 
-Two rules for colour, and no more:
+Three rules for colour, and no more:
 
 - the **branch** always in the theme accent — `syntax.function`, then `syntax.variable`, then `text.base`;
 - each **count** in the warning yellow, the same hue the Context block uses, **only when that figure is
   not zero** — grey when it is. A clean repository is therefore three grey zeros that do not catch the
-  eye, and only the figure that moves turns yellow.
+  eye, and only the figure that moves turns yellow;
+- **`↓n` on the ahead/behind line** follows the counts' rule — yellow when the branch is behind its
+  upstream, grey otherwise. **`↑n` goes white**, not yellow: it is news worth seeing, and a presentation
+  or two is not a warning. Two weights, one alarm.
 
 Green and red were tried and dropped: in this UI they mean ok and alarm, and a count is neither. Hex only
 as a last-resort fallback.
@@ -101,6 +114,9 @@ block sits beside the existing ones.
   that detail belongs.
 - `↑0 ↓0` stays visible whenever an upstream exists: it is the "nothing to push, nothing to pull" signal,
   not noise.
+- **behind is as fresh as the last `fetch`**, not as the remote is now: the poll is `git status`, which
+  reads the local remote-tracking ref and never touches the network. Yellow means "behind what this
+  repository knows", and a `fetch` is what makes it true again.
 
 Published as `@rizal72/oc-git@0.1.0` on 2026-10-23, `0.1.1` on 2026-10-25 with the compiled TUI half;
 procedure in `docs/publishing.md`.
