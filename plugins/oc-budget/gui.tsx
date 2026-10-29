@@ -40,8 +40,10 @@ const RPC_TIMEOUT_MS = 15_000
 const CSS = `
 /* The host gives a menu's popover the composer's width, and nothing we set narrows it: so the rows fill it,
    the bar grows with it, and every figure right-aligns in one column. */
+/* anywhere: the host fixes the width and clips nothing, so an unbreakable string — an error carrying a
+   URL or a token — would paint outside the box. This is our content; the overflow is ours too. */
 .ocb { display: flex; flex-direction: column; gap: 5px; width: 100%; font-size: 12px;
-  font-variant-numeric: tabular-nums; }
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .ocb-line { display: flex; align-items: center; gap: 6px; }
 .ocb-name { font-weight: 600; letter-spacing: .02em; min-width: 2.6em; }
 .ocb-figure { margin-left: auto; min-width: 4.2em; text-align: right; }

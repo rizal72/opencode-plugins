@@ -191,6 +191,10 @@ an evening and a morning — every poll a fast 500 from 07:00 to 12:26, the pill
   host's and no CSS on the content moves it — unlike a `rows` menu, which hugs its longest row. Design the
   contents to fill that width; a narrow layout leaves a column of dead space, and a grid that shrinks a
   track below its content paints over its neighbour.
+- **And it clips nothing.** Probed the same day with a 120-character word in the popover: the box did not
+  grow, a sentence rewrapped inside it, and the unbreakable word painted straight across the app. A `rows`
+  menu is the host's drawing and wraps on its own; a `menu` is the plugin's, so the container needs
+  `overflow-wrap: anywhere` — or any error message carrying a URL or a token escapes the panel.
 
 ## Where the truth lives
 
