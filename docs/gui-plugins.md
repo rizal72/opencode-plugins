@@ -180,8 +180,10 @@ published packages, where the same change would cost a version for no change in 
 
 `scripts/check-source.mjs` fails a `gui.tsx` that imports `createEffect` unless its package is on the
 allow-list, so the list can only shrink: a half that migrates must lose its name, and the check refuses a
-name that no longer earns it. **The limit**: it reads the import, not the calls, so a *new* `createEffect`
-inside a half already listed stays invisible. That closes by draining the list, not by counting lines.
+name that no longer earns it. A listed half whose package has uncommitted changes prints one **note**, so
+the migration is remembered at the moment its file is open — silent on every other commit, and gone with
+the list. **The limit**: it reads the import, not the calls, so a *new* `createEffect` inside a half already
+listed stays invisible. That closes by draining the list, not by counting lines.
 
 **The real risk is not `createEffect`.** It is that `@opencode/plugin/gui` is a provisional contract
 (`./gui-experimental`, *Provisional by design*): a helper's signature can move between app releases, and

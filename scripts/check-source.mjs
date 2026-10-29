@@ -5,6 +5,7 @@
 // beside the source wins and the local TUI half runs that build — frozen, silently, however often the
 // `.tsx` is edited afterwards. `git status` cannot catch it: `plugins/*/tui.js` is ignored, which is how
 // four plugins stayed stale through a whole evening of edits (2026-10-27). Hence a check, not a rule.
+import { execSync } from "node:child_process"
 import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 
@@ -54,6 +55,21 @@ if (plain.length || stale.length) {
 	}
 	process.exit(1)
 }
+// A listed half whose package moved is the moment to migrate it, not a failure: a note, silent on every
+// other commit, and it dies with the list.
+try {
+	const moved = new Set(
+		execSync(`git -C "${root}" status --porcelain`, { encoding: "utf8" })
+			.split("\n")
+			.map((line) => line.slice(3).split("/")[1]),
+	)
+	for (const name of legacy)
+		if (moved.has(name))
+			console.error(
+				`note: plugins/${name} moved, and its GUI half still imports createEffect — migrate it to createKeyed or the list carries it further`,
+			)
+} catch {}
+
 console.log(
 	legacy.size
 		? `check-source ok: no unlisted createEffect (${legacy.size} legacy GUI halves listed)`
