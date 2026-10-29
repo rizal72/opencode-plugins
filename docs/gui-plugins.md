@@ -152,6 +152,42 @@ an evening and a morning — every poll a fast 500 from 07:00 to 12:26, the pill
 | `oc-coffee` | keeps the last reading, unmarked |
 | `oc-ponytail-widget` | keeps the last value, unmarked |
 
+## An effect belongs to the SDK, not to the half
+
+Upstream banned the raw effect on 2026-10-29: opencode's `.oxlintrc.json` refuses `createEffect`,
+`createRenderEffect` and `createComputed` **in `packages/gui-plugins/src`**, the GUI plugins its own team
+writes. It does not reach this repository and it is not enforced at load, since a plugin ships a minified
+bundle. The public doc says the same thing as advice: *"Prefer these helpers to raw `createEffect`. They
+follow a plugin's lifetime and its dependencies' restarts, which hand-written effects tend to get wrong."*
+
+The reason is one sentence: an effect written by hand does not know when to die. The SDK does — a plugin
+reloaded, the server restarted, the window closed. `createKeyed(source, fn)` from `@opencode/plugin/gui`
+is that version: it re-runs `fn` when the keyed source's value changes, and it is disposed with the owner
+that created it. None of ours calls it yet.
+
+**The sites tolerated today** — six calls in five halves. Two of them are in `oc-budget`, which is
+unpublished, so its migration costs nothing but rewriting a poller that works; the other four sit in
+published packages, where the same change would cost a version for no change in behaviour.
+
+| site | what it does | why it stays |
+|---|---|---|
+| `oc-git/gui.tsx:22` | one poller for the session on screen: clears and re-arms its timer when the routing moves | published; the poll is per *server*, so the effect re-runs with the session's own |
+| `oc-coffee/gui.tsx:29` | the same, per server | published |
+| `oc-ponytail-widget/gui.tsx:54` | reads the session, polls every `REFRESH_MS`, cleared by `onCleanup` | published |
+| `oc-budget/gui.tsx:154` | one poll per server, plus `refreshNow` for the popover | free to change; the reference migration when the poller is next touched |
+| `oc-models-pro/gui.tsx:296` | re-measures the scrollbar gutter when the rows change | published |
+| `oc-models-pro/gui.tsx:301` | a `ResizeObserver`, in an effect with nothing reactive in it | published, and a form defect: `onMount` says it |
+
+`scripts/check-source.mjs` fails a `gui.tsx` that imports `createEffect` unless its package is on the
+allow-list, so the list can only shrink: a half that migrates must lose its name, and the check refuses a
+name that no longer earns it. **The limit**: it reads the import, not the calls, so a *new* `createEffect`
+inside a half already listed stays invisible. That closes by draining the list, not by counting lines.
+
+**The real risk is not `createEffect`.** It is that `@opencode/plugin/gui` is a provisional contract
+(`./gui-experimental`, *Provisional by design*): a helper's signature can move between app releases, and
+the lint upstream is a statement of where they are taking it. A migration is therefore worth doing when a
+file is already open, never as a campaign.
+
 ## Eight traps
 
 - **Adding `./gui-experimental` to a plugin that is already loaded stays invisible**, however often the

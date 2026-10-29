@@ -5,7 +5,7 @@
 // beside the source wins and the local TUI half runs that build — frozen, silently, however often the
 // `.tsx` is edited afterwards. `git status` cannot catch it: `plugins/*/tui.js` is ignored, which is how
 // four plugins stayed stale through a whole evening of edits (2026-10-27). Hence a check, not a rule.
-import { existsSync, readdirSync } from "node:fs"
+import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 
 const root = new URL("..", import.meta.url).pathname
@@ -22,3 +22,40 @@ if (found.length) {
 	process.exit(1)
 }
 console.log("check-source ok: no tui.js beside a tui.tsx")
+
+// Fails when a GUI half imports the raw `createEffect`. A half synchronises through `createKeyed` from
+// `@opencode/plugin/gui`: the SDK follows the plugin's lifetime and its dependencies' restarts, and a
+// hand-written effect does not know when to die — plugin reload, server restart, window closed
+// (`docs/gui-plugins.md`). The list below is the debt: the halves that predate the rule. A name leaves it
+// as its file migrates, and once it is empty the check polices every half. Limit: it watches the import,
+// so a new `createEffect` inside a listed file is not caught.
+const legacy = new Set(["oc-budget", "oc-coffee", "oc-git", "oc-models-pro", "oc-ponytail-widget"])
+const halves = readdirSync(plugins, { withFileTypes: true })
+	.filter((entry) => entry.isDirectory())
+	.map((entry) => entry.name)
+	.filter((name) => existsSync(join(plugins, name, "gui.tsx")))
+const importsEffect = (name) => {
+	const source = readFileSync(join(plugins, name, "gui.tsx"), "utf8")
+	const imports = source.matchAll(/import\s+((?:(?!\bfrom\b)[\s\S])*?)\s+from\s*["']solid-js["']/g)
+	return [...imports].some((match) => /\bcreateEffect\b/.test(match[1]))
+}
+const plain = halves.filter((name) => !legacy.has(name) && importsEffect(name))
+const stale = [...legacy].filter((name) => halves.includes(name) && !importsEffect(name))
+
+if (plain.length || stale.length) {
+	if (plain.length) {
+		console.error("a GUI half imports createEffect from solid-js — use createKeyed from @opencode/plugin/gui:")
+		for (const name of plain) console.error("  plugins/" + name + "/gui.tsx")
+		console.error("the SDK follows the plugin's lifetime; the rule and the tolerated sites are in docs/gui-plugins.md")
+	}
+	if (stale.length) {
+		console.error("these no longer import createEffect — drop them from the allow-list in this check:")
+		for (const name of stale) console.error("  " + name)
+	}
+	process.exit(1)
+}
+console.log(
+	legacy.size
+		? `check-source ok: no unlisted createEffect (${legacy.size} legacy GUI halves listed)`
+		: "check-source ok: no createEffect in a GUI half",
+)
