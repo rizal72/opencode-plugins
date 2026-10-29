@@ -108,8 +108,10 @@ wallets, not the session's spend.
 ## The always-visible surfaces
 
 Three, and they are the whole budget for a widget that needs no click: `Slot "session.header"` (one
-line, per session), `Slot "window.bottom"` (full width, global), and `ComposerPill` (per session, opens
-a menu of rows). `TitlebarItem` is documented as always visible and drew nothing in a vertical-tabs
+line, per session), `Slot "window.bottom"` (full width, global), and `ComposerPill` (per session: a menu of
+rows, or since 2.2.1 a popover the plugin draws itself through `menu` — the host keeps the capsule, the
+placement, the focus and the dismissal, and `rows`/`run` go unused while it is set). `TitlebarItem` is
+documented as always visible and drew nothing in a vertical-tabs
 window, where the titlebar holds only the traffic lights. Everything else — panels, the panel-end
 action, menu items, settings pages, commands — exists behind an affordance.
 
