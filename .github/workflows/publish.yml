@@ -1,4 +1,8 @@
 name: publish
+# What the run list shows: the shape of the push, not the last of its commits, which is what GitHub would
+# put there by default and what made a six-commit push look like one commit's work. `commits` exists only
+# on a `push`, and a missing property evaluates to an empty string, hence the `|| 0` for a manual run.
+run-name: publish ${{ github.ref_name }} · ${{ github.event.commits.length || 0 }} commits · ${{ github.sha }}
 
 # Publishes the plugins whose version is not on the registry yet. No token and no secret: npm accepts
 # this workflow through OIDC, with the trusted publisher configured per package on npmjs.com.
