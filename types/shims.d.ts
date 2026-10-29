@@ -12,6 +12,7 @@ declare module "solid-js" {
 	export const createEffect: any
 	export const createRoot: any
 	export const onCleanup: any
+	export const onMount: any
 	export const For: any
 	// Children stay permissive: a stricter union made the compiler contextualise the callback as an
 	// object (every function matches a permissive index signature) and lose its parameter type. The

@@ -11,7 +11,7 @@
 // Colours come from the theme, never from hex: a GUI plugin has no theme API, but the app publishes its
 // tokens as CSS variables, and these are the three alert levels the terminal uses.
 import { ComposerPill, Plugin, Style, type ComposerPillMenuProps, type ComposerPillProps } from "@opencode/plugin/gui"
-import { Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
+import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 
 import {
 	DS_WARN_USD,
@@ -317,7 +317,7 @@ export default Plugin.define({
 			const figures = createMemo(() => view(props.input))
 			// The tick is five minutes, so open on a fresh read: one call, and the capsule follows it, because
 			// both surfaces read this one signal.
-			createEffect(() => {
+			onMount(() => {
 				refreshNow?.()
 			})
 
