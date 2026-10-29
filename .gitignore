@@ -8,3 +8,6 @@ plugins/*/dist/
 # Local only: the instructions and the config of my own machine.
 AGENTS.md
 opencode.jsonc
+
+# Local only: the launch — the posts, the video, the screenshots, how it went. Personal, never published.
+reddit/

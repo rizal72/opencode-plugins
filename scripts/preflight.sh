@@ -3,8 +3,8 @@
 #
 # npm does not publish a version twice, so a forgotten bump does not publish wrong code: it leaves npm on
 # the old tarball while the repository shows the new sources — silently, until someone reports a bug that
-# was already fixed. This is the check the mirror did before the push; it is the only gate left, and it
-# runs by hand because the workflow sees the commit only after it is already on main.
+# was already fixed. This is the only gate left, and it runs by hand because the workflow sees the commit
+# only after it is already on main.
 #
 #   scripts/preflight.sh        exit 1 and name the packages to bump
 #   scripts/preflight.sh --allow   push anyway, for a change that does not move the package

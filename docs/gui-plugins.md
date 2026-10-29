@@ -203,14 +203,15 @@ file is already open, never as a campaign.
 - **A `tui.js` beside a `tui.tsx` wins, and git does not show it.** The loader resolves a plugin directory
   by file name and does not read `package.json`, so a compiled half left in the repository shadows the
   source: the TUI keeps running that build while the `.tsx` is edited, silently, and `plugins/*/tui.js` is
-  ignored so `git status` stays clean. `npm run check` refuses one; the mirror compiles into the mirror.
+  ignored so `git status` stays clean. `npm run check` refuses one; the workflow compiles into the package
+  it publishes.
 - **A header outside a scrolling list is wider than its rows by the scrollbar.** The two are separate
   grids, so the rows lose the bar's width and every column drifts right by it. Do not write a number:
   measure it (`offsetWidth - clientWidth` of the scroller) into a custom property and pad the header
   with it, which is zero where the scrollbars are overlays.
 - **`dist/` is generated, never committed**, like `tui.js`: `scripts/build-gui.mjs` builds every plugin
-  with a `vite.config.ts`, and `scripts/mirror-public.sh` runs it before copying, so a package can never
-  ship an export pointing at a file that is not there.
+  with a `vite.config.ts`, and the workflow runs it before publishing, so a package can never ship an
+  export pointing at a file that is not there.
 - **An `undefined` in an RPC answer is an instant 500, and the widget vanishes.** The output schema is
   JSON: a key that is *present* with `undefined` is neither its declared type nor absent, so the whole
   answer is rejected after the handler ran — in the log a 500 with `http.span=1`, no request made, no work

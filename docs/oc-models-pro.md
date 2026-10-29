@@ -290,8 +290,8 @@ untouched by the rule.
   How many of the models on offer actually get a figure is not written here: it moves with their
   catalogue and with ours. The panel's trace line prints it, in `<TMPDIR>/oc-models-pro.log`, as
   `N/M with a speed` — which is also how a thin column is told apart from a broken key.
-  Their terms ask for **attribution** and for caching. The credit sits in `public/README.md`, the file the
-  mirror publishes as the repository's README; the plugin README carries the link only to get a key.
+  Their terms ask for **attribution** and for caching. The credit sits in the repository's `README.md`; the
+  plugin README carries the link only to get a key.
   The key is read from the environment of the **TUI process**, which is the one that draws the panel and
   runs this module — not the server's. A TUI started before the variable was exported never sees it: a
   process reads its environment at birth. The desktop app re-reads the login shell before starting

@@ -1,8 +1,7 @@
 # Publishing a plugin
 
-**Status: in use.** Five packages, all published by the workflow: `oc-models-pro` `0.3.0`,
-`oc-coffee`, `oc-git` and `oc-ponytail-widget` at `0.2.0`, `oc-session-search` at `0.2.2` (2026-10-28).
-Under the `@rizal72/` scope, straight from this repository.
+**Status: in use.** Five packages, all published by the workflow, under the `@rizal72/` scope, straight
+from this repository.
 
 The install channel is npm alone: `opencode plugin add` reads a registry name, and that is the whole
 story. The sources live here, in the public repository, which is also where they are written:
@@ -90,10 +89,9 @@ Reported upstream on 2026-10-25, as a comment on the issue that already tracks i
 external TSX plugins in packaged CLI*, #39986 — with the published package as the case and the compiled
 entry as the workaround.
 
-## A push is the release
+## Two consequences of the push
 
-`main` holds what a developer writes; the workflow turns it into a package on the way out. Two consequences
-worth naming, because both are what the earlier generated copy used to guarantee:
+`main` holds what a developer writes; the workflow turns it into a package on the way out.
 
 - **Nothing generated can be committed by accident.** `tui.js` and `dist/` are git-ignored and
   `check-source` refuses a `tui.js` beside its `tui.tsx`, so the repository cannot hold a half nobody can
@@ -134,32 +132,18 @@ an installed `.tsx` fails twice — `Cannot find package 'react'`, and, with JSX
 - **A `README.md` in the package directory**: it is the npm page, and for a plugin it is the only
   installation note a user reads.
 
-## Publish
+## The manual path
 
-```sh
-npm login                  # once per machine
-npm whoami                 # the account must own the @rizal72 scope
-npm publish --dry-run      # the file list and the tarball size, before anything is irreversible
-npm publish
-```
-
-Read the `--dry-run` list, not the directory: that list is the package. For a TUI plugin it is not the
-published package — the workflow rewrites `exports` and `files` and ships `tui.js` instead of `tui.tsx`, so
-the list above shows the source shape. The published shape is the one described under "A TUI half ships
-compiled". A dry run that shows a file you did
-not expect is the last moment to fix it for free.
-
-**`npm publish` asks for the second factor** — the account is on `auth-and-writes`, so a publish is
-always the owner's own act, and the tokens that could stand in for it are being retired.
+`npm publish` still works, with the second factor: the account is on `auth-and-writes`, so a publish is
+always the owner's own act, and the tokens that could stand in for it are being retired. It is not the
+path — a push is. Keep `npm publish --dry-run` for reading the package: that list, not the directory, is
+what ships — and for a TUI plugin it shows the *source* shape, since the workflow rewrites `exports` and
+`files` on the way out.
 
 **Before the bump, one reading**: the app release that prompted it may have changed the GUI SDK, so the
 workarounds we carry need a look — `docs/gui-plugins.md`, *Provisional by design*. A workaround whose
 reason is gone is a deletion, and a shape that moved is a shim to rewrite before a version goes out, not
 after.
-
-Staged publishing (`npm stage publish`, then `npm stage approve <id>` with 2FA) is the alternative when
-the first half runs somewhere nobody can answer a prompt: `stage publish` needs no second factor, the
-approval does. Typed on this machine it adds a step and saves none — it is for automation, not for us.
 
 ## What publishing measured
 
@@ -180,9 +164,8 @@ approval does. Typed on this machine it adds a step and saves none — it is for
 
 ## An update, after 0.1.0
 
-**A commit is not a release.** Nothing publishes itself from this repository: no CI, no git hook, no
-`prepublishOnly`. A version number in `package.json` never moves outside a release the owner asked for.
-What follows is in "Publishing from GitHub" below: the bump, then the push.
+**A commit without a bump is not a release.** A version number in `package.json` never moves outside a
+release the owner asked for, and the workflow publishes only a version the registry does not have yet.
 
 He never has to know a version — he names a level, the script prints the move and waits.
 
@@ -199,10 +182,11 @@ scripts/release.sh oc-models-pro patch
 It refuses a dirty tree, refuses a package that is not publish-ready (unscoped name, no `files`), runs
 `npm run check`, prints `0.1.1 -> 0.1.2` and asks; on `y` it bumps with `--no-git-tag-version` — npm's
 own tag would be `v0.1.2` for every package at once — then prints the `npm pack --dry-run` list and stops.
-It never commits, tags or publishes: those three lines are printed, and the last one is the owner's.
+It never commits or publishes: the two lines it leaves are the commit and the push, and both are the
+owner's.
 
-The release commit carries `git tag <name>@<version>`: nothing pushes it, and it is the only answer to
-"which commit was 0.1.2" a year later. Record the version and the date in the plugin's own doc.
+The release commit's own message and the plugin's doc answer "which commit was 0.1.2" a year later: record
+the version and the date in the plugin's own doc.
 
 **On this machine the two paths stay local.** `opencode plugin add` is the user's command: run here it
 would install the package and load a second copy of the same id, so the unpacked tarball is tested by
@@ -212,14 +196,10 @@ The tarball gate above runs again only when packaging changes — `files`, `expo
 import. For a code change the live copy under a path *is* the code being shipped, so the gate would test
 nothing new.
 
-## Publishing from GitHub — how it works now
+## The workflow
 
-**In place since 2026-10-24.** The manual `npm publish` is still possible (with 2FA) but it is no longer the
-path: a release is the version bump plus a push, and the workflow publishes what the registry does
-not have yet. The push happens from `main` only — the work branch and its rule are in `docs/github.md`,
-*Branches*.
-
-What is where:
+In place since 2026-10-24. The push happens from `main` only — the work branch and its rule are in
+`docs/github.md`, *Branches*. What is where, once per repository:
 
 1. `repository.url` in the five published `package.json`, exactly `rizal72/opencode-plugins` — npm refuses
    to publish from a workflow when the two disagree.
@@ -232,10 +212,6 @@ What is where:
    owner with an OTP, and this workflow through OIDC.
 4. A guard in the workflow: a package is published only when its version is **forward** of the registry's,
    so a sync with unchanged versions is a green no-op and an old number can never move `latest` back.
-
-**The rule above changes with this.** "A commit is not a release" becomes: *a sync that carries a new
-version is a release*. The control sits one step earlier — `scripts/release.sh` prints the tarball before
-the push — and nothing publishes on its own from this repository, which has no remote.
 
 Measured 2026-10-24, the first automatic release: `oc-models-pro@0.1.2`, 21 s of runner, provenance signed
 and published to the transparency log, and the registry entry carrying `_npmUser: GitHub Actions` with the
@@ -260,19 +236,6 @@ The repository is the faster signal, and it has no lag: `gh api repos/rizal72/op
 
 Both are worth reading only after the packages and the repository have been out long enough to be found:
 a number taken the day they appear measures the announcement, not the use.
-
-## What the user runs
-
-```sh
-opencode plugin add @rizal72/<name>     # installs it and writes the global config
-opencode plugin list                    # it is there, and where it came from
-opencode plugin check                   # is there a newer version
-opencode plugin update                  # move to it
-opencode plugin remove @rizal72/<name>  # take it away
-```
-
-`plugins` in `~/.config/opencode/opencode.jsonc` accepts a registry name, `name@version`, a local
-directory, a `file://` URL or a Git specifier; `plugin add` writes the plain name.
 
 ## Testing a published package
 

@@ -58,13 +58,12 @@ read -r -p "bump to $next? [y/N] " ok || true
 
 cat <<EOF
 
-Nothing has been published. The three lines left, run from the repository root:
+Nothing has been published. The two lines left, run from the repository root:
 
   git add plugins/$name/package.json && git commit -m "Release $name $next"
-  git tag $name@$next
-  scripts/mirror-public.sh --publish   # the push publishes on npm, with provenance
+  git push origin main   # the push publishes on npm, with provenance
 
-A direct \`npm publish\` still works, with the second factor — the mirror push is the path now.
+A direct \`npm publish\` still works, with the second factor.
 
 Then: npm view $pkg_name version   and   opencode plugin update
 EOF

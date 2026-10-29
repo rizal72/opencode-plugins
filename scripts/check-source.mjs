@@ -19,7 +19,7 @@ const found = readdirSync(plugins, { withFileTypes: true })
 if (found.length) {
 	console.error("a tui.js shadows its tui.tsx — nothing would load the source:")
 	for (const name of found) console.error("  plugins/" + name + "/tui.js")
-	console.error("delete it: the compiled half belongs to the mirror (`scripts/build-tui.mjs --out <dir>`)")
+	console.error("delete it: the compiled half belongs to the published package (`scripts/build-tui.mjs --out <dir>`)")
 	process.exit(1)
 }
 console.log("check-source ok: no tui.js beside a tui.tsx")
