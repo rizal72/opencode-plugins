@@ -98,7 +98,7 @@ wallets, not the session's spend.
 | plugin | surface | why |
 |---|---|---|
 | `oc-git` | `ComposerPill` | branch and counts always visible; the details open on a click |
-| `oc-budget` | `ComposerPill` with `rows` | the paying wallet in the face, the other three one click away |
+| `oc-budget` | `ComposerPill` with a popover (`menu`) | the paying wallet in the face, the other three and the Go bar one click away |
 | `oc-context` | `Slot "session.header"` | percent and window beside the app's token count |
 | `oc-models-pro` | `Command` + `Panel` | a second implementation of the table, not the terminal's: a grid, a click to switch, the rows' meaning shared |
 | `oc-session-search` | `Command` with `slash` + `Panel` | results in a view, not a block of text |
@@ -152,7 +152,7 @@ an evening and a morning — every poll a fast 500 from 07:00 to 12:26, the pill
 | `oc-coffee` | keeps the last reading, unmarked |
 | `oc-ponytail-widget` | keeps the last value, unmarked |
 
-## Six traps
+## Eight traps
 
 - **Adding `./gui-experimental` to a plugin that is already loaded stays invisible**, however often the
   plugin is reloaded: the set of parts is resolved once per source, when the plugin first appears, and
@@ -180,6 +180,17 @@ an evening and a morning — every poll a fast 500 from 07:00 to 12:26, the pill
   validation (`wire()` in `oc-budget`). And the client must keep its last good reading when a poll fails:
   blanking the widget for a whole poll interval is how one bad night empties a panel until noon (measured
   2026-10-28 — every budget poll failed from 07:00 to 12:26, and the pill was gone the whole time).
+- **A model pick belongs to a surface, not to the session.** Each surface's picker keeps its own selection:
+  a prompt runs with the model of the surface that sent it, and the transcript records that switch, while
+  the other surface goes on showing its own. So the two can differ indefinitely, and the next prompt from
+  the "wrong" one re-reads the whole context there. Measured 2026-10-29 in both directions, with the native
+  picker and `oc-models-pro` alike. It matters to any pill that reads the composer's model: `oc-budget`
+  names the wallet of the *previous* model until a turn runs.
+- **A `menu` popover is as wide as the composer, whatever its content.** Four builds on 2026-10-29 settled
+  it: `max-content`, `width: 100%` and a two-column grid all produced the same box, so the width is the
+  host's and no CSS on the content moves it — unlike a `rows` menu, which hugs its longest row. Design the
+  contents to fill that width; a narrow layout leaves a column of dead space, and a grid that shrinks a
+  track below its content paints over its neighbour.
 
 ## Where the truth lives
 

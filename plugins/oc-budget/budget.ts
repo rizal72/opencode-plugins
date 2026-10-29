@@ -41,3 +41,18 @@ export function ageText(ms: number): string {
 export function windowPercent(window: UsageWindow | undefined): number | null {
 	return typeof window?.percent === "number" ? window.percent : null
 }
+
+/** How long until a quota window resets, in the shortest form that still says something. */
+export function countdown(iso: string | undefined): string {
+	if (!iso) return ""
+	const target = Date.parse(iso)
+	if (!Number.isFinite(target)) return ""
+	const ms = target - Date.now()
+	if (ms <= 0) return "now"
+	const minutes = Math.floor(ms / 60_000)
+	if (minutes < 60) return `${minutes}m`
+	const hours = Math.floor(minutes / 60)
+	if (hours < 48) return `${hours}h ${minutes % 60}m`
+	return `${Math.floor(hours / 24)}d ${hours % 24}h`
+}
+

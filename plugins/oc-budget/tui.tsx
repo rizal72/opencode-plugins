@@ -5,7 +5,7 @@
 //   sidebar.content       the rich view: every wallet, the bars, the resets, the peak
 //   prompt.footer.status  the paying wallet alone — the context total is oc-context's
 //   /budget               the full report in a dialog (a bar for each Go window, the
-//                         OpenRouter region guardrail, the reset times, the peak regime)
+//                         reset times, the peak regime)
 //
 // The footer is only appended to, never taken over: that row also holds the project folder,
 // the working spinner and the esc hint, and giving them up for one string is a bad trade.
@@ -36,6 +36,7 @@ import {
 	OR_WARN_USD,
 	ZEN_WARN_USD,
 	ageText,
+	countdown,
 	payingWallet,
 	windowPercent,
 	type ModelRef,
@@ -78,24 +79,10 @@ const FALLBACK_ACCENT = "#79c0ff"
  *  the text rather than the row's icon so the widget reads the same wherever it lands. */
 const BUDGET_GLYPH = "\u{f04c5}"
 const PEAK_GLYPH = "\u{f0535}"
-const SHIELD_GLYPH = "\u{f0565}"
 
 function bar(percent: number, cells = 10): string {
 	const filled = Math.max(0, Math.min(cells, Math.round((percent / 100) * cells)))
 	return "█".repeat(filled) + "░".repeat(cells - filled)
-}
-
-function countdown(iso: string | undefined): string {
-	if (!iso) return ""
-	const target = Date.parse(iso)
-	if (!Number.isFinite(target)) return ""
-	const ms = target - Date.now()
-	if (ms <= 0) return "now"
-	const minutes = Math.floor(ms / 60_000)
-	if (minutes < 60) return `${minutes}m`
-	const hours = Math.floor(minutes / 60)
-	if (hours < 48) return `${hours}h ${minutes % 60}m`
-	return `${Math.floor(hours / 24)}d ${hours % 24}h`
 }
 
 function usd(value: number | undefined): string {
@@ -106,15 +93,6 @@ function usd(value: number | undefined): string {
 /** A percent as the panel prints it — a dash, never a fake zero, when there is no number. */
 function percentText(percent: number | null): string {
 	return percent === null ? "—" : `${Math.round(percent)}%`
-}
-
-/** True when the active model's price doubles inside a peak window: native DeepSeek, and
- *  the DeepSeek ids on Go while the subscription pays. Zen never does — its DeepSeek
- *  price is flat at the peak figure, a constant and not a doubling. */
-/** True when OpenRouter's account regions pin something narrower than the default
- *  multi-region — the only place the guardrail is visible. */
-function regionPinned(regions: string[] | undefined): boolean {
-	return Array.isArray(regions) && !regions.includes("global")
 }
 
 export default Plugin.define({
@@ -227,7 +205,11 @@ export default Plugin.define({
 			// snapshot/model change and rebuilds the rows from the current values.
 			const rows = createMemo(() => {
 				const snap = snapshot()
-				const peak = peakDoubles(model(), payingWallet(model(), snap), clock()) ? PEAK_GLYPH : ""
+				// Two questions, two functions (`peak.ts`). This block answers "is the tariff in its doubled
+				// window": it marks GO and DS whatever is paying, because the mark is the reminder not to
+				// switch *to* them now. `doubles` answers "is the model in front of me paying double", and
+				// that is the footer's and the capsule's job.
+				const atPeak = isDeepseekPeak(clock()) ? PEAK_GLYPH : ""
 				const goPercent = windowPercent(snap?.go?.monthly)
 				const out: any[] = []
 
@@ -249,27 +231,26 @@ export default Plugin.define({
 							<text fg={goColor(goPercent)}>
 								{goPercent === null ? "—" : `${bar(goPercent)} ${percentText(goPercent)}`}
 							</text>
-							{peak ? <text fg={RED}> {PEAK_GLYPH}</text> : null}
+							{atPeak ? <text fg={RED}> {PEAK_GLYPH}</text> : null}
 						</box>,
 					)
-					out.push(
-						<box flexDirection="row">
-							<text fg={DIM}>5h </text>
-							<text fg={goColor(windowPercent(snap.go.rolling))}>
-								{percentText(windowPercent(snap.go.rolling))}
-							</text>
-							<text> </text>
-							<text fg={DIM}>wk </text>
-							<text fg={goColor(windowPercent(snap.go.weekly))}>
-								{percentText(windowPercent(snap.go.weekly))}
-							</text>
-							<text> </text>
-							<text fg={DIM}>mo </text>
-							<text fg={goColor(goPercent)}>{percentText(goPercent)}</text>
-						</box>,
-					)
-					const reset = countdown(snap.go.monthly?.resetsAt)
-					if (reset) out.push(<text fg={DIM}>reset {reset}</text>)
+					// One line per window, its reset on the same line: three counters side by side plus three
+					// countdowns would need ~45 columns and this panel does not know the sidebar's width, so
+					// the block grows down instead of across. The percent is padded to five so the resets line
+					// up; the widest row is `mo 100%  reset 24d 3h`, 21 columns.
+					const windowRow = (label: string, percent: number | null, resetsAt: string | undefined) => {
+						const reset = countdown(resetsAt)
+						return (
+							<box flexDirection="row">
+								<text fg={DIM}>{label} </text>
+								<text fg={goColor(percent)}>{percentText(percent).padEnd(5)}</text>
+								{reset ? <text fg={DIM}>reset {reset}</text> : null}
+							</box>
+						)
+					}
+					out.push(windowRow("5h", windowPercent(snap.go.rolling), snap.go.rolling?.resetsAt))
+					out.push(windowRow("wk", windowPercent(snap.go.weekly), snap.go.weekly?.resetsAt))
+					out.push(windowRow("mo", goPercent, snap.go.monthly?.resetsAt))
 					// After the reset, as a line of its own: the label dim, the name in the accent oc-git uses
 					// for the branch.
 					if (snap.zen?.org && (snap.zen.peers ?? 0) > 1) {
@@ -281,9 +262,8 @@ export default Plugin.define({
 						)
 					}
 					// A dim rule closes the Go block, so the wallets below read as a separate group. Fixed, not
-					// measured: the panel does not know how wide the sidebar is. 20 columns clears every line the
-					// block prints short of exhaustion — `5h 3% wk 1% mo 1%` is 17, two-digit percents 19; only
-					// `5h 100% wk 100% mo 100%` (23) runs past it.
+					// measured: the panel does not know how wide the sidebar is, and 20 columns is the width every
+					// line clears short of exhaustion — a window row at 100% with a day-scale reset reaches 21.
 					out.push(<text fg={DIM}>{"─".repeat(20)}</text>)
 				} else if (snap?.go?.error) {
 					out.push(<text fg={DIM}>GO —</text>)
@@ -294,7 +274,7 @@ export default Plugin.define({
 					out.push(
 						<box flexDirection="row">
 							<text fg={balanceColor(snap.ds.balance, DS_WARN_USD)}>DS {usd(snap.ds.balance)}</text>
-							{peak ? <text fg={RED}> {PEAK_GLYPH}</text> : null}
+							{atPeak ? <text fg={RED}> {PEAK_GLYPH}</text> : null}
 						</box>,
 					)
 				} else if (snap?.ds?.error) {
@@ -305,7 +285,6 @@ export default Plugin.define({
 					out.push(
 						<box flexDirection="row">
 							<text fg={balanceColor(snap.or.balance, OR_WARN_USD)}>OR {usd(snap.or.balance)}</text>
-							{regionPinned(snap.or.regions) ? <text fg={RED}> {SHIELD_GLYPH}</text> : null}
 						</box>,
 					)
 				} else if (snap?.or?.error) {
@@ -368,7 +347,7 @@ export default Plugin.define({
 				return {
 					color: balanceColor(snap?.or?.balance, OR_WARN_USD),
 					body: `OR ${snap?.or?.error ? "—" : usd(snap?.or?.balance)}`,
-					marker: regionPinned(snap?.or?.regions) ? SHIELD_GLYPH : "",
+					marker: "",
 				}
 			})
 
@@ -439,10 +418,6 @@ export default Plugin.define({
 				lines.push(`  ${"openrouter".padEnd(8)} ${usd(snap.or.balance)}${of}${used}`)
 				if (typeof snap.or.usageMonthly === "number") {
 					lines.push(`  ${"".padEnd(8)} month ${usd(snap.or.usageMonthly)}`)
-				}
-				if (Array.isArray(snap.or.regions)) {
-					const enforcing = snap.or.regions.includes("global") ? "NOT enforcing" : "enforcing"
-					lines.push(`  ${"regions".padEnd(8)} ${snap.or.regions.join(", ")} — guardrail ${enforcing}`)
 				}
 			} else if (snap?.or?.error) {
 				lines.push(`  ${"openrouter".padEnd(8)} ${snap.or.error}`)

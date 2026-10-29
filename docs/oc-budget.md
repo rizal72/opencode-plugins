@@ -17,7 +17,7 @@ measurement are in `docs/sidebar.md`.
 |---|---|
 | `plugins/oc-budget/index.ts` | **server**: resolves credentials, reads the four wallets, caches, registers the RPC |
 | `plugins/oc-budget/tui.tsx` | **TUI**: two slots and `/budget`, nothing else |
-| `plugins/oc-budget/gui.tsx` | **GUI**: the pill and its menu, over the same contract |
+| `plugins/oc-budget/gui.tsx` | **GUI**: the pill and its popover, over the same contract |
 | `plugins/oc-budget/rpc.ts` | the one contract both halves import |
 | `plugins/oc-budget/peak.ts` | DeepSeek's two tariffs, shared by both surfaces; `--self-check` |
 
@@ -69,15 +69,19 @@ Which wallet *pays* is decided by the TUI, the only half that knows the selected
 `deepseek` → DS, `openrouter` → OR, `opencode`/`opencode-zen` → ZEN, `opencode-go` → GO unless the
 monthly window is `rate-limited`, in which case the gateway falls back to ZEN.
 
-The sidebar prints the three Go windows on one line — `5h 0% wk 27% mo 71%`, single spaces, the
-labels muted and **each number coloured on its own value** by the same rule as the bar above it.
+The sidebar prints one line per Go window, its reset on the same line — `5h 4%   reset 2h 10m`,
+`wk 31%  reset 3d 14h`, `mo 16%  reset 24d 3h`. The labels are muted, **each percent is coloured on its own
+value** by the same rule as the bar above it, and the percent is padded to five characters so the countdowns
+line up. Before 2026-10-29 the three figures shared one row and only the monthly reset was printed; three
+counters side by side plus three countdowns need about 45 columns, and this panel does not know the width
+of the sidebar, so the block grows down instead of across — one row more than the two lines it replaces.
 
-One name, in the Go block: `workspace: go-2`, a line of its own after the reset — the label dim, the name in
-the accent oc-git gives the branch, the only identity colour in a panel of state colours. A dim rule of fixed
-length follows it and closes the Go block, so the wallets below read as a separate group — 20 columns, fixed
-and not measured because the panel does not know how wide the sidebar is. It clears every line the block
-prints short of exhaustion (`5h 3% wk 1% mo 1%` is 17, two-digit percents 19); only `5h 100% wk 100% mo 100%`
-(23) runs past it. The workspace is not a
+One name, in the Go block: `workspace: go-2`, a line of its own after the windows — the label dim, the name
+in the accent oc-git gives the branch, the only identity colour in a panel of state colours. A dim rule of
+fixed length follows it and closes the Go block, so the wallets below read as a separate group — 20 columns,
+fixed and not measured because the panel does not know how wide the sidebar is. It clears every line the
+block prints short of exhaustion: the widest is `mo 100%  reset 24d 3h`, 21 columns, and a window row at
+three digits with a day-scale reset is the only case that runs past it. The workspace is not a
 property of the balancing wallet: it is the console session, which governs the Go windows *and* the `ZEN`
 balance. The **sidebar** prints it only when more than one console connection is saved; with one there is
 nothing to distinguish. `/budget` prints it always, under its first line: there it is information, not a
@@ -176,12 +180,13 @@ doubling.
 The windows, `isPeak`, `doubles` and `nextChange` live in `peak.ts`, one definition for both surfaces
 (`--self-check`). What each surface does with the flag is its own business:
 
-- **terminal**: a red mdi trending-up glyph next to the amount and next to the Go bar, both drawn from one
-  flag, so they appear and disappear together — it is the *model in use* that carries them;
-- **desktop**: `↗` at the end of the capsule's label, and only when what you are paying doubles. In the
-  menu, `↗` sits on the Go row and on the `DS` row whenever the hour is peak, whether or not they are the
-  ones paying: the menu is read *before* choosing, so it warns instead of reporting. Zen and OpenRouter
-  never carry it.
+- **terminal**: a red mdi trending-up glyph next to the amount and next to the Go bar. Since 2026-10-29 the
+  block marks from `isPeak`, not from `doubles`: it appears on GO and DS whoever is paying, because the
+  reminder not to switch *to* them is worth more than a report on the one in use. The footer keeps
+  `doubles` — it shows one wallet, the one paying;
+- **desktop**: `↗` at the end of the capsule's label when what you are paying doubles — the footer's rule.
+  In the popover, `↗` sits on the Go bar and on the `DS` line whenever the hour is peak, whether or not
+  they are the ones paying: the same rule as the block. Zen and OpenRouter never carry it.
 
 ## Colours come from the theme
 
@@ -217,28 +222,39 @@ colour, as pi does: a coloured mark beside a coloured word would be two signals 
 
 ## Desktop half
 
-The desktop has a pill where the TUI has the footer and one menu behind it where the TUI has the
-sidebar, so the split is the same one, moved: the **paying wallet** is the capsule (`GO · 7%`), and the
-menu carries the Go block, the workspace, a rule, then the three pay-per-use wallets.
+The desktop has a pill where the TUI has the footer and a popover where it has the sidebar block, and the
+two now say the same thing: the **capsule is the footer** (the paying wallet, `GO · 7%`), and the
+**popover is the block** — the Go bar, one row per window with its reset, the workspace, a rule, then DS,
+OR and ZEN.
 
-- one icon for every provider row and for the capsule (`providers`), the other two being `refresh` for
-  the time windows and `workspace` for the console workspace; `tone` colours the icon, so the colour
-  says the threshold while the shape says what the row is;
-- the workspace name and the three wallet figures are the **rows' own text** (`workspace · go-1`,
-  `ZEN · $12.40`), because the figure is the news and `detail` is muted; `detail` keeps only what is
-  genuinely an aside — a wallet's error message, the `caffeinate` flags on coffee's rows, the peak `↗` on
-  Go and `DS`; the Go row carries its three percentages as the label, because there is nothing else in
-  that row;
-- **no bars**: a row is one line of text, and a bar drawn in characters would be monochrome;
+Until the 2.2.1 SDK a pill could only open `rows`: one line of text each, and a `tone` that painted the
+icon alone. That is why the window had no bar and no per-figure colour, and `menu` is what closes the gap:
+the host keeps its capsule and its box, the plugin draws the contents (`docs/gui-plugins.md`).
+
+- the **bar** is proportional to the monthly percent, clamped to its track, coloured by the terminal's own
+  rule — green, yellow from 90, red at 100 — and the figure beside it takes the same colour;
+- every figure is coloured **on its own value**: the three windows, each wallet's balance, the workspace in
+  the accent. The colours are the app's CSS variables (`--v2-state-fg-*`, `--v2-text-text-muted`), never
+  hex: a GUI plugin has no theme API, and those tokens are the theme's own three alert levels;
+- the **three windows are three rows**, each with its own countdown right-aligned, exactly as the block
+  prints them: the snapshot already carried a `resetsAt` per window, and the popover shows all three
+  instead of naming the monthly one alone;
+- **the peak `↗` marks GO and DS whoever is paying** (`isPeak`): its job is the reminder not to switch to
+  them. The capsule's `↗` marks only the paying model (`doubles`). Two questions, two functions — the rule
+  `peak.ts` documents;
+- the popover **reads again on open**, because the tick is five minutes, and the capsule follows that same
+  call: both surfaces read one signal, so one read refreshes both;
+- the workspace is named only when the console account has peers, as the block does;
 - `order` is 15, after coffee's 5 and git's 10, which is the order `opencode.jsonc` gives them in the
   TUI: the desktop sorts pills by that number, not by load order;
-- the read goes through the **session's own server** client, like git's, and refreshes every 5 minutes.
+- the read goes through the **session's own server** client, like git's, and refreshes every 5 minutes;
 - **three states, never two** (`docs/gui-plugins.md`, *a pill never shows a stale value as fresh*): fresh
   as above; **stale** when the last good reading is older than two polls (10 min) — the label takes a `~`,
-  the tone `warning`, the title `Budget · last read 12m ago`; and **nothing read yet with a failure** — the
-  label `budget`, icon `circle-exclamation`, tone `danger`, the error in the title and as the menu's only
-  row. A failed poll keeps the last good reading and asks again in 30 s; it does not blank the pill. Before
-  the first answer it stays hidden: a fresh window is not a fault.
+  the tone `warning`, the title `Budget · last read 12m ago`, and the popover opens with the same line; and
+  **nothing read yet with a failure** — the label `budget`, icon `circle-exclamation`, tone `danger`, the
+  error in the title and as the popover's only text. A failed poll keeps the last good reading and asks
+  again in 30 s; it does not blank the pill. Before the first answer it stays hidden: a fresh window is not
+  a fault.
 
 `budget.ts` holds what both halves must agree on — the four thresholds, `payingWallet` and
 `windowPercent` — and `peak.ts` the tariff; each half keeps its own formatting.
@@ -251,10 +267,11 @@ menu carries the Go block, the workspace, a rule, then the three pay-per-use wal
 
 ## Not ported from pi-budget
 
-- **OpenRouter per-model posture shield** (a pinned region vs a named company). The TUI exposes the
-  selected model as `providerID`/`modelID`/`variant` only, not its routing, so there is nothing to
-  decide from. What is shown instead is the account-level `allowed_data_regions` from `/key` — the
-  guardrail itself — and the shield appears only when it pins something narrower than `global`.
+- **OpenRouter per-model posture shield**: ported from pi-budget, **removed 2026-10-29**. On pi it marked
+  the routing of a pinned model; here the only datum is the account-level `allowed_data_regions` from
+  `/key`, which is a policy this account has never set — so the glyph could never appear, in either half.
+  The field, the helper and the glyph are gone. If it is ever wanted, it has to be built on how OpenCode
+  exposes routing, not on this field.
 - **The transient panel** (`setWidget`, self-clearing) has no equivalent worth having here: the sidebar
   is persistent and holds the same detail.
 - **Session cost**: OpenCode already shows it in its own header.
@@ -288,8 +305,8 @@ logs `failed to encode response`. Neither appeared.
 
 - the handler cannot reject: `collect().catch(failedSnapshot)` answers a snapshot carrying the message in
   all four wallets, so a throw becomes readable instead of a 500;
-- `or.regions` is filtered to strings and `zen.org` is omitted unless it is one: an array item or a label
-  of another type is exactly the kind of value the encoder refuses;
+- `zen.org` is omitted unless it is a string: a label of another type is exactly the kind of value the
+  encoder refuses;
 - the TUI states what happened — `stale 25m` when the last reading is older than two polls, the failure
   message when the last read failed, `budget —` when there has never been a snapshot.
 

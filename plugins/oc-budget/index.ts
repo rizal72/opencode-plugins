@@ -9,7 +9,7 @@
 //   opencode-go  -> GET console/api/go/status             (5h / weekly / monthly meters)
 //                   GET opencode.ai/zen/go/v1/usage        (fallback: a machine with no console session)
 //   deepseek     -> GET api.deepseek.com/user/balance      (native wallet)
-//   openrouter   -> GET openrouter.ai/api/v1/credits (+ /key for the month and regions)
+//   openrouter   -> GET openrouter.ai/api/v1/credits (+ /key for the month)
 //   opencode     -> GET console/api/orgs -> /console/api/billing/status  (Zen balance)
 //
 // The Zen balance is the reason the Console integration exists: no API key opens
@@ -204,16 +204,12 @@ async function collectOpenRouter(ctx: any): Promise<BudgetSnapshot["or"]> {
 			totalUsage,
 			balance: totalCredits - totalUsage,
 		}
-		// Best effort: /key enriches the report (month spend, region guardrail) and
+		// Best effort: /key enriches the report (month spend) and
 		// must never blank a balance already read.
 		try {
 			const keyBody = await getJson(OR_KEY_URL, headers)
 			const monthly = keyBody?.data?.usage_monthly
 			if (typeof monthly === "number") result.usageMonthly = monthly
-			const regions = keyBody?.data?.allowed_data_regions
-			// Filtered to strings: an array item of another type cannot be encoded against the
-			// contract, and that failure is a silent `rpc.invalid_output` — an HTTP 500 logged nowhere.
-			if (Array.isArray(regions)) result.regions = regions.filter((r: unknown) => typeof r === "string")
 		} catch {
 			// keep the balance
 		}
