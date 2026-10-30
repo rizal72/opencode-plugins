@@ -204,7 +204,7 @@ listed stays invisible. That closes by draining the list, not by counting lines.
 the lint upstream is a statement of where they are taking it. A migration is therefore worth doing when a
 file is already open, never as a campaign.
 
-## Eight traps
+## Traps
 
 - **Adding `./gui-experimental` to a plugin that is already loaded stays invisible**, however often the
   plugin is reloaded: the set of parts is resolved once per source, when the plugin first appears, and

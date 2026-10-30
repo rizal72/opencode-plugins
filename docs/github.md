@@ -63,9 +63,9 @@ text of the report.
 Three levels, in the order of value over risk.
 
 1. **A smoke test per release.** After the publish, a job repeats *Testing a published package*
-   (`docs/publishing.md`): five `opencode plugin add`, `find -name '*.tsx'` empty, one session answered, the
-   TUI drawn — and comments the result on the release. Read-only, no issue text enters it, and it catches the
-   load failure a user hit on 2026-10-25 before anyone has to report it.
+   (`docs/publishing.md`): one `opencode plugin add` per published package, `find -name '*.tsx'` empty, one
+   session answered, the TUI drawn — and comments the result on the release. Read-only, no issue text enters
+   it, and it catches the load failure a user hit on 2026-10-25 before anyone has to report it.
 2. **A triage on opening.** Read the body, name the plugin and the surface, apply the labels, ask what the
    form lets people skip. Needs `issues: write` and nothing more.
 3. **A reproduction on a label.** Clone, install the reported version, open a PR. The most powerful and the

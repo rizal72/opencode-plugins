@@ -1,7 +1,7 @@
 # Publishing a plugin
 
-**Status: in use.** Five packages, all published by the workflow, under the `@rizal72/` scope, straight
-from this repository.
+**Status: in use.** Every `@rizal72/` package is published by the workflow from this repository; `ls plugins`
+says which ones exist and `npm view @rizal72/<name> version` which ones the registry has.
 
 The install channel is npm alone: `opencode plugin add` reads a registry name, and that is the whole
 story. The sources live here, in the public repository, which is also where they are written:
@@ -28,7 +28,7 @@ Then on the package's page: **Trusted publishing** → GitHub Actions, user `riz
 
 Two things that cost a round trip each:
 
-- **`0.0.0-stage` no longer works.** The five older packages carry it, published 2026-10-23, but the same
+- **`0.0.0-stage` no longer works.** The packages published before 2026-10-30 carry it, and the same
   version is now refused: `403 You cannot publish using the version: 0.0.0-stage`. `0.0.1` is the version
   that goes.
 - **A `404` on the `PUT` is not always a name problem.** With an expired session the registry answers exactly
@@ -229,7 +229,7 @@ nothing new.
 In place since 2026-10-24. The push happens from `main` only — the work branch and its rule are in
 `docs/github.md`, *Branches*. What is where, once per repository:
 
-1. `repository.url` in the five published `package.json`, exactly `rizal72/opencode-plugins` — npm refuses
+1. `repository.url` in every published `package.json`, exactly `rizal72/opencode-plugins` — npm refuses
    to publish from a workflow when the two disagree.
 2. `.github/workflows/publish.yml`: on a push to `main` and on `workflow_dispatch`, `id-token: write`,
    `contents: read`, Node 24, then `npm ci`, `check:ci`, the two builds and the manifest rewrite before the
@@ -250,16 +250,18 @@ The one failure mode to know: a broken publish (wrong `repository`, a renamed wo
 Actions tab** and nowhere else. Nothing alerts.
 
 **After the push, nothing polls.** The workflow is the record, and the registry lags by minutes anyway:
-read `npm view @rizal72/<name> version` once, when the owner asks, or launch that single command in the
-background and let it report once when the version appears. A loop of checks gains nothing and holds the
-turn — the answer cannot arrive sooner for being watched.
+read `npm view --prefer-online @rizal72/<name> version` once, when the owner asks, or launch that single
+command in the background and let it report once when the version appears. A loop of checks gains nothing
+and holds the turn — the answer cannot arrive sooner for being watched. The flag matters: without it `npm
+view` answers from a cached packument and reports the version *before* the publish (measured 2026-10-30,
+`oc-git` reading 0.2.1 with 0.2.2 already on the registry and on `latest`).
 
 ## Who is using them
 
 Download counts come from the registry's own API; a package younger than a day has no row yet:
 
 ```sh
-for p in oc-models-pro oc-git oc-coffee oc-ponytail-widget oc-session-search; do
+for p in $(ls plugins); do
   printf "%-20s " "$p"
   curl -s "https://api.npmjs.org/downloads/point/last-month/@rizal72/$p" | jq -r '.downloads // "no data"'
 done
