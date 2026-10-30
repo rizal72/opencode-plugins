@@ -133,7 +133,10 @@ entry as the workaround.
   edit.
 - **The gate runs before the commit, not after.** `scripts/preflight.sh` refuses a package whose content
   moved while its version did not. The workflow cannot do that job: by the time it sees the push, npm may
-  already be behind, and the mistake reads as a bug that was fixed.
+  already be behind, and the mistake reads as a bug that was fixed. The same gate installs the lock with
+  `npm ci --dry-run`: the workflow's first step is a real `npm ci`, which stops dead on a lock that does
+  not satisfy it — what an install run with `--legacy-peer-deps` leaves behind, since that flag prunes the
+  peers the lock still names (measured 2026-10-30: the run failed 16 s in, after the push).
 
 The condition for going back to shipping `.tsx` is not that issue closing: it is the `include` option in
 `anomalyco/opentui#1741`, which compiles the folders whose path contains `node_modules`. Until it lands,

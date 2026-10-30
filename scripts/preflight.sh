@@ -1,5 +1,6 @@
 #!/bin/sh
-# Refuses a push that would move a package's content without moving its version.
+# Refuses a push that would move a package's content without moving its version, or that carries a lock
+# `npm ci` cannot install.
 #
 # npm does not publish a version twice, so a forgotten bump does not publish wrong code: it leaves npm on
 # the old tarball while the repository shows the new sources — silently, until someone reports a bug that
@@ -27,6 +28,13 @@ git rev-parse --verify -q "$base" >/dev/null || { echo "no $base to compare agai
 
 [ -z "$(git status --porcelain)" ] || {
 	echo "uncommitted changes: they would not travel with the push" >&2
+	exit 1
+}
+
+# The workflow's first step is `npm ci`, which stops dead on a lock that does not satisfy it: an install
+# run with a flag that prunes peers leaves exactly that, and the run only says so after the push.
+npm ci --dry-run --no-audit --no-fund >/dev/null 2>&1 || {
+	echo "the lock does not satisfy npm ci: run npm install here, then commit the lock" >&2
 	exit 1
 }
 
