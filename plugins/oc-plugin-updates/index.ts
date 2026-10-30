@@ -89,7 +89,7 @@ async function api(path: string, body: unknown, timeout: number): Promise<unknow
 }
 
 /** The cache travels as JSON text: `ctx.storage` holds `Schema.Json`, and a list of objects is not one. */
-type Held = { at: number; rows: UpdateRow[] }
+type Held = { at: number; rows: UpdateRow[]; dev?: string }
 
 function held(raw: unknown): Held | undefined {
 	if (typeof raw !== "string") return undefined
@@ -108,7 +108,7 @@ function held(raw: unknown): Held | undefined {
 			})
 		}
 		// A clock that jumped backwards must not make a reading fresh for ever.
-		return { at: Math.min(Math.max(value.at, 0), Date.now()), rows }
+		return { at: Math.min(Math.max(value.at, 0), Date.now()), rows, ...(typeof value.dev === "string" ? { dev: value.dev } : {}) }
 	} catch {
 		return undefined
 	}
@@ -142,11 +142,16 @@ export default Plugin.define({
 		await ctx.rpc.register(Updates, {
 			check: async (input: any): Promise<CheckResult> => {
 				const cached = input?.force === true ? undefined : held(await ctx.storage.get(KEY))
-				if (cached && Date.now() - cached.at < TTL_MS) return { ok: true, at: cached.at, rows: cached.rows }
+				// A reading taken under a test switch dies with the switch: the cache outlives the server, so
+				// otherwise the fake rows would be served for six hours after the variable is gone.
+				if (cached && cached.dev === DEV && Date.now() - cached.at < TTL_MS)
+					return { ok: true, at: cached.at, rows: cached.rows }
 				try {
 					const result = await read()
 					// Best effort: a cache we cannot write is a slow next read, not a failed one.
-					await ctx.storage.set(KEY, JSON.stringify({ at: result.at ?? Date.now(), rows: result.rows ?? [] })).catch(() => {})
+					await ctx.storage
+						.set(KEY, JSON.stringify({ at: result.at ?? Date.now(), rows: result.rows ?? [], dev: DEV }))
+						.catch(() => {})
 					return result
 				} catch (error) {
 					// The last good reading is still worth showing: the pill marks it as held instead of
