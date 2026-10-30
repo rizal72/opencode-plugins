@@ -155,9 +155,10 @@ export default Plugin.define({
 					return result
 				} catch (error) {
 					// The last good reading is still worth showing: the pill marks it as held instead of
-					// hiding, because a hidden pill is the refusal to say anything at all.
+					// hiding, because a hidden pill is the refusal to say anything at all. A reading taken
+					// under a test switch is not "good" once the switch is gone.
 					const last = held(await ctx.storage.get(KEY))
-					return { ok: false, error: message(error), ...(last ? { at: last.at, rows: last.rows } : {}) }
+					return { ok: false, error: message(error), ...(last && last.dev === DEV ? { at: last.at, rows: last.rows } : {}) }
 				}
 			},
 			update: async (input: any): Promise<UpdateResult> => {

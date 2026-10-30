@@ -36,7 +36,8 @@ Every surface a plugin draws into hangs off a screen, and the screens do not all
 
 | surface | exists on | documented as |
 |---|---|---|
-| TUI `app`, `home.footer`, `home.footer.status` | the home screen | TUI plugins, *Slots* |
+| TUI `app` | every screen — the root of the slot tree | TUI plugins, *Slots* |
+| TUI `home.footer`, `home.footer.status` | the home screen | TUI plugins, *Slots* |
 | TUI `sidebar.content`, `sidebar.footer`, `session.composer.top` | a session | TUI plugins, *Slots* |
 | GUI `ComposerPill` | a mounted session composer | GUI plugins, *Composer pills* |
 | GUI panels, `session.header`, `session.panel.end` | a session | GUI plugins, *Panels*, *Slots* |
@@ -44,6 +45,8 @@ Every surface a plugin draws into hangs off a screen, and the screens do not all
 | GUI `session.location.menu` | a session | GUI plugins, *Slots* |
 
 So a plugin that draws in the sidebar or on a pill has nowhere to be until a session exists: a client opened
-fresh sits on its own start screen, and **nothing of ours can be on it**. In the terminal that means until
-a message has been sent (measured 2026-10-30: the line appeared with the first prompt, never before). A
-surface that has to be visible earlier belongs in a home or window slot, not in a session one.
+fresh sits on its own start screen, and those two surfaces are not there. In the terminal that means until a
+message has been sent (measured 2026-10-30: the line appeared with the first prompt, never before). The
+footer is the opposite case — it is on the start screen too, which is why `home.footer` and
+`home.footer.status` exist — and a plugin that has to be visible earlier uses one of those, or
+`window.bottom` in the desktop; none of ours does today.

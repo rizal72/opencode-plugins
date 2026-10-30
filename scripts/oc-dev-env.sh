@@ -4,19 +4,10 @@
 #   scripts/oc-dev-env.sh on OC_PLUGIN_UPDATES_DEV=outdated [ANOTHER=value ...]
 #   scripts/oc-dev-env.sh off
 #
-# Why `on` closes the clients first: the service is spawned by a client, with *that* client's environment,
-# so a client left open respawns a clean service the moment it is stopped and the variables never arrive
-# (measured 2026-10-29 four times, and again 2026-10-30: the TUI owned the service and brought it back
-# without the variable). `opencode service restart` keeps the same process image, so it cannot carry an
-# environment either.
-#
-# Clients are found by asking the service who is connected to its port, not by guessing from process
-# names: the terminal runs `opencode -c`, the desktop app is Electron and its helper processes share the
-# bundle path. Both are closed, the desktop named separately because it can be open with no session loaded.
-#
-# The verification is the point. `on` reads the variables back from the environment of the process now
-# listening, so a variable that did not arrive says so instead of looking like a success. `off` stops the
-# service and nothing else: the next client starts a clean one.
+# OpenCode is one server and many clients. The service is spawned by the first client that needs one and
+# inherits *that* client's environment, and `opencode service restart` keeps the same process image — so
+# neither can carry a variable. The only way is: no client alive, service stopped, service started by us.
+# Everything below exists to make those three conditions true and then to prove it.
 set -eu
 
 usage() {
@@ -27,16 +18,6 @@ usage() {
 [ $# -ge 1 ] || usage 2
 mode=$1
 shift
-
-# Detached: the caller is usually a client of the service this script is about to stop, so the parent
-# shell can die halfway. The child survives it; the log is the record either way.
-if [ "${OC_DEV_ENV_DETACHED:-}" != 1 ]; then
-	OC_DEV_ENV_DETACHED=1 nohup sh "$0" "$mode" "$@" >/tmp/oc-dev-env.log 2>&1 &
-	child=$!
-	wait $child 2>/dev/null || true
-	cat /tmp/oc-dev-env.log 2>/dev/null
-	exit 0
-fi
 
 case "$mode" in
 -h | --help | help) usage 0 ;;
@@ -51,26 +32,56 @@ on)
 			exit 2
 			;;
 		esac
+		# The verification reads the environment out of `ps`, which prints it space-separated: a value
+		# holding a space cannot be told from the next variable, so it is refused instead of misreported.
+		case "$pair" in *" "*)
+			echo "oc-dev-env: '$pair' has a space; only single-token values can be verified" >&2
+			exit 2
+			;;
+		esac
 	done
 	;;
 off) [ $# -eq 0 ] || usage 2 ;;
 *) usage 2 ;;
 esac
 
-port=$(opencode service status 2>/dev/null | sed -n 's|.*:\([0-9]*\)$|\1|p' || true)
-server=$(opencode api get /api/info 2>/dev/null | sed -n 's/.*"pid":\([0-9]*\).*/\1/p' || true)
+# Detached, because the caller is usually a client of the service this script is about to stop: the parent
+# shell can die halfway and the child would die with it. The child writes the log; the parent prints it.
+if [ "${OC_DEV_ENV_DETACHED:-}" != 1 ]; then
+	work=$(mktemp -d "${TMPDIR:-/tmp}/oc-dev-env.XXXXXX")
+	log="$work/log"
+	OC_DEV_ENV_DETACHED=1 OC_DEV_ENV_WORK="$work" nohup sh "$0" "$mode" "$@" >"$log" 2>&1 &
+	child=$!
+	wait $child 2>/dev/null || true
+	cat "$log" 2>/dev/null
+	echo "log: $log"
+	exit 0
+fi
 
-# What gets closed is put back at the end: a client left closed is a window the owner reopens by hand.
-reopen_app=/tmp/oc-dev-env.app
-reopen_tui=/tmp/oc-dev-env.tui
-rm -f "$reopen_app" "$reopen_tui"
+work=${OC_DEV_ENV_WORK:-$(mktemp -d "${TMPDIR:-/tmp}/oc-dev-env.XXXXXX")}
+reopen_app="$work/app"
+reopen_tui="$work/tui"
 
-# Whoever holds a connection to the port, plus the desktop's main process: a closed window is not a
-# closed app, and the Electron helpers share the bundle path, so the pattern covers all of them.
+# The port the service writes its own state with, and the pid listening on it. Read from `lsof`, not from
+# `api get`: that command may start a service when none is up, which is a measurement creating its subject.
+service_port() {
+	opencode service status 2>/dev/null | sed -n 's|.*:\([0-9]*\)$|\1|p' | head -1
+}
+
+listen_pid() {
+	[ -n "${1:-}" ] || return 1
+	lsof -nP -iTCP:"$1" -sTCP:LISTEN 2>/dev/null | awk 'NR>1{print $2}' | head -1
+}
+
+# Whoever holds a connection to the port, plus the desktop app: a closed window is not a closed app, and
+# the Electron helpers share the bundle path. The port and the pid are re-read on every round, because a
+# client that came back has come back on a service we have not seen yet.
 close_clients() {
+	port=$(service_port)
+	server=$(listen_pid "$port" || true)
 	connected=""
 	if [ -n "$port" ]; then
-		connected=$(lsof -nP -iTCP:"$port" -sTCP:ESTABLISHED 2>/dev/null | awk 'NR>1{print $2}' || true)
+		connected=$(lsof -nP -iTCP:"$port" -sTCP=ESTABLISHED 2>/dev/null | awk 'NR>1{print $2}' || true)
 	fi
 	app=$(pgrep -f '/Applications/OpenCode\.app/' 2>/dev/null || true)
 	clients=""
@@ -83,9 +94,10 @@ close_clients() {
 	for pid in $clients; do
 		name=$(ps -o comm= -p "$pid" 2>/dev/null || echo "pid $pid")
 		args=$(ps -o args= -p "$pid" 2>/dev/null || true)
+		cwd=$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p' | head -1)
 		case "$args" in
 		*/Applications/OpenCode.app/*) : >"$reopen_app" ;;
-		*) [ -n "$args" ] && printf '%s\n' "$args" >>"$reopen_tui" ;;
+		*) [ -n "$args" ] && printf '%s\t%s\n' "${cwd:-$PWD}" "$args" >>"$reopen_tui" ;;
 		esac
 		kill "$pid" 2>/dev/null && echo "closed $name (pid $pid)"
 	done
@@ -114,29 +126,42 @@ if [ "$mode" = off ]; then
 	exit 0
 fi
 
-# Three rounds: a client that was closed can still be restarted by the desktop's own supervisor, and a
-# service that comes back is a service that comes back without the variables.
 round=0
 while [ $round -lt 3 ]; do
 	close_clients || {
 		[ $round -eq 0 ] && echo "no client connected"
 		break
 	}
-	opencode service stop >/dev/null 2>&1 || true
+	sleep 0.3
 	round=$((round + 1))
 done
 
-# Detached: the caller is a client too, and it is about to be closed by the loop above.
+# Unconditionally: a first run finds no client and must still stop the service, or `service start` meets a
+# service that is already up and does nothing, and the verification blames a client for the script's own skip.
+opencode service stop >/dev/null 2>&1 || true
 
-# Its own process group: the caller is a client too, and it is about to die with the service.
+# `service start` is documented as "start the background server", not as replacing one, so wait until the
+# service is really gone before asking for another: the port free *and* no process waiting to be it.
+port=$(service_port)
+i=0
+while { [ -n "$port" ] && [ -n "$(listen_pid "$port" || true)" ]; } || pgrep -f 'serve --service' >/dev/null 2>&1; do
+	if [ $i -ge 20 ]; then
+		echo "oc-dev-env: a service is still running" >&2
+		exit 1
+	fi
+	sleep 0.25
+	i=$((i + 1))
+done
+
 env "$@" opencode service start >/dev/null 2>&1 || {
 	echo "oc-dev-env: the service did not start" >&2
 	exit 1
 }
 
-pid=$(opencode api get /api/info 2>/dev/null | sed -n 's/.*"pid":\([0-9]*\).*/\1/p')
-[ -n "$pid" ] || {
-	echo "oc-dev-env: no service is answering after the start" >&2
+port=$(service_port)
+pid=$(listen_pid "$port" || true)
+[ -n "${pid:-}" ] || {
+	echo "oc-dev-env: no service is listening after the start" >&2
 	exit 1
 }
 
@@ -144,7 +169,7 @@ missing=""
 for pair in "$@"; do
 	name=${pair%%=*}
 	want=${pair#*=}
-	got=$(ps eww -p "$pid" 2>/dev/null | tr ' ' '\n' | sed -n "s/^$name=//p" | head -1)
+	got=$(ps eww -p "$pid" 2>/dev/null | tr ' ' '\n' | sed -n "s/^${name}=//p" | head -1)
 	[ "$got" = "$want" ] || missing="$missing $pair (asked $want, found '${got-<none>}')"
 done
 
@@ -154,22 +179,24 @@ if [ -n "$missing" ]; then
 	exit 1
 fi
 
-# Put back what was closed, mirroring the command line: the desktop through its bundle, a terminal in a
-# new Ghostty window running exactly what was running. A terminal that cannot be reopened is printed.
+# Put back what was closed, mirroring the command line and its directory: the desktop through its bundle, a
+# terminal in a new Ghostty window. The command goes through `sh -c`, so it is only reused when it holds
+# nothing a shell would act on; anything else is printed instead of run — `ps` flattens argv, and a line
+# with `$( )` or `;` must not become code because a window was closed.
 if [ -f "$reopen_app" ]; then
 	open -a OpenCode 2>/dev/null && echo "reopened the desktop app"
 fi
 if [ -s "$reopen_tui" ]; then
-	if command -v ghostty >/dev/null 2>&1; then
-		while IFS= read -r line; do
-			[ -n "$line" ] || continue
-			# Deliberate word splitting: a command line, not one argument.
-			open -na Ghostty --args -e $line 2>/dev/null && echo "reopened: $line"
-		done <"$reopen_tui"
-	else
-		echo "reopen with: $(tr '\n' ' ' <"$reopen_tui")"
-	fi
+	while IFS="$(printf '\t')" read -r dir cmd; do
+		[ -n "${cmd:-}" ] || continue
+		# Letters, digits, space, slash, dot, underscore, hyphen: nothing else may reach a shell.
+		plain=$(printf '%s %s' "$dir" "$cmd" | tr -d 'A-Za-z0-9 /._-')
+		if [ -n "$plain" ] || ! command -v ghostty >/dev/null 2>&1; then
+			echo "reopen by hand: cd \"$dir\" && $cmd"
+			continue
+		fi
+		open -na Ghostty --args -e sh -c "cd \"$dir\" && exec $cmd" 2>/dev/null && echo "reopened: $cmd"
+	done <"$reopen_tui"
 fi
-rm -f "$reopen_app" "$reopen_tui"
 
 echo "on: service pid $pid, $*"
