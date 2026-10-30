@@ -7,6 +7,36 @@ The install channel is npm alone: `opencode plugin add` reads a registry name, a
 story. The sources live here, in the public repository, which is also where they are written:
 `docs/github.md`.
 
+## A new package: the name has to exist before the workflow can publish it
+
+The trusted publisher lives on the package's **settings page on npmjs.com**, and a package that does not
+exist has no settings page — so the first publish of a new name is manual, by the owner, with an OTP. The
+workflow takes over from the version after.
+
+Measured 2026-10-30 on `@rizal72/oc-plugin-updates`:
+
+```sh
+cd plugins/<name>
+npm version 0.0.1 --no-git-tag-version   # a placeholder, only to claim the name
+npm publish --access public              # OTP; no --tag, 0.0.1 is not a prerelease
+git checkout -- package.json             # back to the real version, tree clean for the push
+```
+
+Then on the package's page: **Trusted publishing** → GitHub Actions, user `rizal72`, repository
+`opencode-plugins`, workflow `publish.yml`, with **`npm publish`** allowed; and **Publishing access** →
+*require 2FA and disallow tokens*. After that a push publishes the real version, with provenance.
+
+Two things that cost a round trip each:
+
+- **`0.0.0-stage` no longer works.** The five older packages carry it, published 2026-10-23, but the same
+  version is now refused: `403 You cannot publish using the version: 0.0.0-stage`. `0.0.1` is the version
+  that goes.
+- **A `404` on the `PUT` is not always a name problem.** With an expired session the registry answers exactly
+  that; `npm whoami` says `401` and the fix is `npm login`. Measured in the same attempt.
+
+The registry answers `404` for a few minutes after the publish — *"being processed"* — and `npm view
+<name> version` is the signal that the page is ready to configure.
+
 ## The tarball gate, before the first publish
 
 A plugin ships `.ts` **unbuilt**, and imports `@opencode/plugin/tui` and `solid-js` from the host. Both work
@@ -220,6 +250,11 @@ is what every ordinary sync looks like.
 
 The one failure mode to know: a broken publish (wrong `repository`, a renamed workflow) fails **in the
 Actions tab** and nowhere else. Nothing alerts.
+
+**After the push, nothing polls.** The workflow is the record, and the registry lags by minutes anyway:
+read `npm view @rizal72/<name> version` once, when the owner asks, or launch that single command in the
+background and let it report once when the version appears. A loop of checks gains nothing and holds the
+turn — the answer cannot arrive sooner for being watched.
 
 ## Who is using them
 

@@ -104,6 +104,7 @@ wallets, not the session's spend.
 | `oc-session-search` | `Command` with `slash` + `Panel` | results in a view, not a block of text |
 | `oc-coffee` | `ComposerPill` | the server owns the level and the assertion, so a pill is all the window adds |
 | `oc-ponytail-widget` | `ComposerPill` | the level word alone, ordered beside the cup; the four levels are its rows, so the pill is the selector |
+| `oc-plugin-updates` | `ComposerPill` | a count when there is something to install, nothing when there is not; the rows are the act |
 
 ## The always-visible surfaces
 
@@ -118,9 +119,22 @@ action, menu items, settings pages, commands — exists behind an affordance.
 `tone` colours the **icon**, not the label: a pill without an icon has no colour to show. Icons come
 from the app's own set (`branch`, `fork`, `outline-worktree`, …), not from the Nerd Font the TUI uses.
 
-**A row is as wide as its longest string, and the menu grows to hold it** (measured 2026-10-27: a branch
-name padded to 40 characters widened the panel instead of truncating). So nothing of ours needs a cap;
-the only width we control is the capsule, whose `label` truncates by contract.
+**A `rows` list is as wide as its longest string, and grows to hold it** (measured 2026-10-27: a branch
+name padded to 40 characters widened the list instead of truncating). A `menu` popover is the opposite: the
+host owns its width, and it is fixed whatever we draw inside (measured on `oc-budget`, whose lines, bar and
+rules all live within it). The capsule is the third case: its `label` truncates by contract.
+
+| | `rows` | `menu` |
+|---|---|---|
+| who draws it | the host | us, inside the host's shell |
+| shape | a fixed list of `id`, `label`, `icon`, `tone`, `detail`, `run` | any JSX |
+| reacts while open | no | yes, its own reactivity |
+| `tone` | exists, colours the row's icon | does not exist: the drawing is ours |
+| `detail` | a bordered chip at the row's end — the version on the right, the name on the left | n/a |
+| a row with no `run` | shows, and is not clickable | n/a |
+
+So `rows` answers a fixed list where the action is one click, and `menu` answers a surface that needs state
+of its own — a bar, an error line, a value that moves while it is open.
 
 **The SDK's `IconName` union is a permission, not a promise.** It is wider than the set the app draws,
 and a name that is not there draws a `plus` — no error, no warning, `tsc` satisfied. Confirm the glyph
