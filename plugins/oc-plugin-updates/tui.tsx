@@ -235,7 +235,10 @@ export default Plugin.define({
 		context.ui.slot({ prepend: "sidebar.content", render: () => <Line /> })
 
 		// The other door, and the one that works when the line is absent because everything is current.
+		// `mode` defaults to `base`, a layer limited to one input mode: without `global` the command
+		// registers and never reaches the palette or the slash completion (measured 2026-10-30).
 		context.keymap.layer(() => ({
+			mode: "global",
 			commands: [
 				{
 					id: "oc-plugin-updates.open",

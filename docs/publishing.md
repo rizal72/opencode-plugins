@@ -96,6 +96,11 @@ That makes the two copies deliberately different, for **every** TUI plugin, now 
 - **The compiled file imports only what the host provides** — `@opentui/solid`, `solid-js`,
   `@opencode/plugin/tui` — because anything else from `node_modules` is refused with *"is not provided by
   OpenCode"*.
+- **That import list is why an OpenTUI major costs us nothing.** Since `@opencode/plugin` 2.2.3 the host
+  requires `@opentui` 0.8, which turned ScrollBox's parts into facades; our halves never import it, and the
+  `tui.js` we ship calls only reconciler primitives that 0.8.0 still exports (`createComponent`,
+  `createElement`, `createTextNode`, `effect`, `insert`, `insertNode`, `memo`, `setProp`, `use` —
+  `@opentui/solid@0.8.0`, `src/reconciler.d.ts`, read 2026-10-30). No republish needed for that change alone.
 - **No `peerDependencies` for those modules.** The V2 page recommends declaring `@opentui/core`,
   `@opentui/solid` and `solid-js` as peers; they are not needed, because the host resolves its own copies
   through a module registry, and a package that installs real ones risks loading a second Solid instance.

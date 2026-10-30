@@ -14,7 +14,10 @@ the stable product; the GUI halves ride on the experimental API.
 Every app release, two questions — the first is a gate, the second a reading:
 
 1. **Does anything break?** `npm run check` fails when the SDK's version differs from the running app's, so
-   a renamed export or a moved shape surfaces before a plugin does.
+   a renamed export or a moved shape surfaces before a plugin does. **The app is the service, not the
+   `opencode` binary on PATH**: the desktop updates itself and leaves the CLI alone, and a gate reading the
+   CLI passed green against a 2.2.2 binary while 2.2.3 was loading the halves (measured 2026-10-30).
+   `scripts/check-sdk.sh` asks `/api/info` and falls back to the CLI only when nothing runs.
 2. **What can we delete now?** A workaround written against a missing feature is dead weight the day the
    feature lands. The ones we carry today, and what retires each:
 

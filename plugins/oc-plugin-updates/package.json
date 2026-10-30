@@ -1,6 +1,6 @@
 {
 	"name": "@rizal72/oc-plugin-updates",
-	"version": "0.1.3",
+	"version": "0.1.4",
 	"type": "module",
 	"description": "Update OpenCode plugins: one by one or all of them at once",
 	"repository": {

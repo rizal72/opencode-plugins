@@ -11,7 +11,7 @@ agent calls). One plugin, one state, two surfaces — the terminal half first, t
 |---|---|---|---|---|
 | `@rizal72/oc-models-pro` | `/models-pro`: every model with its price, context, intelligence index, tok/s and the Go credit | ✓ | ✓ | ✓ |
 | `@rizal72/oc-git` | the repository: branch, the three counts, ahead/behind | sidebar, and the counts in the footer while dirty | a pill above the composer | ✓ |
-| `@rizal72/oc-coffee` | keeps the Mac awake while the agent works | cup badge in the footer, `/coffee` | a pill with the four levels | ✓ |
+| `@rizal72/oc-coffee` | keeps the Mac awake while the agent works (macOS only) | cup badge in the footer, `/coffee` | a pill with the four levels | ✓ |
 | `@rizal72/oc-ponytail-widget` | the ponytail level | badge in the footer | a pill, and the only selector | ✓ |
 | `@rizal72/oc-session-search` | `session_search`: keyword search over the transcripts of past sessions | — | — | ✓ |
 | `@rizal72/oc-plugin-updates` | update OpenCode plugins: one by one or all of them at once | a line in the sidebar, and a dialog on `/plugin-updates` | a pill above the composer | ✓ |

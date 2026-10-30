@@ -46,8 +46,19 @@ already gets right, and its width is fixed anyway.
 ## The TUI: signal in the sidebar, act in a dialog
 
 The sidebar carries one line and nothing else — `↻ 2 updates`. The act happens in `ui.dialog.show`, a
-centred modal (`ui.dialog.set({ size: "medium", centered: true })`) with a row per plugin and `Update all`,
-reachable by clicking the line or by `/plugin-updates` (`keymap.layer`, with a palette entry).
+centred modal (`ui.dialog.set({ size: "medium", centered: true })`, which has to follow `show`: `set` talks
+to the *active* dialog) with a row per plugin and `Update all`, reachable by clicking the line or by
+`/plugin-updates` (`keymap.layer`, with a palette entry).
+
+**`mode: "global"` is not optional.** A layer defaults to `base`, the mode of one input surface, so a
+command registered without it exists and never reaches the palette or the slash completion: the dialog was
+reachable only by clicking a line that is absent while everything is current, and `/plugin-updates` was
+never listed until 2026-10-30, when the layer was opened to every mode. `oc-coffee`, `oc-budget` and
+`oc-models-pro` all pass it; a half written from this one as a template should too.
+
+The line opens on `onMouseUp`, one of the documented OpenTUI handlers (`Interaction`, 0.8.0: a click is a
+`down` and an `up`, and the framework synthesises no click event) — not a guess, though the release is the
+moment the modal can survive the release that opened it, which is why a press handler closed it again.
 
 The block was the first shape and it was the wrong one: a sidebar row is a click target with no affordance —
 no focus, no selection, and no pointer to change — while a modal is the host's own surface for exactly those
