@@ -5,7 +5,7 @@
 // beside the source wins and the local TUI half runs that build — frozen, silently, however often the
 // `.tsx` is edited afterwards. `git status` cannot catch it: `plugins/*/tui.js` is ignored, which is how
 // four plugins stayed stale through a whole evening of edits (2026-10-27). Hence a check, not a rule.
-import { execSync } from "node:child_process"
+import { execFileSync } from "node:child_process"
 import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { join } from "node:path"
 
@@ -59,7 +59,7 @@ if (plain.length || stale.length) {
 // other commit, and it dies with the list.
 try {
 	const moved = new Set(
-		execSync(`git -C "${root}" status --porcelain`, { encoding: "utf8" })
+		execFileSync("git", ["-C", root, "status", "--porcelain"], { encoding: "utf8" })
 			.split("\n")
 			.map((line) => line.slice(3).split("/")[1]),
 	)

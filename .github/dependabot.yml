@@ -1,0 +1,16 @@
+version: 2
+updates:
+  # The dev dependencies the two halves are built with: the SDK, the compilers, the bundler.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      dev:
+        patterns: ["*"]
+
+  # The actions the publish workflow runs: a pinned one is still worth a bump now and then.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
