@@ -29,6 +29,20 @@ The gate that a push cannot give is local, because it must run *before* the comm
 `scripts/preflight.sh` refuses a package whose content moved while its version did not. Skipping it leaves
 npm on the old tarball while the repository shows the new sources, silently.
 
+## `main` cannot be rewritten
+
+A ruleset — `Protect main`, active — blocks two things and nothing else: **deleting the branch** and **any
+non-fast-forward push**. Its bypass list is empty, so the rule holds for the owner too. Normal pushes are
+untouched: a release still works exactly as described above.
+
+Only those two, because the failure they prevent is the one nothing repairs: a force push rewrites the
+history every published version came from, and a deletion takes the only remote copy of it. A required pull
+request or required status checks would fight the workflow instead — `main` is published by pushing to it,
+so there is no merge to gate.
+
+To rewrite history on purpose — a secret in a commit, a file that must disappear — disable the ruleset in
+*Settings → Rules → Protect main* (`enforcement: disabled` through the API), do the rewrite, turn it back on.
+
 ## Reports
 
 Issues are **on**, with one form and no blank ones: `.github/ISSUE_TEMPLATE/bug.yml` asks for the opencode
