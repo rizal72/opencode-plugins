@@ -1,6 +1,6 @@
 {
 	"name": "@rizal72/oc-plugin-updates",
-	"version": "0.1.2",
+	"version": "0.1.3",
 	"type": "module",
 	"description": "Update OpenCode plugins: one by one or all of them at once",
 	"repository": {
@@ -10,6 +10,7 @@
 	"license": "MIT",
 	"files": [
 		"*.ts",
+		"tui.js",
 		"README.md",
 		"dist"
 	],
@@ -24,6 +25,7 @@
 	},
 	"exports": {
 		".": "./index.ts",
+		"./tui": "./tui.js",
 		"./gui-experimental": "./dist/gui-experimental.cjs"
 	}
 }

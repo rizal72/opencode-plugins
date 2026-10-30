@@ -21,15 +21,23 @@ const CHECK_TIMEOUT_MS = 60_000
 /** N packages, one install each: the guard outlasts an update, not a prompt. */
 const UPDATE_TIMEOUT_MS = 180_000
 /**
- * A read every quarter of an hour, and the server answers it from a six-hour cache: the pill appears on
- * its own when a package is published, instead of waiting for the window to be restarted. No prompt and no
- * keystroke is involved, so the clock costs one local call.
+ * A read every five minutes, and the server answers it from a six-hour cache: the pill appears on its own
+ * when a package is published, and the two clients are never more than one tick apart. Five minutes is
+ * `oc-budget`'s clock for the same kind of value — a figure that moves when the user acts, not on the hour.
  */
-const REFRESH_MS = 15 * 60 * 1000
+const REFRESH_MS = 5 * 60 * 1000
+
+/** How long ago a reading was taken: minutes under an hour, hours above. */
+const age = (at: number): string => {
+	const minutes = Math.max(0, Math.round((Date.now() - at) / 60_000))
+	return minutes < 60 ? `${minutes}m` : `${Math.round(minutes / 60)}h`
+}
 
 export default Plugin.define({
 	setup(ctx) {
 		const [rows, setRows] = createSignal<UpdateRow[] | undefined>(undefined)
+		/** When the list was read: a held reading must be able to say how old it is. */
+		const [readAt, setReadAt] = createSignal(0)
 		/** The last check failed. Distinct from "nothing to update": one is a held reading, the other a guess. */
 		const [checkFailed, setCheckFailed] = createSignal<string | undefined>(undefined)
 		const [updateFailed, setUpdateFailed] = createSignal<string | undefined>(undefined)
@@ -39,10 +47,25 @@ export default Plugin.define({
 
 		const client = () => ctx.sessions.current()?.server.client
 
-		// One clock for the whole machine, not per session: the answer is a list of installed packages, and
-		// every mounted composer reads the same signals.
+		// One clock per window: the host runs setup once for each, so a second window is a second clock —
+		// and every composer in that window reads the same signals.
 		const timer = setInterval(() => void check(false), REFRESH_MS)
 		onCleanup(() => clearInterval(timer))
+
+		// A window can open on Home, where no session is routed and there is no client to ask: the first
+		// read is retried every few seconds instead of waiting a quarter of an hour for the clock.
+		let attempts = 0
+		const boot = setInterval(() => {
+			if (started || attempts++ >= 20) {
+				clearInterval(boot)
+				return
+			}
+			if (!client()) return
+			started = true
+			void check(false)
+			clearInterval(boot)
+		}, 3000)
+		onCleanup(() => clearInterval(boot))
 
 		const check = async (force: boolean) => {
 			const server = client()
@@ -54,11 +77,15 @@ export default Plugin.define({
 				)) as CheckResult
 				if (value.ok) {
 					setRows(value.rows ?? [])
+					setReadAt(value.at ?? Date.now())
 					setCheckFailed(undefined)
 					return
 				}
 				setCheckFailed(value.error ?? "check failed")
-				if (value.rows) setRows(value.rows)
+				if (value.rows) {
+					setRows(value.rows)
+					setReadAt(value.at ?? 0)
+				}
 			} catch (error) {
 				setCheckFailed(error instanceof Error ? error.message : String(error))
 			}
@@ -76,7 +103,11 @@ export default Plugin.define({
 				)) as UpdateResult
 				// A success reloads us; when it does not, the row that was just updated is no longer news.
 				if (value.ok) setRows((rows() ?? []).filter((row) => !targets.includes(row.target)))
-				else setUpdateFailed(value.error ?? "update failed")
+				else {
+					setUpdateFailed(value.error ?? "update failed")
+					// Another client is updating right now: our list is the stale one by definition.
+					if (value.busy) void check(true)
+				}
 			} catch (error) {
 				setUpdateFailed(error instanceof Error ? error.message : String(error))
 			} finally {
@@ -90,7 +121,7 @@ export default Plugin.define({
 			show: (input) => {
 				// The first read happens here rather than on a clock: the pill only exists on a mounted
 				// composer, and the answer is one call for the whole machine, not one per session.
-				if (!started) {
+				if (!started && client()) {
 					started = true
 					void check(false)
 				}
@@ -110,7 +141,13 @@ export default Plugin.define({
 						tone: "danger" as const,
 						title: `Check failed: ${checkError}`,
 						rows: [
-							{ id: "check-failed", label: "check failed", icon: "circle-exclamation" as const, tone: "danger" as const },
+							{
+								id: "check-failed",
+								label: "check failed — retry",
+								icon: "circle-exclamation" as const,
+								tone: "danger" as const,
+								run: () => void check(true),
+							},
 						],
 					}
 				}
@@ -120,12 +157,20 @@ export default Plugin.define({
 					: updateError
 						? `Update failed: ${updateError}`
 						: checkError
-							? `Check failed: ${checkError}`
+							? `Check failed: ${checkError}${readAt() ? ` · last read ${age(readAt())} ago` : ""}`
 							: "Plugin updates"
 
 				const menu = (): ComposerPillRow[] => [
 					...(checkError
-						? [{ id: "check-failed", label: "check failed", icon: "circle-exclamation" as const, tone: "danger" as const }]
+						? [
+								{
+									id: "check-failed",
+									label: "check failed — retry",
+									icon: "circle-exclamation" as const,
+									tone: "danger" as const,
+									run: () => void check(true),
+								},
+							]
 						: []),
 					...(updateError
 						? [{ id: "update-failed", label: "update failed", icon: "circle-exclamation" as const, tone: "danger" as const }]
@@ -169,6 +214,8 @@ export default Plugin.define({
 					}
 				}
 
+				// A refused update (one is already running on this server) leaves the rows as they were:
+				// the reason is on the capsule, and the next click is the retry.
 				return {
 					// The circled arrow: `refresh`, the one glyph of this kind already drawn in this app
 					// (`plugins/oc-models-pro/gui.tsx`). `tone` colours the icon, never the label.

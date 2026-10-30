@@ -44,6 +44,8 @@ const CANDIDATES = [process.env.OC_PLUGIN_UPDATES_BIN, process.execPath, "openco
 	(value): value is string => !!value,
 )
 let binary: string | undefined
+/** One update at a time for the whole server; see the `update` handler. */
+let running = false
 
 /** The first line of whatever went wrong, and the server's own message when it sent one. */
 function message(error: unknown): string {
@@ -61,7 +63,9 @@ function message(error: unknown): string {
 
 async function api(path: string, body: unknown, timeout: number): Promise<unknown> {
 	let failure = ""
-	for (const candidate of binary ? [binary] : CANDIDATES) {
+	// The remembered binary first, then the rest: a binary that vanished must fall through, not truncate.
+	const order = binary ? [binary, ...CANDIDATES.filter((candidate) => candidate !== binary)] : CANDIDATES
+	for (const candidate of order) {
 		try {
 			const { stdout } = await exec(candidate, ["api", "post", path, "-d", JSON.stringify(body)], {
 				timeout,
@@ -74,6 +78,7 @@ async function api(path: string, body: unknown, timeout: number): Promise<unknow
 			const code = (error as { code?: string })?.code
 			// A binary that is not there is worth the next candidate; a call that failed is the answer.
 			if (code === "ENOENT") {
+				if (binary === candidate) binary = undefined
 				failure = `no opencode binary: ${candidate}`
 				continue
 			}
@@ -90,8 +95,20 @@ function held(raw: unknown): Held | undefined {
 	if (typeof raw !== "string") return undefined
 	try {
 		const value = JSON.parse(raw)
-		if (typeof value?.at !== "number" || !Array.isArray(value?.rows)) return undefined
-		return value as Held
+		if (typeof value?.at !== "number" || !Number.isFinite(value.at) || !Array.isArray(value.rows)) return undefined
+		const rows: UpdateRow[] = []
+		for (const row of value.rows) {
+			// A row that does not pass the contract turns every check into a 500 until the TTL expires, and
+			// blames the read for a bad cache byte: a cache we cannot read is a cache we drop.
+			if (typeof row?.target !== "string" || !row.target) return undefined
+			rows.push({
+				target: row.target,
+				...(typeof row.id === "string" ? { id: row.id } : {}),
+				...(typeof row.version === "string" ? { version: row.version } : {}),
+			})
+		}
+		// A clock that jumped backwards must not make a reading fresh for ever.
+		return { at: Math.min(Math.max(value.at, 0), Date.now()), rows }
 	} catch {
 		return undefined
 	}
@@ -128,7 +145,8 @@ export default Plugin.define({
 				if (cached && Date.now() - cached.at < TTL_MS) return { ok: true, at: cached.at, rows: cached.rows }
 				try {
 					const result = await read()
-					await ctx.storage.set(KEY, JSON.stringify({ at: result.at ?? Date.now(), rows: result.rows ?? [] }))
+					// Best effort: a cache we cannot write is a slow next read, not a failed one.
+					await ctx.storage.set(KEY, JSON.stringify({ at: result.at ?? Date.now(), rows: result.rows ?? [] })).catch(() => {})
 					return result
 				} catch (error) {
 					// The last good reading is still worth showing: the pill marks it as held instead of
@@ -140,16 +158,23 @@ export default Plugin.define({
 			update: async (input: any): Promise<UpdateResult> => {
 				const targets = Array.isArray(input?.targets) ? input.targets.map(String).filter(Boolean) : []
 				if (!targets.length) return { ok: true }
+				// One update at a time for the whole server. The halves guard their own rows, and that guard
+				// covers one window: a second window, the terminal, or a client whose 180 s expired would
+				// still reach us, and two installs of the same packages race.
+				if (running) return { ok: false, busy: true, error: "an update is already running" }
+				running = true
 				try {
 					if (DEV === "fail") throw new Error("simulated failure (OC_PLUGIN_UPDATES_DEV=fail)")
 					if (DEV === "slow") await new Promise((resolve) => setTimeout(resolve, 15_000))
 					else if (!DEV) await api("/api/plugin/update", { targets }, UPDATE_TIMEOUT_MS)
 					// The next read must not reuse a list that is no longer true. The reload usually restarts
 					// this plugin anyway; this covers the location the server did not reload.
-					await ctx.storage.remove(KEY)
+					await ctx.storage.remove(KEY).catch(() => {})
 					return { ok: true }
 				} catch (error) {
 					return { ok: false, error: message(error) }
+				} finally {
+					running = false
 				}
 			},
 		})

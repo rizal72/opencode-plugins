@@ -32,12 +32,24 @@ opencode plugin update    # apply them, and let the server reload
 Or install [`@rizal72/oc-plugin-updates`](https://www.npmjs.com/package/@rizal72/oc-plugin-updates): the
 count appears in a pill above the composer, with the update one click away.
 
-## What it draws
+## TUI
+
+A line in the sidebar — `↻ 2 updates` — and `/plugin-updates` opens a centred dialog with a row per plugin
+and `Update all` underneath; clicking the line does the same. The line is the signal and is absent while
+everything is current; the dialog is the act, because a modal is where the terminal gives focus, selection
+and buttons. While an update runs the action is refused, so a second one cannot start, and a failure is a
+red line with the reason.
+
+The line keeps the pill's three states: a bare count when the reading is fresh, `~2 updates` when the last
+check failed and the count is held, and `check failed` when there is nothing to hold — never a zero standing
+in for silence.
+
+## GUI
 
 Nothing at all while everything is current — the pill appears only when there is something to install.
 
 ```
-2 updates                     ← the capsule, with the circled arrow
+2                             ← the capsule, with the circled arrow; the word lives in its title
 oc-git                 0.2.1  ← one row per plugin: name, installed version
 oc-context             0.3.2
 Update all
@@ -49,16 +61,16 @@ reload anything by hand.
 
 While an update is running the rows have no action and the capsule reads `updating…`, so a second click
 cannot start a second update. A failure leaves the popover closed by that point, so it is reported on the
-capsule: `N updates` in danger red, with the reason as the heading, and `update failed` as the first row
-when you reopen it.
+capsule — the count with its icon in danger red, the reason as the heading — and the popover reopens with the
+rows as they were and a red `update failed` line among them.
 
 Two more states, both from `docs/gui-plugins.md`, *a pill never shows a stale value as fresh*: a check that
-failed while the last reading is held shows `~N updates`, and a check that failed with no reading at all
-shows `plugins` with the error, never nothing.
+failed while the last reading is held shows `~N` and the age of that reading in the heading, and a check that
+failed with no reading at all shows `plugins` with the error, never nothing.
 
-The list is read at most once every six hours and kept across restarts. `Plugins: check for updates` in the
-command palette — or `/plugin-updates` — forces a fresh read, which is the only way to ask again while the
-pill is invisible.
+The server reads the registry at most once every six hours and keeps it across restarts; the pill asks every
+five minutes and gets that cache. `Plugins: check for updates` in the command palette — or
+`/plugin-updates` — forces a fresh read, which is the only way to ask again while the pill is invisible.
 
 ## Testing
 

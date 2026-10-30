@@ -23,6 +23,8 @@ export interface CheckResult {
 export interface UpdateResult {
 	ok: boolean
 	error?: string
+	/** Another update is already in flight on this server. A distinct field, not a substring of `error`. */
+	busy?: boolean
 }
 
 export const Updates = Rpc.define({
@@ -70,6 +72,7 @@ export const Updates = Rpc.define({
 				properties: {
 					ok: { type: "boolean" },
 					error: { type: "string" },
+					busy: { type: "boolean" },
 				},
 				required: ["ok"],
 				additionalProperties: false,

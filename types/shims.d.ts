@@ -16,7 +16,7 @@ declare module "solid-js" {
 	export const For: any
 	// Children stay permissive: a stricter union made the compiler contextualise the callback as an
 	// object (every function matches a permissive index signature) and lose its parameter type. The
-	// three callbacks in our code therefore annotate their parameter at this boundary.
+	// accessor callbacks in our code annotate their parameter at this boundary.
 	export function Show(props: { when: any; keyed?: boolean; fallback?: any; children?: any }): any
 }
 
