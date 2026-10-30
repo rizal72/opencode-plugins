@@ -1,6 +1,6 @@
 {
 	"name": "@rizal72/oc-coffee",
-	"version": "0.2.0",
+	"version": "0.2.1",
 	"type": "module",
 	"description": "Keeps the Mac awake while the agent works: the server owns the level, the terminal draws a cup badge, the desktop a pill",
 	"repository": {

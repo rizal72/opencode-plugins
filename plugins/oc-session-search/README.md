@@ -21,6 +21,18 @@ Or by hand, one line in `~/.config/opencode/opencode.jsonc`:
 Nothing to configure and nothing to enable: the tool registers itself, and it is a Code Mode tool, so it
 costs one line of the catalog rather than a full schema in every prompt.
 
+## Update
+
+V2 checks package plugins at startup and never applies the update, so a package only moves when you ask:
+
+```sh
+opencode plugin check     # which of the installed packages are behind
+opencode plugin update    # apply them, and let the server reload
+```
+
+Or install [`@rizal72/oc-plugin-updates`](https://www.npmjs.com/package/@rizal72/oc-plugin-updates): the
+count appears in a pill above the composer, with the update one click away.
+
 ## How it works
 
 The query is split into words (up to six, longest first) and every message is scored by which of them it

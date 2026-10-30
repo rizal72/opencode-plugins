@@ -20,6 +20,18 @@ Or by hand, one line in `~/.config/opencode/opencode.jsonc`:
 "plugins": ["@rizal72/oc-plugin-updates"]
 ```
 
+## Update
+
+V2 checks package plugins at startup and never applies the update, so a package only moves when you ask:
+
+```sh
+opencode plugin check     # which of the installed packages are behind
+opencode plugin update    # apply them, and let the server reload
+```
+
+Or install [`@rizal72/oc-plugin-updates`](https://www.npmjs.com/package/@rizal72/oc-plugin-updates): the
+count appears in a pill above the composer, with the update one click away.
+
 ## What it draws
 
 Nothing at all while everything is current — the pill appears only when there is something to install.

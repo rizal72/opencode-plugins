@@ -55,7 +55,7 @@ if [ -n "$blocked" ]; then
 	echo "the content moved but the version did not:" >&2
 	for entry in $blocked; do
 		echo "  $entry" >&2
-		echo "    scripts/release.sh ${entry%@*} patch|minor|major" >&2
+		echo "    scripts/release.sh patch ${entry%@*}" >&2
 	done
 	exit 1
 fi

@@ -1,6 +1,6 @@
 {
 	"name": "@rizal72/oc-plugin-updates",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "The installed package plugins that are behind, in a composer pill, with the click that updates them",
 	"repository": {

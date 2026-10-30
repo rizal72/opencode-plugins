@@ -206,14 +206,12 @@ He never has to know a version — he names a level, the script prints the move 
 | `major` | the interface is declared stable — not "a big change" | `1.0.0` |
 
 ```sh
-scripts/release.sh oc-models-pro patch
+scripts/release.sh patch oc-models-pro          # the level, then one or more packages
 ```
 
-It refuses a dirty tree, refuses a package that is not publish-ready (unscoped name, no `files`), runs
-`npm run check`, prints `0.1.1 -> 0.1.2` and asks; on `y` it bumps with `--no-git-tag-version` — npm's
-own tag would be `v0.1.2` for every package at once — then prints the `npm pack --dry-run` list and stops.
-It never commits or publishes: the two lines it leaves are the commit and the push, and both are the
-owner's.
+`scripts/release.sh --help` carries the mechanics: the clean tree and `main` it insists on, what it runs
+before asking, and that it stops before the registry — it never commits and never publishes. The two lines
+it leaves are the commit and the push, both the owner's.
 
 The release commit's own message and the plugin's doc answer "which commit was 0.1.2" a year later: record
 the version and the date in the plugin's own doc.
