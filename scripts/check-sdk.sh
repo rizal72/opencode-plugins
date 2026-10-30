@@ -23,4 +23,12 @@ if [ "$app" != "$types" ]; then
 	echo "  npm install -D @opencode/plugin@latest"
 	exit 1
 fi
+# The CLI on PATH is a second server waiting to be started: one that lags the app loads the halves
+# against older types. Not a failure of this repository, so it warns instead of blocking.
+if [ "$where" = server ]; then
+	cli=$(opencode --version 2>/dev/null | sed -n 's/^opencode v//p')
+	if [ -n "$cli" ] && [ "$cli" != "$app" ]; then
+		echo "check-sdk: the app is $app but the CLI on PATH is $cli — opencode upgrade $app"
+	fi
+fi
 echo "check-sdk ok: @opencode/plugin $types"
