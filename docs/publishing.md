@@ -280,6 +280,39 @@ The repository is the faster signal, and it has no lag: `gh api repos/rizal72/op
 Both are worth reading only after the packages and the repository have been out long enough to be found:
 a number taken the day they appear measures the announcement, not the use.
 
+## Listed in a catalog
+
+The plugins are listed in `hashgraph-online/awesome-ai-plugins`, section **OpenCode Plugins**, as one line
+in alphabetical order and without a `platform:` tag — that tag belongs to standalone tools elsewhere in the
+catalog, and the OpenCode section supplies the platform itself.
+
+Getting there is a pull request adding that single line, and it is gated by a **plugin scanner** run against
+this repository. The scan is why this repo carries a `SECURITY.md`, Dependabot, GitHub Actions pinned to
+immutable commits and no `execSync`: those were its five findings, and a repository built to pass it passes
+it (67 → 100, measured 2026-10-30). The scanner's verdict and the catalog's own check are separate things,
+so a red gate on a PR is worth reading before it is believed.
+
+Ownership of the listing is claimed in **HOL Guard**, the catalog's owner dashboard, signing in with the GitHub
+account that owns the repository. The claim is **per repository, not per package** — one verification covers
+all of them, which is why the dashboard reads `1 verified` beside six packages. The dashboard is the owner's
+alone: an agent reaches it only through the browser the owner is already signed in to, and reads — it has no
+button to press there.
+
+What it holds, read off the dashboard on 2026-10-30: growth is five steps, three free — a launch page in the
+catalog's feed (its copy says it unlocks catalog placement), a **verified badge for the README** carrying the
+live trust score, and a story on their blog — and two paid: a **labelled slot at the top** of the catalog,
+whose copy states that votes, reviews and organic rank do not change, and a **blue checkmark** that opens on
+its own gate (an audience, a signed release, or a place on an approved feed). The README badge and the blue
+checkmark are different things: the first is free, the second is the membership.
+
+Under `Tools`, the rest: install blocks per runtime, webhooks, a release checklist, and a read-only stats key
+for the terminal. Its analytics carry two honest caveats worth keeping: counts include the owner's own
+visits, and an install click is intent, not a confirmed install — and `no traffic data recorded` is written
+to mean that, not zero views.
+
+The fork used for the pull request is disposable: delete it after the merge, and the entry survives,
+because the catalog copies the line into its own repository.
+
 ## Testing a published package
 
 Install what the registry actually holds, in a sandbox whose `HOME` is not yours: the shared service is
