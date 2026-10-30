@@ -7,13 +7,13 @@
 		"check:ci": "node scripts/check-source.mjs && tsc --noEmit"
 	},
 	"devDependencies": {
-		"@babel/core": "^7.29.7",
-		"@babel/preset-typescript": "^7.29.7",
+		"@babel/core": "^8.0.9",
+		"@babel/preset-typescript": "^8.0.7",
 		"@opencode/plugin": "^2.2.3",
 		"@types/node": "^26.6.5",
 		"babel-preset-solid": "^1.9.16",
 		"solid-js": "^1.9.17",
-		"typescript": "^5.9.3",
+		"typescript": "^7.0.2",
 		"vite": "^8.3.5",
 		"vite-plugin-solid": "^2.11.14"
 	}
