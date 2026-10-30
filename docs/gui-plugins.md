@@ -4,6 +4,9 @@ A GUI plugin draws inside OpenCode Desktop: panels, commands, settings pages, sl
 titlebar items, native menus. It is the third part of a plugin package, shipped as
 **`./gui-experimental`** beside the server part and the TUI part.
 
+What a window shares with the terminal — one server and many clients, the dev switch, and the fact that
+nothing draws before a session has a prompt — is in `docs/plugin-surfaces.md`.
+
 ## Provisional by design, and re-read on every release
 
 The `-experimental` is not decoration: a shape here can change between app releases, and we accepted that

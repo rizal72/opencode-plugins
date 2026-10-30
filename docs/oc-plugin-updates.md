@@ -50,11 +50,9 @@ centred modal (`ui.dialog.set({ size: "medium", centered: true })`, which has to
 to the *active* dialog) with a row per plugin and `Update all`, reachable by clicking the line or by
 `/plugin-updates` (`keymap.layer`, with a palette entry).
 
-**`mode: "global"` is not optional.** A layer defaults to `base`, the mode of one input surface, so a
-command registered without it exists and never reaches the palette or the slash completion: the dialog was
-reachable only by clicking a line that is absent while everything is current, and `/plugin-updates` was
-never listed until 2026-10-30, when the layer was opened to every mode. `oc-coffee`, `oc-budget` and
-`oc-models-pro` all pass it; a half written from this one as a template should too.
+**A layer is invisible without `mode: "global"`** — the trap that hid `/plugin-updates` for a day, and the
+one rule every terminal half here shares: `docs/tui-plugins.md`, *A command is invisible without
+`mode: "global"`*.
 
 The line opens on `onMouseUp`, one of the documented OpenTUI handlers (`Interaction`, 0.8.0: a click is a
 `down` and an `up`, and the framework synthesises no click event) — not a guess, though the release is the
@@ -105,8 +103,13 @@ not the target, and `opencode plugin check` does not know it either. One lookup 
 
 ## Testing
 
-`OC_PLUGIN_UPDATES_DEV=outdated|fail|slow` fakes what a healthy machine cannot reach. It only works when
-the variable reaches the **service**, and on macOS the service is not a child of the app shell: measured
-2026-10-30, `OC_PLUGIN_UPDATES_DEV=… opencode service restart` leaves the variable out, and relaunching the
-app inherits it only until the old service is reused. Stop the service, then start it with the variable in
-the environment.
+`OC_PLUGIN_UPDATES_DEV=outdated|fail|slow` fakes what a healthy machine cannot reach: two rows to install,
+an install that fails, an install that takes fifteen seconds. The variable has to reach the service — the
+whole of `docs/plugin-surfaces.md`, *One server, many clients*:
+
+```sh
+scripts/oc-dev-env.sh on OC_PLUGIN_UPDATES_DEV=outdated
+```
+
+Then a session with one message in it: the line appears in the sidebar, and the fake rows read `oc-git
+0.2.0` and `github-panel 0.1.0`.
