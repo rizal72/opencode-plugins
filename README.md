@@ -14,6 +14,7 @@ agent calls). One plugin, one state, two surfaces — the terminal half first, t
 | `@rizal72/oc-coffee` | keeps the Mac awake while the agent works | cup badge in the footer, `/coffee` | a pill with the four levels | ✓ |
 | `@rizal72/oc-ponytail-widget` | the ponytail level | badge in the footer | a pill, and the only selector | ✓ |
 | `@rizal72/oc-session-search` | `session_search`: keyword search over the transcripts of past sessions | — | — | ✓ |
+| `@rizal72/oc-plugin-updates` | which installed plugins the registry has moved past, updated on a click | — | a pill above the composer | ✓ |
 | `oc-context` | the Context block in the sidebar, with the window its percent is a percent of | sidebar | — | — redraws a built-in |
 | `oc-budget` | the paying provider's budget: sidebar, footer, `/budget` | sidebar, footer, `/budget` | a pill | — my wallet |
 | `oc-donsetch` | keeps the `donsetch` binary current | — | — | — needs that binary |
@@ -29,6 +30,7 @@ opencode plugin add @rizal72/oc-git
 opencode plugin add @rizal72/oc-coffee
 opencode plugin add @rizal72/oc-ponytail-widget
 opencode plugin add @rizal72/oc-session-search
+opencode plugin add @rizal72/oc-plugin-updates
 ```
 
 Each plugin directory is a package of its own: a `package.json`, an `index.ts` for the server half, a
@@ -36,8 +38,20 @@ Each plugin directory is a package of its own: a `package.json`, an `index.ts` f
 state; the two halves that draw only display it, which is why the same facts hold on both surfaces.
 `npm run check` type-checks all of them.
 
-The three marked `—` are here to be read: they assume something about my setup (a wallet, a rules file, a
-binary), so packaging them would only sell you a config you do not have.
+## Update
+
+V2 checks package plugins at startup and never applies the update, so a package only moves when you ask:
+
+```sh
+opencode plugin check     # which of the installed packages are behind
+opencode plugin update    # apply them, and let the server reload
+```
+
+Or install [`@rizal72/oc-plugin-updates`](https://www.npmjs.com/package/@rizal72/oc-plugin-updates): the
+count appears in a pill above the composer, with the update one click away.
+
+The ones marked `—` in the npm column are here to be read: they assume something about my setup (a wallet,
+a rules file, a binary), so packaging them would only sell you a config you do not have.
 
 Where these came from: [Why I left OpenCode for Pi, then came back for v2](https://www.reddit.com/r/opencodeCLI/comments/1xcgnpr/why_i_left_opencode_for_pi_then_came_back_for_v2/).
 
