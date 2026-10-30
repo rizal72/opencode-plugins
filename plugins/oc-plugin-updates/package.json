@@ -1,8 +1,8 @@
 {
 	"name": "@rizal72/oc-plugin-updates",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"type": "module",
-	"description": "The installed package plugins that are behind, in a composer pill, with the click that updates them",
+	"description": "Update OpenCode plugins: one by one or all of them at once",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/rizal72/opencode-plugins.git"

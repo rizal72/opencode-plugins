@@ -2,7 +2,7 @@
 // calls to the CLI stay on the server and the window asks for their result.
 import { Rpc } from "@opencode/plugin/rpc"
 
-/** One installed package plugin that the registry has a newer version of. */
+/** One installed plugin that has a newer version published. */
 export interface UpdateRow {
 	/** The plugin's id, as `plugin list` names it: `oc-git`, `github-panel`. */
 	id?: string

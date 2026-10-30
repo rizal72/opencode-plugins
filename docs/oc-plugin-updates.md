@@ -1,7 +1,7 @@
 # oc-plugin-updates — the record
 
-The pill that says which installed package plugins the registry has moved past, and the click that updates
-them. It exists because V2 checks and never applies: *"checks unpinned npm and Git plugins for updates
+The pill that says which installed plugins have a newer version, and the click that updates them. It exists
+because V2 checks and never applies: *"checks unpinned npm and Git plugins for updates
 without changing the installed package"* — `opencode plugin check` reports, `opencode plugin update` is a
 gesture the user has to know exists, and neither the window nor the terminal says a word. Measured
 2026-10-29 on this machine: `github-panel` ran 0.1.0 with 0.2.0 published, through several app updates and
@@ -65,8 +65,7 @@ the frequent call is local and the network is paid four times a day. `Plugins: c
 ## What it does not do
 
 The version the plugin would become: `Plugin.Info` carries the installed `version` and `outdated: true`,
-not the target, and `opencode plugin check` does not know it either. One registry call per package would
-buy it.
+not the target, and `opencode plugin check` does not know it either. One lookup per package would buy it.
 
 ## Testing
 

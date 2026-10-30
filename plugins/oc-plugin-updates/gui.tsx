@@ -1,6 +1,6 @@
 // oc-plugin-updates — GUI half.
 //
-// The pill says how many installed package plugins the registry has moved past, and the rows behind it are
+// The pill says which installed plugins have a newer version, and the rows behind it are
 // the act: one row per plugin updates that one, the last row updates them all. The click closes the
 // popover, so nothing here draws an outcome — the server reloads the locations, this plugin restarts, and
 // the pill that comes back is the fresh reading.
@@ -16,7 +16,7 @@ import { createSignal, onCleanup } from "solid-js"
 
 import { Updates, withTimeout, type CheckResult, type UpdateResult, type UpdateRow } from "./rpc.ts"
 
-/** One CLI round trip, with a cold cache paying for a registry read. */
+/** One CLI round trip, with a cold cache paying for a version lookup. */
 const CHECK_TIMEOUT_MS = 60_000
 /** N packages, one install each: the guard outlasts an update, not a prompt. */
 const UPDATE_TIMEOUT_MS = 180_000
@@ -187,8 +187,8 @@ export default Plugin.define({
 		ctx.add(Command, (): Command => ({
 			id: "check",
 			title: "Plugins: check for updates",
-			description: "Ask the registry which installed package plugins are behind",
-			keywords: "plugin update version registry install",
+			description: "Update installed plugins: one by one, or all of them at once",
+			keywords: "plugin update version upgrade install",
 			section: "general",
 			slash: { name: "plugin-updates" },
 			// The pill is absent when there is nothing to show, so this is the only way to ask again after

@@ -1,7 +1,7 @@
 # @rizal72/oc-plugin-updates
 
-The installed package plugins your registry has moved past, in a pill above the composer, with the click
-that updates them.
+The installed plugins that have a newer version, in a pill above the composer, with the click that updates
+them one by one or all at once.
 
 OpenCode V2 checks unpinned package plugins at startup and **never applies the update**: `plugin check`
 reports, `plugin update` is a command the user has to know exists, and the window says nothing either way.
@@ -62,11 +62,11 @@ pill is invisible.
 
 ## Testing
 
-`OC_PLUGIN_UPDATES_DEV=outdated|fail|slow` fakes the states a healthy machine cannot reach: a registry with
-updates behind it, a failing update, a slow one. Unset, it does nothing.
+`OC_PLUGIN_UPDATES_DEV=outdated|fail|slow` fakes the states a healthy machine cannot reach: packages with
+updates behind them, a failing update, a slow one. Unset, it does nothing.
 
 ## Not covered
 
 The version the plugin would become. `Plugin.Info` carries the installed `version` and `outdated: true`,
-not the target — `opencode plugin check` does not know it either. Getting it would cost one registry call
-per package.
+not the target — `opencode plugin check` does not know it either. Getting it would cost one lookup per
+package.

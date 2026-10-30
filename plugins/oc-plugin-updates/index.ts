@@ -16,9 +16,9 @@ import { Updates, type CheckResult, type UpdateResult, type UpdateRow } from "./
 
 const exec = promisify(execFile)
 
-/** The registry changes when a package is published, not on a clock: six hours, and one read per session. */
+/** The list changes when a package is published, not on a clock: six hours, and one read per session. */
 const TTL_MS = 6 * 60 * 60 * 1000
-/** A check is one CLI round trip: generous, because a cold cache pays for a registry read. */
+/** A check is one CLI round trip: generous, because a cold cache pays for a version lookup. */
 const CHECK_TIMEOUT_MS = 60_000
 /** N packages, one install each; the guard only has to outlast a whole update, not a prompt. */
 const UPDATE_TIMEOUT_MS = 180_000
@@ -27,7 +27,7 @@ const KEY = "check"
 /**
  * shortcut: on a healthy machine two of this plugin's four states cannot be reached — a failed check and a
  * failed update — so the dev switch fakes them and is inert unless the variable is set. Upgrade when the
- * app grows a way to point a read at a registry of its own.
+ * app grows a way to point a read at a package list of its own.
  */
 const DEV = process.env.OC_PLUGIN_UPDATES_DEV ?? ""
 
@@ -97,7 +97,7 @@ function held(raw: unknown): Held | undefined {
 	}
 }
 
-/** The installed package plugins the registry has a newer version of. Local and built-in ones never are. */
+/** The installed plugins that have a newer version published. Local and built-in ones never do. */
 async function read(): Promise<CheckResult> {
 	if (DEV === "outdated" || DEV === "fail") return { ok: true, at: Date.now(), rows: FAKE }
 	const payload = (await api("/api/plugin/check", { target: null }, CHECK_TIMEOUT_MS)) as {

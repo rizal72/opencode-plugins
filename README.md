@@ -14,7 +14,7 @@ agent calls). One plugin, one state, two surfaces — the terminal half first, t
 | `@rizal72/oc-coffee` | keeps the Mac awake while the agent works | cup badge in the footer, `/coffee` | a pill with the four levels | ✓ |
 | `@rizal72/oc-ponytail-widget` | the ponytail level | badge in the footer | a pill, and the only selector | ✓ |
 | `@rizal72/oc-session-search` | `session_search`: keyword search over the transcripts of past sessions | — | — | ✓ |
-| `@rizal72/oc-plugin-updates` | which installed plugins the registry has moved past, updated on a click | — | a pill above the composer | ✓ |
+| `@rizal72/oc-plugin-updates` | update OpenCode plugins: one by one or all of them at once | — | a pill above the composer | ✓ |
 | `oc-context` | the Context block in the sidebar, with the window its percent is a percent of | sidebar | — | — redraws a built-in |
 | `oc-budget` | the paying provider's budget: sidebar, footer, `/budget` | sidebar, footer, `/budget` | a pill | — my wallet |
 | `oc-donsetch` | keeps the `donsetch` binary current | — | — | — needs that binary |
