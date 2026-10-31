@@ -32,9 +32,9 @@ one that removes what was there.
 
 ## Ours
 
-`oc-context`, `oc-git` and `oc-budget` **prepend** to `sidebar.content`, so they sit above the built-in
-MCP and todo blocks. The built-ins keep the order they have among themselves — that is the host's, not
-ours. The three of ours keep the order they are enabled in.
+`oc-context`, `oc-git`, `oc-budget` and `oc-plugin-updates` **prepend** to `sidebar.content`, so they sit
+above the built-in MCP and todo blocks. The built-ins keep the order they have among themselves — that is
+the host's, not ours. The four of ours keep the order they are enabled in.
 
 ## The built-in context block
 

@@ -11,7 +11,7 @@ $2.18 spent
 ```
 
 — plus the one thing that block leaves out: **the window the percent is a percent of**
-(`41% used of 1.0M`). The operative summary is in the AGENTS index; this is the record.
+(`41% used of 1.0M`). The operative summary is in the README's plugin table; this is the record.
 
 Config: a **disable directive** in `~/.config/opencode/cli.json`:
 

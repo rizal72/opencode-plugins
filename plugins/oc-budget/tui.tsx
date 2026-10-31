@@ -11,8 +11,8 @@
 // the working spinner and the esc hint, and giving them up for one string is a bad trade.
 //
 // The numbers come from the server plugin over RPC; nothing is fetched here and no
-// credential is ever handled here. Which wallet *pays* is the only decision this half
-// makes, because it is the only half that knows the selected model.
+// credential is ever handled here. Which wallet *pays* each half decides from the model of its
+// own surface: the session's here, the composer's in the window — the two pickers can disagree.
 //
 // Solid owns the reactivity, and a component body runs exactly once: every value that
 // depends on the snapshot or on the model is read inside a `createMemo` (or inside JSX),

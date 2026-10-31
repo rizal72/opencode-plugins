@@ -1,7 +1,7 @@
 # oc-coffee — the record
 
 Keeps the Mac awake while the agent works: the port of pi's `pi-coffee`. The operative summary is
-in the AGENTS index; this is the record.
+in the README's plugin table; this is the record.
 
 Config: none of ours. The level is a preference the **server** persists (`ctx.storage`, key
 `coffee.level`), which replaces pi's `~/.pi/agent/pi-coffee.json` — one less file to keep. The TUI's own

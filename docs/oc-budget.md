@@ -1,14 +1,14 @@
 # oc-budget — the record
 
 One widget for the active provider's budget, ported from pi-budget but reading OpenCode's own
-credentials instead of a file of ours. The operative summary is in the AGENTS index; this is the
+credentials instead of a file of ours. The operative summary is the README's plugin table; this is the
 record.
 
 Config: none of its own. The only thing to configure is the plugin path in
 `~/.config/opencode/opencode.jsonc`, and the credentials, which live in OpenCode's integration store
 (`opencode auth login`).
 
-Its sidebar block reaches the top with `prepend`, like the other two of ours; the mechanism and the
+Its sidebar block reaches the top with `prepend`, like the other three of ours; the mechanism and the
 measurement are in `docs/sidebar.md`.
 
 ## Where it lives
@@ -18,7 +18,8 @@ measurement are in `docs/sidebar.md`.
 | `plugins/oc-budget/index.ts` | **server**: resolves credentials, reads the four wallets, caches, registers the RPC |
 | `plugins/oc-budget/tui.tsx` | **TUI**: two slots and `/budget`, nothing else |
 | `plugins/oc-budget/gui.tsx` | **GUI**: the figure in the session header and its popover, over the same contract |
-| `plugins/oc-budget/rpc.ts` | the one contract both halves import |
+| `plugins/oc-budget/rpc.ts` | the contract all three halves import |
+| `plugins/oc-budget/budget.ts` | the thresholds, `payingWallet` and `windowPercent`, shared by both surfaces |
 | `plugins/oc-budget/peak.ts` | DeepSeek's two tariffs, shared by both surfaces; `--self-check` |
 
 The loader does **not** read `package.json` for a directory target: it looks for files named
@@ -68,10 +69,12 @@ one account.
 
 **A wallet with no connection never reaches the window.** The server leaves it out of the snapshot
 rather than filling it with an error, so the sidebar's block, the wallet sections of `/budget` and the
-header figure draw only what the account has. Two lines still speak of a wallet the snapshot lacks,
-because they talk about the *model* rather than the wallet: the footer, and `/budget`'s first line — a
-Go model on an account with no Go connection still says so, and prints no figure. A connection that exists but whose read failed is a different thing and keeps its line with the
-reason: an absence is silent, a fault is said. Two consequences worth knowing:
+header figure draw only what the account has. One line still names a wallet the snapshot lacks, because
+it talks about the *model* rather than the wallet: `/budget`'s first line — a Go model on an account with
+no Go connection still says so, and prints no figure. The footer has nothing to say about that wallet and
+hides instead, where a dash would claim a reading. A connection that exists but whose read failed is a
+different thing and keeps its line with the reason: an absence is silent, a fault is said. Two
+consequences worth knowing:
 
 - **Zen is always reported.** It is OpenCode's own wallet, so a missing Console connection leaves
   `ZEN —` with the reason instead of removing the line.
@@ -81,9 +84,11 @@ reason: an absence is silent, a fault is said. Two consequences worth knowing:
   that would put a permanent error under every free account. A Console connection that exists but cannot
   produce a token is a fault and is reported, and so is a failed read when a Go key is present.
 
-Which wallet *pays* is decided by the TUI, the only half that knows the selected model:
-`deepseek` → DS, `openrouter` → OR, `opencode`/`opencode-zen` → ZEN, `opencode-go` → GO unless the
-monthly window is `rate-limited`, in which case the gateway falls back to ZEN.
+Which wallet *pays* is decided by each half from the model of its own surface — the composer's in the
+window, the session's in the terminal — because the two pickers disagree on purpose
+(`docs/gui-plugins.md`, *A model pick belongs to a surface, not to the session*): `deepseek` → DS,
+`openrouter` → OR, `opencode`/`opencode-zen` → ZEN, `opencode-go` → GO unless the monthly window is
+`rate-limited`, in which case the gateway falls back to ZEN.
 
 The sidebar prints one line per Go window, its reset on the same line — `5h 4%   reset 2h 10m`,
 `wk 31%  reset 3d 14h`, `mo 16%  reset 24d 3h`. The labels are muted, **each percent is coloured on its own
@@ -244,8 +249,8 @@ the month), and the **popover is the block** — the Go bar, one row per window 
 OR and ZEN.
 
 The block is the plugin's own popover, in the top layer and anchored to the figure: no host menu wraps it,
-so the width, the rows and the per-row ceiling that a `ComposerPill` `menu` imposed no longer apply
-(`docs/gui-plugins.md`, *Where a contribution lands, by layout*).
+so the width and the placement a `ComposerPill` `menu` imposed no longer apply (`docs/gui-plugins.md`,
+*The always-visible surfaces*, and the `menu` traps under *Traps*).
 
 - the **bar** is proportional to the monthly percent, clamped to its track, coloured by the terminal's own
   rule — green, yellow from 90, red at 100 — and the figure beside it takes the same colour;
@@ -262,19 +267,29 @@ so the width, the rows and the per-row ceiling that a `ComposerPill` `menu` impo
   five minutes: a wallet connected or removed a minute ago would otherwise stay invisible for the rest of
   the TTL;
 - the workspace is named only when the console account has peers, as the block does;
-- `order` is 15, after coffee's 5 and git's 10, which is the order `opencode.jsonc` gives them in the
-  TUI: the desktop sorts pills by that number, not by load order;
+- `order` is 11: after the app's own figures in that row — the context ring, the tokens, the cost, at 10 —
+  and before its actions, at 20. At 10 it would land there only by a tie, decided by which plugin
+  contributed first (`docs/gui-plugins.md`, *Where a contribution lands, by layout*);
 - the read goes through the **session's own server** client, like git's, and refreshes every 5 minutes;
 - **three states, never two** (`docs/gui-plugins.md`, *a pill never shows a stale value as fresh*): fresh
   as above; **stale** when the last good reading is older than two polls (10 min) — the label takes a `~`,
-  the tone `warning`, the title `Budget · last read 12m ago`, and the popover opens with the same line; and
-  **nothing read yet with a failure** — the label `budget`, icon `circle-exclamation`, tone `danger`, the
-  error in the title and as the popover's only text. A failed poll keeps the last good reading and asks
-  again in 30 s; it does not blank the pill. Before the first answer it stays hidden: a fresh window is not
-  a fault.
+  the tone `warning`, the host's own `ctx.ui.Tooltip` reads `Budget · last read 12m ago`, and the popover
+  opens with `stale 12m`; and **nothing read yet with a failure** — the label `budget`, icon
+  `circle-exclamation`, tone `danger`, the error in the tooltip and as the popover's only text. A failed
+  poll keeps the last good reading and asks again in 30 s; it does not blank the figure. Before the first
+  answer it stays hidden: a fresh window is not a fault.
 
 `budget.ts` holds what both halves must agree on — the four thresholds, `payingWallet` and
 `windowPercent` — and `peak.ts` the tariff; each half keeps its own formatting.
+
+## Publication
+
+The package is named `oc-budget`, **unscoped**, and the workflow publishes only `@rizal72/*`
+(`.github/workflows/publish.yml`): a push moves the code and publishes nothing, which is the state today.
+Making it public is a rename to `@rizal72/oc-budget` — `package.json` and the `README` row — and a first
+publish **by hand**, because the workflow reads its trusted publisher from a page a package that does not
+exist yet does not have (`docs/publishing.md`, *A new package*). From the version after, a push publishes.
+Not decided yet.
 
 ## Open items
 
@@ -293,9 +308,9 @@ so the width, the rows and the per-row ceiling that a `ComposerPill` `menu` impo
   is persistent and holds the same detail.
 - **Session cost**: OpenCode already shows it in its own header.
 
-## The eleven-hour blank (2026-10-27)
+## The blank night (2026-10-27)
 
-Between 01:24 and 07:39 UTC the RPC answered **HTTP 500 on 110 consecutive calls**, one per poll. The
+Between 01:24 and 07:39 UTC the RPC answered **HTTP 500 on every call**, one per poll. The
 widget was not empty during that time: the TUI keeps the last good snapshot when a read fails, so it
 showed numbers from before the failure and said nothing. The blank appeared only when a client started
 fresh and had no snapshot to fall back on — which is how the owner found it in the morning. A client

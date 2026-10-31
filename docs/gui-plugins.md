@@ -100,18 +100,18 @@ namespace does not load, and Settings > Extensions > Plugins lists it as not loa
 The session header shows the context tokens and the session's cost on its own, and the side panel's
 **Review** lists the files the session changed with their diffs. Those are the app's own figures for
 one session, and nothing of ours redraws them — but the two that look redundant are not: the context
-block carries the window the percent is a percent of, and the budget carries the provider's four
-wallets, not the session's spend.
+block carries the window the percent is a percent of, and the budget carries the provider's wallets —
+the ones the account has (`docs/oc-budget.md`, *The four wallets*) — not the session's spend.
 
 ## Where our plugins land
 
 | plugin | surface | why |
 |---|---|---|
 | `oc-git` | `ComposerPill` | branch and counts always visible; the details open on a click |
-| `oc-budget` | `Slot "session.header"`, order 11 | one figure beside the app's own: the ring for the month when Go pays, a card for the wallets that are money, the block behind a click |
+| `oc-budget` | `Slot "session.header"`, order 11 | one figure beside the app's own: the ring for the month when Go pays, a card for the wallets that are money (the app's icon set has no money glyph), the block behind a click |
 | `oc-context` | none: no GUI half | the block is the terminal's; the desktop draws the session's tokens and cost itself, so there is nothing left to draw |
 | `oc-models-pro` | `Command` + `Panel` | a second implementation of the table, not the terminal's: a grid, a click to switch, the rows' meaning shared |
-| `oc-session-search` | `Command` with `slash` + `Panel` | results in a view, not a block of text |
+| `oc-session-search` | none: no GUI half | a tool the agent calls; its results read in the transcript |
 | `oc-coffee` | `ComposerPill` | the server owns the level and the assertion, so a pill is all the window adds |
 | `oc-ponytail-widget` | `ComposerPill` | the level word alone, ordered beside the cup; the four levels are its rows, so the pill is the selector |
 | `oc-plugin-updates` | `ComposerPill` | a count when there is something to install, nothing when there is not; the rows are the act |
@@ -133,8 +133,9 @@ from the app's own set (`branch`, `fork`, `outline-worktree`, …), not from the
 
 **A `rows` list is as wide as its longest string, and grows to hold it** (measured 2026-10-27: a branch
 name padded to 40 characters widened the list instead of truncating). A `menu` popover is the opposite: the
-host owns its width, and it is fixed whatever we draw inside (measured on `oc-budget`, whose lines, bar and
-rules all live within it). The capsule is the third case: its `label` truncates by contract.
+host owns its width, and it is fixed whatever we draw inside (measured the same day on `oc-budget`, whose
+block lived in one then; no plugin uses a `menu` now, and the trap below stands). The capsule is the third
+case: its `label` truncates by contract.
 
 | | `rows` | `menu` |
 |---|---|---|
@@ -246,16 +247,16 @@ reloaded, the server restarted, the window closed. `createKeyed(source, fn)` fro
 is that version: it re-runs `fn` when the keyed source's value changes, and it is disposed with the owner
 that created it. None of ours calls it yet.
 
-**The sites tolerated today** — six calls in five halves. Two of them are in `oc-budget`, which is
-unpublished, so its migration costs nothing but rewriting a poller that works; the other four sit in
-published packages, where the same change would cost a version for no change in behaviour.
+**The sites tolerated today** — six calls in five halves. One is in `oc-budget`, which is unpublished,
+so its migration costs nothing but rewriting a poller that works; the other five sit in published
+packages, where the same change would cost a version for no change in behaviour.
 
 | site | what it does | why it stays |
 |---|---|---|
 | `oc-git/gui.tsx:22` | one poller for the session on screen: clears and re-arms its timer when the routing moves | published; the poll is per *server*, so the effect re-runs with the session's own |
 | `oc-coffee/gui.tsx:29` | the same, per server | published |
 | `oc-ponytail-widget/gui.tsx:54` | reads the session, polls every `REFRESH_MS`, cleared by `onCleanup` | published |
-| `oc-budget/gui.tsx:175` | one poll per server, plus `refreshNow` for the popover | free to change; the reference migration when the poller is next touched |
+| `oc-budget/gui.tsx:176` | one poll per server, plus `refreshNow` for the popover | free to change; the reference migration when the poller is next touched |
 | `oc-models-pro/gui.tsx:296` | re-measures the scrollbar gutter when the rows change | published |
 | `oc-models-pro/gui.tsx:301` | a `ResizeObserver`, in an effect with nothing reactive in it | published, and a form defect: `onMount` says it |
 
