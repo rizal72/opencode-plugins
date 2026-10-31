@@ -1,0 +1,15 @@
+#!/bin/sh
+# Rebuilds the GUI halves after a rewrite — a rebase, an amend.
+#
+# A rebase checks out the commits it replays, so `post-checkout` fires on the way through and leaves a bundle
+# built from an *intermediate* commit: the sources end up right and `dist/` does not. Measured 2026-10-31 —
+# after a rebase the app was still drawing the previous branch's widget. This runs once, when the rewrite is
+# over, which is the moment that matters.
+#
+# Git calls this as: post-rewrite <amend|rebase>, with the rewritten pairs on stdin, which we do not read: a
+# rewrite is rare, and whether `plugins/` moved is not worth the parsing.
+# Enabled once per clone: git config core.hooksPath scripts/hooks
+set -u
+
+cat >/dev/null 2>&1 || true
+exec "$(dirname "$0")/rebuild" post-rewrite

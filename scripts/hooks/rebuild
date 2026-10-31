@@ -1,0 +1,22 @@
+#!/bin/sh
+# Builds the GUI halves once, quietly: one line when it works, the build's own output when it does not.
+# Called by this directory's git hooks, never by git itself.
+set -u
+
+root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$root" || exit 0
+# A worktree or a fresh clone has no dependencies: nothing to build against, and nothing worth saying.
+[ -d node_modules ] || exit 0
+
+start=$(date +%s)
+log=$(mktemp "${TMPDIR:-/tmp}/oc-build.XXXXXX")
+if node scripts/build-gui.mjs >"$log" 2>&1; then
+	rm -f "$log"
+	elapsed=$(( $(date +%s) - start ))
+	[ "$elapsed" -ge 1 ] || elapsed="under a"
+	echo "${1:-build}: rebuilt the GUI halves in ${elapsed}s"
+else
+	cat "$log" >&2
+	rm -f "$log"
+	echo "${1:-build}: the build failed — run node scripts/build-gui.mjs before looking at the app" >&2
+fi
