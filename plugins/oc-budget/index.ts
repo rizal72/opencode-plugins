@@ -17,8 +17,11 @@
 // That is exactly what `opencode auth login opencode` stores, so there is no token
 // file here and no device flow to reimplement.
 //
-// Nothing rejects outward: a missing connection or a dead endpoint becomes an
-// `error` string on that wallet's branch, and the others still report.
+// Nothing rejects outward, and the two are not the same thing: a wallet with **no connection** is
+// left out of the snapshot, so both halves simply do not draw it; a connected wallet whose read
+// failed keeps its branch and its `error`, because a fault must be visible where the number would
+// be. Zen is the exception in one direction only: it is OpenCode's own, so it is always reported,
+// with the reason when the Console is not connected.
 import { Budget } from "./rpc.ts"
 import type { BudgetSnapshot, UsageWindow } from "./rpc.ts"
 
@@ -42,13 +45,17 @@ function message(error: unknown): string {
 interface ResolvedKey {
 	key?: string
 	error?: string
+	/** No connection exists at all: the caller omits the wallet instead of reporting a failure. */
+	missing?: boolean
 }
 
 /** The API key of an integration, out of OpenCode's own credential store. */
 async function resolveKey(ctx: any, integrationID: string): Promise<ResolvedKey> {
 	try {
 		const connection = await ctx.integration.connection.active(integrationID)
-		if (!connection) return { error: `${integrationID} is not connected (see: opencode auth list)` }
+		if (!connection) {
+			return { missing: true, error: `${integrationID} is not connected (see: opencode auth list)` }
+		}
 		const value = await ctx.integration.connection.resolve(connection)
 		if (!value) return { error: `${integrationID} credential could not be resolved` }
 		if (value.type === "key") return { key: value.key }
@@ -63,7 +70,7 @@ async function resolveConsoleToken(ctx: any): Promise<ResolvedKey> {
 	try {
 		const connection = await ctx.integration.connection.active("opencode")
 		if (!connection) {
-			return { error: "OpenCode Console not connected (run: opencode auth login opencode)" }
+			return { missing: true, error: "OpenCode Console not connected (run: opencode auth login opencode)" }
 		}
 		const value = await ctx.integration.connection.resolve(connection)
 		if (!value) return { error: "OpenCode Console credential could not be resolved" }
@@ -147,28 +154,48 @@ async function collectGo(ctx: any): Promise<BudgetSnapshot["go"]> {
 			const body = await getJson(GO_STATUS_URL, { Authorization: `Bearer ${console.key}` })
 			const meters = body?.access?.meters
 			if (!meters) throw new Error("unexpected go status shape")
-			return {
+			const reading = {
 				rolling: goMeter(meters.fiveHour),
 				weekly: goMeter(meters.week),
 				monthly: goMeter(meters.month),
 			}
+			if (!reading.rolling && !reading.weekly && !reading.monthly) {
+				throw new Error("unexpected go status shape")
+			}
+			return reading
 		} catch (error) {
 			// A session that cannot read the meters — a workspace without the subscription — must not
 			// hide a key that can. Fall through, and report both failures if it also fails.
 			consoleError = message(error)
 		}
 	}
+	// A Console connection that exists but cannot produce a token is a fault, not an absence, and it is
+	// carried so that a machine with no Go key does not lose the reason.
+	if (!console.missing && console.error) consoleError ??= console.error
 	const credential = await resolveKey(ctx, "opencode-go")
+	// No Go key at all: the Console session is the only witness, and a workspace without the
+	// subscription answers exactly like a broken read. So GO is left out of the snapshot rather than
+	// reported — a free account must not carry a permanent error line. With a key, a failed read is
+	// a fault and keeps its branch.
+	if (credential.missing) {
+		// No Go key: the Console was the only witness. Its own fault is reported; its absence — or a
+		// read that failed without a key — means there is no plan to show.
+		return consoleError && !console.missing ? { error: consoleError } : undefined
+	}
 	if (credential.error) return { error: consoleError ? `${consoleError}; ${credential.error}` : credential.error }
 	try {
 		const body = await getJson(GO_USAGE_URL, { Authorization: `Bearer ${credential.key}` })
 		const usage = body?.usage
 		if (!usage) return { error: "unexpected usage response shape" }
-		return {
+		const reading = {
 			rolling: goWindow(usage.rolling),
 			weekly: goWindow(usage.weekly),
 			monthly: goWindow(usage.monthly),
 		}
+		if (!reading.rolling && !reading.weekly && !reading.monthly) {
+			return { error: "unexpected usage response shape" }
+		}
+		return reading
 	} catch (error) {
 		return { error: consoleError ? `${consoleError}; ${message(error)}` : message(error) }
 	}
@@ -176,6 +203,7 @@ async function collectGo(ctx: any): Promise<BudgetSnapshot["go"]> {
 
 async function collectDeepSeek(ctx: any): Promise<BudgetSnapshot["ds"]> {
 	const credential = await resolveKey(ctx, "deepseek")
+	if (credential.missing) return undefined
 	if (credential.error) return { error: credential.error }
 	try {
 		const body = await getJson(DS_BALANCE_URL, { Authorization: `Bearer ${credential.key}` })
@@ -190,6 +218,7 @@ async function collectDeepSeek(ctx: any): Promise<BudgetSnapshot["ds"]> {
 
 async function collectOpenRouter(ctx: any): Promise<BudgetSnapshot["or"]> {
 	const credential = await resolveKey(ctx, "openrouter")
+	if (credential.missing) return undefined
 	if (credential.error) return { error: credential.error }
 	const headers = { Authorization: `Bearer ${credential.key}` }
 	try {
@@ -260,6 +289,9 @@ async function collectZen(ctx: any): Promise<BudgetSnapshot["zen"]> {
 /** A snapshot that says why the read failed, in every wallet. A rejected handler answered HTTP 500 and
  *  left the panel blank with nothing to read; this one is visible where the numbers would be. */
 function failedSnapshot(error: unknown): BudgetSnapshot {
+	// A last resort for a rejection no collector explains: it names the fault on every wallet, so an
+	// account with one connection does not lose the only line it had. Nothing reaches it today — each
+	// collector swallows its own failure — and a new one must keep that true.
 	const text = message(error)
 	return {
 		at: Date.now(),

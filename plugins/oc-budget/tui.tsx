@@ -279,6 +279,7 @@ export default Plugin.define({
 					)
 				} else if (snap?.ds?.error) {
 					out.push(<text fg={DIM}>DS —</text>)
+					out.push(<text fg={DIM}>{snap.ds.error}</text>)
 				}
 
 				if (snap?.or && !snap.or.error) {
@@ -289,6 +290,7 @@ export default Plugin.define({
 					)
 				} else if (snap?.or?.error) {
 					out.push(<text fg={DIM}>OR —</text>)
+					out.push(<text fg={DIM}>{snap.or.error}</text>)
 				}
 
 				if (snap?.zen && !snap.zen.error) {
@@ -297,6 +299,7 @@ export default Plugin.define({
 					)
 				} else if (snap?.zen?.error) {
 					out.push(<text fg={DIM}>ZEN —</text>)
+					out.push(<text fg={DIM}>{snap.zen.error}</text>)
 				}
 
 				return out
@@ -322,6 +325,9 @@ export default Plugin.define({
 				const snap = snapshot()
 				const wallet = payingWallet(model(), snap)
 				if (wallet === "none") return undefined
+				// The wallet the model pays with has no connection: nothing to say, and a dash would
+				// claim a reading. A snapshot that has not arrived yet is not this case.
+				if (snap && !snap[wallet]) return undefined
 				if (wallet === "go") {
 					const percent = windowPercent(snap?.go?.monthly)
 					return {

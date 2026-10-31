@@ -151,16 +151,13 @@ type Figures = {
 		error?: string
 	}
 	workspace?: string
-	ds: Line
-	or: Line
-	zen: Line
+	/** A wallet the snapshot does not carry has no connection: it is left out, not drawn empty. */
+	ds?: Line
+	or?: Line
+	zen?: Line
 }
 
-const NO_LINES: Pick<Figures, "ds" | "or" | "zen"> = {
-	ds: {},
-	or: {},
-	zen: {},
-}
+const NO_LINES: Pick<Figures, "ds" | "or" | "zen"> = {}
 
 export default Plugin.define({
 	setup(ctx) {
@@ -193,10 +190,11 @@ export default Plugin.define({
 				return
 			}
 
-			const refresh = () => {
+			const refresh = (force = false) => {
 				if (reading === server) return
 				reading = server
-				void withTimeout(session!.server.client.rpc(Budget).snapshot({}), RPC_TIMEOUT_MS)
+				const input = force ? { force: true } : {}
+				void withTimeout(session!.server.client.rpc(Budget).snapshot(input), RPC_TIMEOUT_MS)
 					.then((value) => {
 						// A slow answer from the server that was polled before must not overwrite this one.
 						if (ctx.sessions.current()?.server.id !== server) return
@@ -217,7 +215,7 @@ export default Plugin.define({
 					})
 			}
 
-			refreshNow = refresh
+			refreshNow = () => refresh(true)
 			refresh()
 			timer = setInterval(refresh, REFRESH_MS)
 		})
@@ -249,24 +247,38 @@ export default Plugin.define({
 			const zen = value.zen?.available ?? value.zen?.balance
 			const age = Date.now() - value.at
 
+			// A wallet absent from the snapshot has no connection, so the figure says nothing — a dash
+			// would still claim a reading. The popover leaves its line out for the same reason.
 			const label =
 				wallet === "go"
-					? `GO · ${percent(monthly)}`
+					? go
+						? `GO · ${percent(monthly)}`
+						: undefined
 					: wallet === "zen"
-						? `ZEN · ${usd(zen)}`
+						? value.zen
+							? `ZEN · ${usd(zen)}`
+							: undefined
 						: wallet === "ds"
-							? `DS · ${usd(value.ds?.balance)}`
+							? value.ds
+								? `DS · ${usd(value.ds.balance)}`
+								: undefined
 							: wallet === "or"
-								? `OR · ${usd(value.or?.balance)}`
+								? value.or
+									? `OR · ${usd(value.or.balance)}`
+									: undefined
 								: undefined
 
-			const goTone = [rolling, weekly, monthly].some((figure) => figure !== null && figure >= 100)
-				? "danger"
-				: [rolling, weekly, monthly].some(
-							(figure) => figure !== null && figure >= GO_WARN_PERCENT,
-						)
-					? "warning"
-					: "success"
+			// No figure at all is not "healthy": the colour is left out, as it is for a money wallet with
+			// nothing to read.
+			const goTone: Tone | undefined = [rolling, weekly, monthly].every((figure) => figure === null)
+				? undefined
+				: [rolling, weekly, monthly].some((figure) => figure !== null && figure >= 100)
+					? "danger"
+					: [rolling, weekly, monthly].some(
+								(figure) => figure !== null && figure >= GO_WARN_PERCENT,
+							)
+						? "warning"
+						: "success"
 			const walletTone: Tone | undefined =
 				wallet === "go"
 					? goTone
@@ -303,13 +315,17 @@ export default Plugin.define({
 					: undefined,
 				// The block says the workspace only when the account has peers: alone in it, the name says nothing.
 				workspace: value.zen?.org && (value.zen.peers ?? 0) > 1 ? value.zen.org : undefined,
-				ds: { figure: value.ds?.balance, tone: tone(value.ds?.balance ?? null, DS_WARN_USD, 0), note: value.ds?.error },
-				or: {
-					figure: value.or?.balance,
-					tone: tone(value.or?.balance ?? null, OR_WARN_USD, 0),
-					note: value.or?.error,
+				ds: value.ds && {
+					figure: value.ds.balance,
+					tone: tone(value.ds.balance ?? null, DS_WARN_USD, 0),
+					note: value.ds.error,
 				},
-				zen: { figure: zen, tone: tone(zen ?? null, ZEN_WARN_USD, 0), note: value.zen?.error },
+				or: value.or && {
+					figure: value.or.balance,
+					tone: tone(value.or.balance ?? null, OR_WARN_USD, 0),
+					note: value.or.error,
+				},
+				zen: value.zen && { figure: zen, tone: tone(zen ?? null, ZEN_WARN_USD, 0), note: value.zen.error },
 			}
 		}
 
@@ -405,9 +421,17 @@ export default Plugin.define({
 									</div>
 								</Show>
 								<div class="ocb-rule" />
-								<WalletLine name="DS" line={f().ds} mark={f().atPeak ? PEAK_MARK : ""} />
-								<WalletLine name="OR" line={f().or} />
-								<WalletLine name="ZEN" line={f().zen} />
+								<Show when={f().ds}>
+									{(line: () => Line) => (
+										<WalletLine name="DS" line={line()} mark={f().atPeak ? PEAK_MARK : ""} />
+									)}
+								</Show>
+								<Show when={f().or}>
+									{(line: () => Line) => <WalletLine name="OR" line={line()} />}
+								</Show>
+								<Show when={f().zen}>
+									{(line: () => Line) => <WalletLine name="ZEN" line={line()} />}
+								</Show>
 							</>
 						)}
 					</Show>

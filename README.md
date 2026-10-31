@@ -16,7 +16,7 @@ agent calls). One plugin, one state, two surfaces — the terminal half first, t
 | `@rizal72/oc-session-search` | `session_search`: keyword search over the transcripts of past sessions | — | — | ✓ |
 | `@rizal72/oc-plugin-updates` | update OpenCode plugins: one by one or all of them at once | a line in the sidebar, and a dialog on `/plugin-updates` | a pill above the composer | ✓ |
 | `oc-context` | the Context block in the sidebar, with the window its percent is a percent of | sidebar | — | — redraws a built-in |
-| `oc-budget` | the paying provider's budget: sidebar, footer, `/budget` | sidebar, footer, `/budget` | a pill | — my wallet |
+| `oc-budget` | the paying provider's budget: sidebar, footer, `/budget` | sidebar, footer, `/budget` | the figure in the session header, with a popover | — my wallet |
 | `oc-donsetch` | keeps the `donsetch` binary current | — | — | — needs that binary |
 
 Something broken? Open an issue: https://github.com/rizal72/opencode-plugins/issues — paste the error line

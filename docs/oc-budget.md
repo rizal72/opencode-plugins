@@ -17,7 +17,7 @@ measurement are in `docs/sidebar.md`.
 |---|---|
 | `plugins/oc-budget/index.ts` | **server**: resolves credentials, reads the four wallets, caches, registers the RPC |
 | `plugins/oc-budget/tui.tsx` | **TUI**: two slots and `/budget`, nothing else |
-| `plugins/oc-budget/gui.tsx` | **GUI**: the pill and its popover, over the same contract |
+| `plugins/oc-budget/gui.tsx` | **GUI**: the figure in the session header and its popover, over the same contract |
 | `plugins/oc-budget/rpc.ts` | the one contract both halves import |
 | `plugins/oc-budget/peak.ts` | DeepSeek's two tariffs, shared by both surfaces; `--self-check` |
 
@@ -35,8 +35,9 @@ cannot render. So the server does the reading and the TUI the drawing, joined by
   never joins a collection that started before it, so a credential switch always reads the new account.
 - TUI: polls every 5 min, and forces a re-read on a model change and on any `credential.*` /
   `integration.*` event — so an account switch lands at once instead of waiting for the poll.
-- Every fetch is failure-tolerant: a missing connection or a dead endpoint becomes an `error` string on
-  that wallet's branch, and the other three still report.
+- Every fetch is failure-tolerant, and it keeps two things apart: a wallet with **no connection** is left
+  out of the snapshot, while a dead endpoint or a bad credential on a connection that exists becomes an
+  `error` string on that wallet's branch and the others still report.
 
 ## Credentials
 
@@ -64,6 +65,21 @@ one account.
 | `ZEN $x.xx` | the pay-per-use credit pays | console `billing/status`, `availableMicroCents` | green > $5, yellow ≤ $5 (the console's auto-recharge), red at 0 |
 | `DS $x.xx` | native DeepSeek wallet | `GET api.deepseek.com/user/balance` | green > $2, yellow ≤ $2, red at 0 |
 | `OR $x.xx` | OpenRouter credits | `GET openrouter.ai/api/v1/credits` (+ `/key`) | green > $5, yellow ≤ $5, red at 0 |
+
+**A wallet with no connection never reaches the window.** The server leaves it out of the snapshot
+rather than filling it with an error, so the sidebar's block, the wallet sections of `/budget` and the
+header figure draw only what the account has. Two lines still speak of a wallet the snapshot lacks,
+because they talk about the *model* rather than the wallet: the footer, and `/budget`'s first line — a
+Go model on an account with no Go connection still says so, and prints no figure. A connection that exists but whose read failed is a different thing and keeps its line with the
+reason: an absence is silent, a fault is said. Two consequences worth knowing:
+
+- **Zen is always reported.** It is OpenCode's own wallet, so a missing Console connection leaves
+  `ZEN —` with the reason instead of removing the line.
+- **Go is hidden when neither path can read it.** The Console session and a Go key are each enough on
+  their own; when the Console is absent, or its read fails, and no Go key resolves, GO is left out — a
+  workspace without the subscription answers a failed read exactly like a broken endpoint, and reporting
+  that would put a permanent error under every free account. A Console connection that exists but cannot
+  produce a token is a fault and is reported, and so is a failed read when a Go key is present.
 
 Which wallet *pays* is decided by the TUI, the only half that knows the selected model:
 `deepseek` → DS, `openrouter` → OR, `opencode`/`opencode-zen` → ZEN, `opencode-go` → GO unless the
@@ -184,7 +200,7 @@ The windows, `isPeak`, `doubles` and `nextChange` live in `peak.ts`, one definit
   block marks from `isPeak`, not from `doubles`: it appears on GO and DS whoever is paying, because the
   reminder not to switch *to* them is worth more than a report on the one in use. The footer keeps
   `doubles` — it shows one wallet, the one paying;
-- **desktop**: `↗` at the end of the capsule's label when what you are paying doubles — the footer's rule.
+- **desktop**: `↗` at the end of the figure's label when what you are paying doubles — the footer's rule.
   In the popover, `↗` sits on the Go bar and on the `DS` line whenever the hour is peak, whether or not
   they are the ones paying: the same rule as the block. Zen and OpenRouter never carry it.
 
@@ -222,14 +238,14 @@ colour, as pi does: a coloured mark beside a coloured word would be two signals 
 
 ## Desktop half
 
-The desktop has a pill where the TUI has the footer and a popover where it has the sidebar block, and the
-two now say the same thing: the **capsule is the footer** (the paying wallet, `GO · 7%`), and the
-**popover is the block** — the Go bar, one row per window with its reset, the workspace, a rule, then DS,
+The desktop has a figure where the TUI has the footer and a popover where it has the sidebar block, and
+the two now say the same thing: the **figure carries the paying wallet** (`GO · 7%`, with a ring filled to
+the month), and the **popover is the block** — the Go bar, one row per window with its reset, the workspace, a rule, then DS,
 OR and ZEN.
 
-Until the 2.2.1 SDK a pill could only open `rows`: one line of text each, and a `tone` that painted the
-icon alone. That is why the window had no bar and no per-figure colour, and `menu` is what closes the gap:
-the host keeps its capsule and its box, the plugin draws the contents (`docs/gui-plugins.md`).
+The block is the plugin's own popover, in the top layer and anchored to the figure: no host menu wraps it,
+so the width, the rows and the per-row ceiling that a `ComposerPill` `menu` imposed no longer apply
+(`docs/gui-plugins.md`, *Where a contribution lands, by layout*).
 
 - the **bar** is proportional to the monthly percent, clamped to its track, coloured by the terminal's own
   rule — green, yellow from 90, red at 100 — and the figure beside it takes the same colour;
@@ -240,10 +256,11 @@ the host keeps its capsule and its box, the plugin draws the contents (`docs/gui
   prints them: the snapshot already carried a `resetsAt` per window, and the popover shows all three
   instead of naming the monthly one alone;
 - **the peak `↗` marks GO and DS whoever is paying** (`isPeak`): its job is the reminder not to switch to
-  them. The capsule's `↗` marks only the paying model (`doubles`). Two questions, two functions — the rule
+  them. The figure's `↗` marks only the paying model (`doubles`). Two questions, two functions — the rule
   `peak.ts` documents;
-- the popover **reads again on open**, because the tick is five minutes, and the capsule follows that same
-  call: both surfaces read one signal, so one read refreshes both;
+- the popover **forces a read on open** (`{ force: true }`, past the server's cache), because the tick is
+  five minutes: a wallet connected or removed a minute ago would otherwise stay invisible for the rest of
+  the TTL;
 - the workspace is named only when the console account has peers, as the block does;
 - `order` is 15, after coffee's 5 and git's 10, which is the order `opencode.jsonc` gives them in the
   TUI: the desktop sorts pills by that number, not by load order;
