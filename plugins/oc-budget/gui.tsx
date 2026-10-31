@@ -40,21 +40,21 @@ const STALE_MS = 2 * REFRESH_MS
 const RPC_TIMEOUT_MS = 15_000
 
 const CSS = `
-/* The host gives a menu's popover the composer's width, and nothing we set narrows it: so the rows fill it,
-   the bar grows with it, and every figure right-aligns in one column. */
-/* anywhere: the host fixes the width and clips nothing, so an unbreakable string — an error carrying a
-   URL or a token — would paint outside the box. This is our content; the overflow is ours too. */
-.ocb { display: flex; flex-direction: column; gap: 5px; width: 100%; font-size: 12px;
-  font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+/* The block that opens from the header figure wears that figure's own type: 13px, weight 440, the app's tight
+   tracking. One step down, 12px, for the lines that are details — a single step, not two. */
+/* anywhere: an error carrying a URL or a token must not paint outside the box. This is our content; the
+   overflow is ours too. */
+.ocb { display: flex; flex-direction: column; gap: 5px; width: 100%; font-size: 13px; font-weight: 440;
+  letter-spacing: -0.04px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .ocb-line { display: flex; align-items: center; gap: 6px; }
 .ocb-name { font-weight: 600; letter-spacing: .02em; min-width: 2.6em; }
 .ocb-figure { margin-left: auto; min-width: 4.2em; text-align: right; }
 .ocb-mark { margin-left: 4px; }
-.ocb-windows { gap: 4px; font-size: 11px; }
+.ocb-windows { gap: 4px; }
 .ocb-ok { color: var(--v2-state-fg-success, inherit); }
 .ocb-warn { color: var(--v2-state-fg-warning, inherit); }
 .ocb-bad { color: var(--v2-state-fg-danger, inherit); }
-.ocb-dim { color: var(--v2-text-text-muted, inherit); font-size: 11px; }
+.ocb-dim { color: var(--v2-text-text-muted, inherit); }
 .ocb-accent { color: var(--v2-text-text-accent, inherit); }
 .ocb-bar { flex: 1 1 auto; min-width: 90px; height: 6px; border-radius: 3px; overflow: hidden;
   background: color-mix(in srgb, currentColor 16%, transparent); }
@@ -68,11 +68,11 @@ const CSS = `
 .ocb-head-label { white-space: nowrap; color: inherit; }
 /* The block, in the top layer: nothing clips it, and the platform owns Escape and the light dismiss. */
 .ocb-pop { position: fixed; inset: auto; position-anchor: --ocb-anchor; top: anchor(--ocb-anchor bottom);
-  right: anchor(--ocb-anchor right); margin: 6px 0 0; width: max-content; min-width: 16em;
-  max-width: min(20em, calc(100vw - 16px)); padding: 8px 10px; border-radius: 8px;
+  right: anchor(--ocb-anchor right); margin: 6px 0 0; width: max-content; min-width: 18em;
+  max-width: min(22em, calc(100vw - 16px)); padding: 8px 10px; border-radius: 8px;
   border: 1px solid var(--v2-border-border-muted, rgba(255, 255, 255, .12));
   background: var(--v2-background-bg-layer-02, #1b1b1b);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .35); color: var(--v2-text-text-base, inherit); font-size: 12px; }
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .35); color: var(--v2-text-text-base, inherit); font-size: 13px; }
 .ocb-pop:popover-open { display: block; }
 `
 
