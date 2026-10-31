@@ -228,7 +228,7 @@ an evening and a morning — every poll a fast 500 from 07:00 to 12:26, the pill
 
 | pill | state |
 |---|---|
-| `oc-budget` | **all three**, since 2026-10-28 |
+| `oc-budget` | **all three**, since 2026-10-28 — the header figure now, not a pill |
 | `oc-git` | hides on failure — the next to fix, because a stale count reads as a clean tree |
 | `oc-coffee` | keeps the last reading, unmarked |
 | `oc-ponytail-widget` | keeps the last value, unmarked |
@@ -255,7 +255,7 @@ published packages, where the same change would cost a version for no change in 
 | `oc-git/gui.tsx:22` | one poller for the session on screen: clears and re-arms its timer when the routing moves | published; the poll is per *server*, so the effect re-runs with the session's own |
 | `oc-coffee/gui.tsx:29` | the same, per server | published |
 | `oc-ponytail-widget/gui.tsx:54` | reads the session, polls every `REFRESH_MS`, cleared by `onCleanup` | published |
-| `oc-budget/gui.tsx:154` | one poll per server, plus `refreshNow` for the popover | free to change; the reference migration when the poller is next touched |
+| `oc-budget/gui.tsx:175` | one poll per server, plus `refreshNow` for the popover | free to change; the reference migration when the poller is next touched |
 | `oc-models-pro/gui.tsx:296` | re-measures the scrollbar gutter when the rows change | published |
 | `oc-models-pro/gui.tsx:301` | a `ResizeObserver`, in an effect with nothing reactive in it | published, and a form defect: `onMount` says it |
 

@@ -6,8 +6,8 @@
 //
 // The mark is a ring only where a percentage exists: Go's month. ZEN, DS and OR are money, and a ring
 // around money would imitate a share of a cap that does not exist, so their figure carries the colour and
-// the name stays quiet. A slot gets no icons — `IconName` lives in pill and row fields, not in JSX — so
-// there is no glyph to fall back on.
+// the name stays quiet. The app's catalog has no money glyph — `providers` says provider, not money — so the
+// card is drawn here; `ctx.ui.Icon` supplies the warning one.
 //
 // Colours come from the theme, never from hex: a GUI plugin has no theme API, but the app publishes its
 // tokens as CSS variables, and these are the three alert levels the terminal uses.
@@ -29,19 +29,19 @@ import { Budget } from "./rpc.ts"
 import type { BudgetSnapshot } from "./rpc.ts"
 import { clock, doubles as peakDoubles, isPeak } from "./peak.ts"
 
-/** The mark says "this tariff is in its doubled window"; the capsule adds it to the *paying* model only. */
+/** The mark says "this tariff is in its doubled window"; the figure adds it to the *paying* model only. */
 const PEAK_MARK = "↗"
 
 const REFRESH_MS = 5 * 60 * 1000
 /** A failed poll is not a slow poll: ask again in half a minute, before the five-minute tick. */
 const RETRY_MS = 30_000
-/** Two missed polls: from here the numbers on screen are history, and the pill says so. */
+/** Two missed polls: from here the numbers on screen are history, and the figure says so. */
 const STALE_MS = 2 * REFRESH_MS
 const RPC_TIMEOUT_MS = 15_000
 
 const CSS = `
-/* The block that opens from the header figure wears that figure's own type: 13px, weight 440, the app's tight
-   tracking. One step down, 12px, for the lines that are details — a single step, not two. */
+/* The block that opens from the header figure wears that figure's own type: one size, 13px, weight 440, the
+   app's tight tracking. Hierarchy here is colour and weight, never a second size. */
 /* anywhere: an error carrying a URL or a token must not paint outside the box. This is our content; the
    overflow is ours too. */
 .ocb { display: flex; flex-direction: column; gap: 5px; width: 100%; font-size: 13px; font-weight: 440;
@@ -49,7 +49,7 @@ const CSS = `
 .ocb-line { display: flex; align-items: center; gap: 6px; }
 .ocb-name { font-weight: 600; letter-spacing: .02em; min-width: 2.6em; }
 .ocb-figure { margin-left: auto; min-width: 4.2em; text-align: right; }
-.ocb-mark { margin-left: 4px; }
+.ocb-peak { margin-left: 4px; }
 .ocb-windows { gap: 4px; }
 .ocb-ok { color: var(--v2-state-fg-success, inherit); }
 .ocb-warn { color: var(--v2-state-fg-warning, inherit); }
@@ -60,10 +60,15 @@ const CSS = `
   background: color-mix(in srgb, currentColor 16%, transparent); }
 .ocb-fill { display: block; height: 100%; border-radius: 3px; background: currentColor; }
 .ocb-rule { height: 1px; margin: 2px 0; background: color-mix(in srgb, currentColor 18%, transparent); }
-.ocb-head { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none;
-  color: var(--v2-text-text-faint); font: inherit; font-size: 13px; font-weight: 440; letter-spacing: -0.04px;
-  font-variant-numeric: tabular-nums; cursor: pointer; anchor-name: --ocb-anchor; }
-.ocb-head:hover { color: var(--v2-text-text-base, inherit); }
+/* The app's own toolbar button, hand-written: its height and its hover plate are what make the figure read as
+   one of the header's controls. The anchor name is set inline, one per mounted timeline. */
+.ocb-head { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 6px; border: 0;
+  border-radius: 6px; background: none; color: var(--v2-text-text-faint); font: inherit; font-size: 13px;
+  font-weight: 440; letter-spacing: -0.04px; font-variant-numeric: tabular-nums; cursor: pointer; }
+.ocb-head:hover, .ocb-head:focus-visible {
+  background: color-mix(in srgb, var(--v2-text-text-base) 8%, transparent);
+  color: var(--v2-text-text-base);
+}
 .ocb-mark { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; }
 .ocb-head-label { white-space: nowrap; color: inherit; }
 /* The block, in the top layer: nothing clips it, and the platform owns Escape and the light dismiss. */
@@ -81,7 +86,7 @@ type Tone = "success" | "warning" | "danger"
 const CLASS: Record<Tone, string> = { success: "ocb-ok", warning: "ocb-warn", danger: "ocb-bad" }
 const cls = (tone: Tone | undefined) => (tone ? CLASS[tone] : "")
 
-/** A stalled call must not leave the pill frozen: the guard resets only when the promise settles. */
+/** A stalled call must not leave the figure frozen: the guard resets only when the promise settles. */
 const withTimeout = <T,>(promise: Promise<T>, ms: number): Promise<T> =>
 	new Promise<T>((resolve, reject) => {
 		const timer = setTimeout(() => reject(new Error("rpc timeout")), ms)
@@ -125,13 +130,13 @@ type Line = { figure?: number; tone?: Tone; note?: string }
 /** What the header row and the popover both read: a session and its screen, and nothing else. */
 type SurfaceInput = Pick<SlotMap["session.header"], "session" | "screen">
 
-/** Everything both surfaces say, computed once. Reads the signals, so call it from JSX: the capsule is
- *  re-run by the host, the popover re-runs itself while open. */
+/** Everything the figure and its block say, computed once. Reads the signals, so call it from JSX: the slot
+ *  renders it reactively, and the popover reads the same signal while it is open. */
 type Figures = {
 	ready: boolean
 	error?: string
 	label?: string
-	capsuleTone?: Tone
+	walletTone?: Tone
 	/** Which wallet pays: the ring is drawn where a share of a cap exists, the figure where money does. */
 	wallet: Wallet
 	stale: boolean
@@ -200,7 +205,7 @@ export default Plugin.define({
 					})
 					.catch((error: unknown) => {
 						// Keep the last good reading: a failed poll says nothing about the balance, and
-						// blanking the pill for five minutes cost a whole night (measured 2026-10-28, the
+						// blanking the figure for five minutes cost a whole night (measured 2026-10-28, the
 						// pill gone from 07:00 to 12:26, every poll a fast 500). Ask again sooner instead.
 						if (ctx.sessions.current()?.server.id !== server) return
 						setFailure(error instanceof Error ? error.message : String(error))
@@ -262,7 +267,7 @@ export default Plugin.define({
 						)
 					? "warning"
 					: "success"
-			const capsuleTone: Tone | undefined =
+			const walletTone: Tone | undefined =
 				wallet === "go"
 					? goTone
 					: wallet === "zen"
@@ -275,7 +280,7 @@ export default Plugin.define({
 				ready: true,
 				error,
 				label,
-				capsuleTone,
+				walletTone,
 				wallet,
 				stale: age > STALE_MS,
 				age,
@@ -338,7 +343,7 @@ export default Plugin.define({
 		 *  colours, the same order the terminal draws. */
 		const Block = (props: { input: SurfaceInput }) => {
 			const figures = createMemo(() => view(props.input))
-			// The tick is five minutes, so open on a fresh read: one call, and the capsule follows it, because
+			// The tick is five minutes, so open on a fresh read: one call, and the figure follows it, because
 			// both surfaces read this one signal.
 			onMount(() => {
 				refreshNow?.()
@@ -379,7 +384,7 @@ export default Plugin.define({
 													{percent(g().monthly)}
 												</span>
 												<Show when={f().atPeak}>
-													<span class="ocb-bad ocb-mark">{PEAK_MARK}</span>
+													<span class="ocb-bad ocb-peak">{PEAK_MARK}</span>
 												</Show>
 											</div>
 											<Show
@@ -448,16 +453,35 @@ export default Plugin.define({
 			</svg>
 		)
 
+		/** Which figure draws, and what it says. */
+		type Mark = "ring" | "card" | "error"
+
 		/** The figure in the session header, beside the app's own context ring and cost. The mark carries the
-		 *  colour: a ring where a percentage exists, a card where the wallet is money. The popover is the
-		 *  platform's — the top layer, the light dismiss and Escape come with it. */
+		 *  colour: a ring where a percentage exists, a card where the wallet is money, the warning icon when
+		 *  nothing could be read. The popover is the platform's — the top layer, the light dismiss and Escape
+		 *  come with it. */
+		let mounted = 0
+		const Tooltip = ctx.ui.Tooltip
 		const HeaderBudget = (props: { input: SlotMap["session.header"] }) => {
 			const figures = () => view(props.input)
+			// Anchors are per instance: a cached timeline stays mounted, and one shared name would let the
+			// visible figure's popover point at the hidden timeline's button — or at nothing.
+			const name = `ocb-${++mounted}`
+			const [open, setOpen] = createSignal(false)
 			let panel: HTMLDivElement | undefined
+
+			// The platform closes the popover too, with Escape and a click outside: the signal follows it.
+			onMount(() => {
+				const element = panel
+				if (!element) return
+				const follow = (event: Event) => setOpen((event as ToggleEvent).newState === "open")
+				element.addEventListener("toggle", follow)
+				onCleanup(() => element.removeEventListener("toggle", follow))
+			})
 
 			const toggle = () => {
 				if (!panel) return
-				// The tick is five minutes: open on a fresh read, as the capsule did.
+				// The tick is five minutes: open on a fresh read.
 				if (panel.matches(":popover-open")) panel.hidePopover()
 				else {
 					refreshNow?.()
@@ -466,53 +490,78 @@ export default Plugin.define({
 			}
 
 			/** Nothing read yet is not an error; a failure with nothing behind it is one, and hiding it is what
-			 *  cost a whole night — `docs/gui-plugins.md`, *a pill never shows a stale value as fresh*. */
+			 *  cost a whole night — `docs/gui-plugins.md`, *a pill never shows a stale value as fresh*. Stale wins
+			 *  over the figure: what is on screen is history, and the mark says so. */
 			const shown = () => {
 				const f = figures()
 				if (f.ready && f.label) {
-					const tone = f.stale
-						? "warning"
-						: f.wallet === "go"
-							? windowTone(f.go?.monthly ?? null)
-							: f.capsuleTone
-					return { f, text: f.label, tone: tone as Tone | undefined }
+					const mark: Mark = f.wallet === "go" && f.go ? "ring" : "card"
+					const tone = f.stale ? "warning" : f.walletTone
+					return { f, text: f.label, tone: tone as Tone | undefined, mark }
 				}
-				if (f.error) return { f, text: "budget", tone: "danger" as Tone }
+				if (f.error) {
+					return { f, text: "budget", tone: "danger" as Tone, mark: "error" as Mark }
+				}
 				return undefined
 			}
+
+			const seat = (f: Figures) =>
+				f.error ?? (f.stale ? `Budget · last read ${ageText(f.age)} ago` : "Budget — what pays, and every wallet")
 
 			return (
 				<Show when={shown()}>
 					{(s: () => NonNullable<ReturnType<typeof shown>>) => (
 						<>
-							<button
-								type="button"
-								class="ocb-head"
-								aria-haspopup="dialog"
-								title={
-									s().f.error ??
-									(s().f.stale ? `Budget · last read ${ageText(s().f.age)} ago` : "Budget")
-								}
-								onClick={toggle}
-							>
-								<span class={`ocb-mark ${cls(s().tone)}`}>
-									<Show
-										when={s().f.wallet === "go" && s().f.go}
-										fallback={<WalletMark />}
-									>
-										{(g: () => NonNullable<Figures["go"]>) => <Ring percent={g().monthly} />}
-									</Show>
-								</span>
-								<Show when={!props.input.compact}>
-									<span class="ocb-head-label">
-										{s().f.stale ? `~${s().text}` : s().text}
+							<Tooltip
+								value={seat(s().f)}
+								placement="bottom"
+								children={
+								<button
+									type="button"
+									class="ocb-head"
+									style={{ "anchor-name": `--${name}` }}
+									aria-haspopup="dialog"
+									aria-expanded={open()}
+									aria-controls={name}
+									aria-label={s().f.stale ? `~${s().text}` : s().text}
+									onClick={toggle}
+								>
+									<span class={`ocb-mark ${cls(s().tone)}`}>
+										<Show
+											when={s().mark === "ring"}
+											fallback={
+												s().mark === "error" ? (
+													<ctx.ui.Icon name="circle-exclamation" size="small" />
+												) : (
+													<WalletMark />
+												)
+											}
+										>
+											<Show when={s().f.go}>
+												{(g: () => NonNullable<Figures["go"]>) => <Ring percent={g().monthly} />}
+											</Show>
+										</Show>
 									</span>
-								</Show>
-								<Show when={s().f.marked}>
-									<span class="ocb-head-label ocb-bad">{PEAK_MARK}</span>
-								</Show>
-							</button>
-							<div ref={panel} class="ocb-pop" popover="auto">
+									<Show when={!props.input.compact}>
+										<span class="ocb-head-label">{s().f.stale ? `~${s().text}` : s().text}</span>
+									</Show>
+									<Show when={s().f.marked}>
+										<span class="ocb-head-label ocb-bad" aria-hidden="true">
+											{PEAK_MARK}
+										</span>
+									</Show>
+								</button>
+								}
+							/>
+							<div
+								ref={panel}
+								id={name}
+								class="ocb-pop"
+								popover="auto"
+								role="dialog"
+								aria-label={s().text}
+								style={{ "position-anchor": `--${name}` }}
+							>
 								<Block input={props.input} />
 							</div>
 						</>
