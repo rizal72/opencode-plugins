@@ -108,7 +108,7 @@ wallets, not the session's spend.
 | plugin | surface | why |
 |---|---|---|
 | `oc-git` | `ComposerPill` | branch and counts always visible; the details open on a click |
-| `oc-budget` | `ComposerPill` with a popover (`menu`) | the paying wallet in the face, the other three and the Go bar one click away |
+| `oc-budget` | `Slot "session.header"`, order 11 | one figure beside the app's own: the ring for the month when Go pays, a card for the wallets that are money, the block behind a click |
 | `oc-context` | none: no GUI half | the block is the terminal's; the desktop draws the session's tokens and cost itself, so there is nothing left to draw |
 | `oc-models-pro` | `Command` + `Panel` | a second implementation of the table, not the terminal's: a grid, a click to switch, the rows' meaning shared |
 | `oc-session-search` | `Command` with `slash` + `Panel` | results in a view, not a block of text |
@@ -201,6 +201,12 @@ So a widget that must sit beside the app's own context ring, token count and ses
 
 The slot also knows when room runs out: `compact` turns true once the title no longer fits beside the
 actions, and the contribution shrinks to its icon then.
+
+Those two groups are not one contribution: the app's own figures — context ring, tokens, cost — are a
+`session.header` item at **order 10**, and its actions (the panel toggle, the location, the sidebar
+button) another at **order 20**. A figure of ours belongs at **order 11**: after the native ring and cost,
+before the buttons. At `order: 10` it lands there only by a tie, decided by which plugin contributed first
+(measured 2026-10-31, `oc-budget` in the header).
 
 ## A pill never shows a stale value as fresh
 

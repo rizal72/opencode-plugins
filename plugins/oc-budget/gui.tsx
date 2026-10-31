@@ -1,16 +1,17 @@
 // oc-budget — GUI half.
 //
-// Two surfaces, the same two the terminal has: the capsule is the footer (which wallet pays, and whether
-// *that* model's price doubles), and the popover is the sidebar block (every wallet, the bars, the reset,
-// the workspace, and the peak mark on GO and DS whoever is paying).
+// One surface: the figure in the session header, beside the app's own context ring and session cost, where
+// a reader already looks for what the session is costing. Its popover carries the whole block — every
+// wallet, the Go bar, the resets, the workspace, the peak mark — the same lines the terminal draws.
 //
-// The block was impossible while a pill could only open `rows`: one line of text each, and a `tone` that
-// paints the icon alone. The 2.2.1 `menu` gives the popover the plugin's own drawing, so the window can
-// finally say what the terminal says — `docs/gui-plugins.md`, *the always-visible surfaces*.
+// The mark is a ring only where a percentage exists: Go's month. ZEN, DS and OR are money, and a ring
+// around money would imitate a share of a cap that does not exist, so their figure carries the colour and
+// the name stays quiet. A slot gets no icons — `IconName` lives in pill and row fields, not in JSX — so
+// there is no glyph to fall back on.
 //
 // Colours come from the theme, never from hex: a GUI plugin has no theme API, but the app publishes its
 // tokens as CSS variables, and these are the three alert levels the terminal uses.
-import { ComposerPill, Plugin, Style, type ComposerPillMenuProps, type ComposerPillProps } from "@opencode/plugin/gui"
+import { Plugin, Slot, Style, type SlotMap } from "@opencode/plugin/gui"
 import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 
 import {
@@ -23,6 +24,7 @@ import {
 	payingWallet,
 	windowPercent,
 } from "./budget.ts"
+import type { Wallet } from "./budget.ts"
 import { Budget } from "./rpc.ts"
 import type { BudgetSnapshot } from "./rpc.ts"
 import { clock, doubles as peakDoubles, isPeak } from "./peak.ts"
@@ -58,6 +60,20 @@ const CSS = `
   background: color-mix(in srgb, currentColor 16%, transparent); }
 .ocb-fill { display: block; height: 100%; border-radius: 3px; background: currentColor; }
 .ocb-rule { height: 1px; margin: 2px 0; background: color-mix(in srgb, currentColor 18%, transparent); }
+.ocb-head { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none;
+  color: var(--v2-text-text-faint); font: inherit; font-size: 13px; font-weight: 440; letter-spacing: -0.04px;
+  font-variant-numeric: tabular-nums; cursor: pointer; anchor-name: --ocb-anchor; }
+.ocb-head:hover { color: var(--v2-text-text-base, inherit); }
+.ocb-mark { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; }
+.ocb-head-label { white-space: nowrap; color: inherit; }
+/* The block, in the top layer: nothing clips it, and the platform owns Escape and the light dismiss. */
+.ocb-pop { position: fixed; inset: auto; position-anchor: --ocb-anchor; top: anchor(--ocb-anchor bottom);
+  right: anchor(--ocb-anchor right); margin: 6px 0 0; width: max-content; min-width: 16em;
+  max-width: min(20em, calc(100vw - 16px)); padding: 8px 10px; border-radius: 8px;
+  border: 1px solid var(--v2-border-border-muted, rgba(255, 255, 255, .12));
+  background: var(--v2-background-bg-layer-02, #1b1b1b);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .35); color: var(--v2-text-text-base, inherit); font-size: 12px; }
+.ocb-pop:popover-open { display: block; }
 `
 
 type Tone = "success" | "warning" | "danger"
@@ -106,6 +122,9 @@ const windowTone = (value: number | null): Tone | undefined => {
 
 type Line = { figure?: number; tone?: Tone; note?: string }
 
+/** What the header row and the popover both read: a session and its screen, and nothing else. */
+type SurfaceInput = Pick<SlotMap["session.header"], "session" | "screen">
+
 /** Everything both surfaces say, computed once. Reads the signals, so call it from JSX: the capsule is
  *  re-run by the host, the popover re-runs itself while open. */
 type Figures = {
@@ -113,6 +132,8 @@ type Figures = {
 	error?: string
 	label?: string
 	capsuleTone?: Tone
+	/** Which wallet pays: the ring is drawn where a share of a cap exists, the figure where money does. */
+	wallet: Wallet
 	stale: boolean
 	age: number
 	atPeak: boolean
@@ -201,7 +222,7 @@ export default Plugin.define({
 			if (retry) clearTimeout(retry)
 		})
 
-		const view = (input: ComposerPillProps): Figures => {
+		const view = (input: SurfaceInput): Figures => {
 			const current = snapshot()
 			const error = failure()
 			const model = input.screen.composer.model()
@@ -211,7 +232,7 @@ export default Plugin.define({
 			const atPeak = isPeak(now)
 
 			if (!current || current.server !== input.session.server.id) {
-				return { ready: false, error, stale: false, age: 0, atPeak, marked: false, ...NO_LINES }
+				return { ready: false, error, wallet: "none", stale: false, age: 0, atPeak, marked: false, ...NO_LINES }
 			}
 
 			const value = current.value
@@ -255,6 +276,7 @@ export default Plugin.define({
 				error,
 				label,
 				capsuleTone,
+				wallet,
 				stale: age > STALE_MS,
 				age,
 				atPeak,
@@ -312,8 +334,9 @@ export default Plugin.define({
 			</>
 		)
 
-		/** The sidebar block, in the window: the same lines, the same colours, the same order. */
-		const Popover = (props: { input: ComposerPillMenuProps }) => {
+		/** The block, wherever it is shown: the popover under the header figure. The same lines, the same
+		 *  colours, the same order the terminal draws. */
+		const Block = (props: { input: SurfaceInput }) => {
 			const figures = createMemo(() => view(props.input))
 			// The tick is five minutes, so open on a fresh read: one call, and the capsule follows it, because
 			// both surfaces read this one signal.
@@ -387,39 +410,122 @@ export default Plugin.define({
 			)
 		}
 
+		/** The month's consumption as a ring, at the app's own geometry: an indicator circle is 16 px wide with a
+		 *  2 px stroke and a radius of `8 - stroke/2`, so the two rings are the same circle and the same family. */
+		const RING_STROKE = 2
+		const RING_R = 8 - RING_STROKE / 2
+		const RING_C = 2 * Math.PI * RING_R
+		const Ring = (props: { percent: number | null }) => (
+			<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+				<circle
+					cx="8"
+					cy="8"
+					r={RING_R}
+					stroke="currentColor"
+					stroke-opacity="0.18"
+					stroke-width={RING_STROKE}
+				/>
+				<circle
+					cx="8"
+					cy="8"
+					r={RING_R}
+					stroke="currentColor"
+					stroke-width={RING_STROKE}
+					stroke-dasharray={RING_C}
+					stroke-dashoffset={RING_C * (1 - fill(props.percent) / 100)}
+					transform="rotate(-90 8 8)"
+				/>
+			</svg>
+		)
+
+		/** The mark for a wallet that is money: a card, at the ring's size so the row keeps one rhythm. It is not a
+		 *  share of anything, and a ring around money would read as a percentage that does not exist. */
+		const WalletMark = () => (
+			<svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
+				<rect x="2" y="4.5" width="12" height="8" rx="2" stroke="currentColor" stroke-width="1.6" />
+				<path d="M2 7h12" stroke="currentColor" stroke-width="1.6" />
+				<circle cx="11" cy="9.6" r="1.1" fill="currentColor" />
+			</svg>
+		)
+
+		/** The figure in the session header, beside the app's own context ring and cost. The mark carries the
+		 *  colour: a ring where a percentage exists, a card where the wallet is money. The popover is the
+		 *  platform's — the top layer, the light dismiss and Escape come with it. */
+		const HeaderBudget = (props: { input: SlotMap["session.header"] }) => {
+			const figures = () => view(props.input)
+			let panel: HTMLDivElement | undefined
+
+			const toggle = () => {
+				if (!panel) return
+				// The tick is five minutes: open on a fresh read, as the capsule did.
+				if (panel.matches(":popover-open")) panel.hidePopover()
+				else {
+					refreshNow?.()
+					panel.showPopover()
+				}
+			}
+
+			/** Nothing read yet is not an error; a failure with nothing behind it is one, and hiding it is what
+			 *  cost a whole night — `docs/gui-plugins.md`, *a pill never shows a stale value as fresh*. */
+			const shown = () => {
+				const f = figures()
+				if (f.ready && f.label) {
+					const tone = f.stale
+						? "warning"
+						: f.wallet === "go"
+							? windowTone(f.go?.monthly ?? null)
+							: f.capsuleTone
+					return { f, text: f.label, tone: tone as Tone | undefined }
+				}
+				if (f.error) return { f, text: "budget", tone: "danger" as Tone }
+				return undefined
+			}
+
+			return (
+				<Show when={shown()}>
+					{(s: () => NonNullable<ReturnType<typeof shown>>) => (
+						<>
+							<button
+								type="button"
+								class="ocb-head"
+								aria-haspopup="dialog"
+								title={
+									s().f.error ??
+									(s().f.stale ? `Budget · last read ${ageText(s().f.age)} ago` : "Budget")
+								}
+								onClick={toggle}
+							>
+								<span class={`ocb-mark ${cls(s().tone)}`}>
+									<Show
+										when={s().f.wallet === "go" && s().f.go}
+										fallback={<WalletMark />}
+									>
+										{(g: () => NonNullable<Figures["go"]>) => <Ring percent={g().monthly} />}
+									</Show>
+								</span>
+								<Show when={!props.input.compact}>
+									<span class="ocb-head-label">
+										{s().f.stale ? `~${s().text}` : s().text}
+									</span>
+								</Show>
+								<Show when={s().f.marked}>
+									<span class="ocb-head-label ocb-bad">{PEAK_MARK}</span>
+								</Show>
+							</button>
+							<div ref={panel} class="ocb-pop" popover="auto">
+								<Block input={props.input} />
+							</div>
+						</>
+					)}
+				</Show>
+			)
+		}
+
 		ctx.add(Style, CSS)
 
-		ctx.add(ComposerPill, {
-			id: "budget",
-			order: 15,
-			menu: (input) => <Popover input={input} />,
-			show: (input) => {
-				const figures = view(input)
-
-				if (!figures.ready) {
-					// Nothing read yet is not an error — a fresh window starts here. But a failure with no
-					// reading behind it is one, and hiding it is what cost a whole night: three states,
-					// never two. `docs/gui-plugins.md`, *a pill never shows a stale value as fresh*.
-					if (!figures.error) return undefined
-					return {
-						label: "budget",
-						icon: "circle-exclamation" as const,
-						tone: "danger" as const,
-						title: figures.error,
-					}
-				}
-
-				// Nothing pays: a pill that says nothing is worse than no pill.
-				if (!figures.label) return undefined
-
-				const text = figures.marked ? `${figures.label} ${PEAK_MARK}` : figures.label
-				return {
-					label: figures.stale ? `~${text}` : text,
-					icon: "providers" as const,
-					tone: figures.stale ? ("warning" as const) : figures.capsuleTone,
-					title: figures.stale ? `Budget · last read ${ageText(figures.age)} ago` : "Budget",
-				}
-			},
-		})
+		// One surface: the figure in the session header, where the app already draws its context ring and the
+		// session's cost — `docs/gui-plugins.md`, *Where a contribution lands, by layout*. Order 11 puts it after
+		// the app's figures (10) and before its actions (20), and the tie at 10 would have decided it by luck.
+		ctx.add(Slot, { at: "session.header", order: 11, render: (input) => <HeaderBudget input={input} /> })
 	},
 })
