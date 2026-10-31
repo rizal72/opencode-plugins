@@ -3,7 +3,7 @@
 #
 # `plugins/*/dist/` is ignored, so it does not travel with a branch: after a `git switch` the window keeps
 # loading the bundle of the branch you left, silently, because the app reads that file from the working copy.
-# The build takes about 1.5 s for every half, so the gate does it rather than remembering to.
+# The build takes about a second and a half for every half, so this does it rather than remembering to.
 #
 # Git calls this as: post-checkout <prev> <new> <flag>, flag 1 for a branch and 0 for a file checkout.
 # Enabled once per clone: git config core.hooksPath scripts/hooks
@@ -13,15 +13,27 @@ set -u
 root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
 cd "$root" || exit 0
 
+# A worktree or a fresh clone has no dependencies: nothing to build against, and nothing worth saying.
+[ -d node_modules ] || exit 0
+
 case "${1:-}" in
-	# A clone has no previous commit: nothing on disk to compare, and no bundle either.
+	# A clone has no previous commit: nothing to compare, and no bundle on disk either.
 	"" | 0000000000000000000000000000000000000000) need=1 ;;
 	*) if git diff --quiet "$1" "${2:-HEAD}" -- plugins/ 2>/dev/null; then need=0; else need=1; fi ;;
 esac
 
 [ "$need" = "1" ] || exit 0
 
-echo "post-checkout: plugins/ moved — rebuilding the GUI halves"
-if ! node scripts/build-gui.mjs; then
+start=$(date +%s)
+log=$(mktemp "${TMPDIR:-/tmp}/oc-build.XXXXXX")
+if node scripts/build-gui.mjs >"$log" 2>&1; then
+	rm -f "$log"
+	elapsed=$(( $(date +%s) - start ))
+	[ "$elapsed" -ge 1 ] || elapsed="under a"
+	echo "post-checkout: rebuilt the GUI halves in ${elapsed}s"
+else
+	# The build's own output says what broke; one line above it says what to do.
+	cat "$log" >&2
+	rm -f "$log"
 	echo "post-checkout: the build failed — run node scripts/build-gui.mjs before looking at the app" >&2
 fi
