@@ -286,7 +286,9 @@ file is already open, never as a campaign.
   with it, which is zero where the scrollbars are overlays.
 - **`dist/` is generated, never committed**, like `tui.js`: `scripts/build-gui.mjs` builds every plugin
   with a `vite.config.ts`, and the workflow runs it before publishing, so a package can never ship an
-  export pointing at a file that is not there.
+  export pointing at a file that is not there. Being ignored, it also **does not move with a branch**: a
+  `git switch` leaves the previous branch's bundle in place and the window goes on loading it until the
+  next build, so a switch that moved anything under `plugins/` needs `scripts/build-gui.mjs`.
 - **An `undefined` in an RPC answer is an instant 500, and the widget vanishes.** The output schema is
   JSON: a key that is *present* with `undefined` is neither its declared type nor absent, so the whole
   answer is rejected after the handler ran — in the log a 500 with `http.span=1`, no request made, no work
