@@ -172,6 +172,27 @@ added to the app.
 Visible without a click: `session.header`, `window.bottom`, the titlebar item, and the capsule. Everything
 else is behind an affordance the user opens.
 
+## A settings page
+
+`oc-notify` was the first here, and the surface takes less than the others: a page is a title, an icon and a
+render function, and the host contributes none of the rows.
+
+- **Placement is two choices, not a menu.** Omit `group` and the page lists after the app's own pages; the only
+  value, `about`, puts it below About "for pages about the app itself". There is no plugins group, so a
+  contributed page cannot say it came from a plugin — and the gaps between blocks you see in the nav are the
+  host's own groups, never a mark of provenance.
+- **Our rows, the host's controls.** The page is handed `Switch`, `TextInput`, `Menu`, `Button`, icons and
+  dialogs, and no row component: the layout, the title and the muted note are ours. `Switch` draws its label
+  inline with the description beside it, so a row that wants its title on its own line passes `hideLabel`;
+  mixing the two shapes in one page is what reads as an accident.
+- **The first read waits for a server.** A settings page can mount before the app has listed one, and
+  `ctx.servers.get` answers `undefined` until the interface mounts: read it inside a `createKeyed` on
+  `ctx.servers.list().length`, and use the `builtin` server, which is the desktop's own.
+- **Nothing is kept in the window.** The state is a file on the server, read and written through the plugin's
+  `rpc`; the page shows what the last `set` returned, so two windows never disagree.
+- A new settings page in a plugin the app already loaded needs a **restart of the app** — the bundle is
+  resolved when the plugin loads (`plugin/dist/host.js:40`).
+
 ## Where a contribution lands, by layout
 
 The app has three layouts — `appearance.tabLayout` is `horizontal`, `vertical` or `inbox` — and the shell

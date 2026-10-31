@@ -1,7 +1,7 @@
 # oc-notify
 
 **Status: in use, private.** Not published, so the README's npm column says so; loaded by path from
-`plugins/oc-notify`, only `index.ts` — no terminal half and no desktop half.
+`plugins/oc-notify`: a server half, and a settings page in the desktop app. No terminal half, on purpose.
 
 A notification on the phone when a turn ends while you are not at the Mac, so a task started from the
 mobile can be abandoned and picked up when it is over. The Apple Watch shows it as a mirrored
@@ -27,6 +27,20 @@ would silence the plugin in every mode until it is updated.
 
 The noisier fallback, `ctx.event.subscribe({ types: ["session.status"] })` filtered on
 `status.type === "idle"`, fires exactly on the cases we do not want, so it was not used.
+
+## What `experimental` promises: nothing
+
+Measured 2026-11-01 on 2.2.5. The word marks instability, not a name kept for compatibility, and the
+deprecation runs the other way: a stable client method is deprecated *toward* `client.experimental.…` with
+`Removed in the next minor` on it (`client/dist/effect/generated/client.d.ts`), and the stable `ctx.generate`
+says `Use experimental.generate.text` (`promise/plugin.d.ts:44`). The loader resolves one GUI entry,
+`gui-experimental`, and has no `gui` fallback (`plugin/dist/host.js:40`); the protocol states that experimental
+routes carry "no compatibility promise" (`protocol/dist/groups/experimental.js:1`,
+`protocol/dist/client.js:50-52`); and the V1 → V2 migration dropped experimental hooks rather than aliasing
+them (`opencode.ai/v2/docs/build/plugins/migrate-v1`).
+
+So what can break here, and is repaired by an update rather than by an old name still working:
+`experimental.idle`, the `gui-experimental` entry, and every `@deprecated` alias. That is the whole promise.
 
 ## The rules
 
@@ -100,8 +114,22 @@ it is the only protection: the free tier allows 250 messages a day per address.
 - A video playing keeps `HIDIdleTime` at zero, so a session ending while you watch one stays silent.
 - Delivery to a closed app depends on ntfy.sh's APNs relay and on the app's *Instant notifications* setting.
 
-## The switch, later
+## The page, and what is still missing
 
-The config file is the switch today. A desktop `SettingsPage` (the CRT plugin shows that surface) and a
-`/push` command in the terminal would both write that same file through one `rpc` contract; the contract is
-not written yet, because nothing would call it.
+The file is the state; the page is the way in. `rpc.ts` carries one `get` and one `set`, the page draws what
+`get` returns and writes through `set`, so neither the page nor the command that comes later knows the file's
+path or its shape. The server validates the input, because any client of the rpc can call it, and writes
+atomically (`.tmp`, then `rename`), so an interrupted write cannot produce the half-written file the read path
+has to forgive. `server` is not on the page: a self-hosted relay is already a person who edits files.
+
+A row is the host's controls on our own layout — a title, the control, a muted note — because a settings page
+gets no row component from the app; it contributes `Switch`, `TextInput`, `Menu`, `Button`, icons and dialogs
+(`docs/gui-plugins.md`). `Switch` draws its label inline with the description beside it, which is why it takes
+`hideLabel` here: the title is the row's, and mixing the two layouts is what made the first draft uneven.
+
+A page lists **after the app's own pages**, with no group of ours: `group` takes one value, `about`, which puts
+it below About, "for pages about the app itself". No plugins group exists, so a contributed page cannot
+announce itself as one; pages of ours will simply sit together by the same rule.
+
+Still missing: the `/push` command in the terminal, built on the same `rpc`. Nothing in the server half changes
+when it arrives.

@@ -13,11 +13,13 @@
 // `@opencode/{client,schema,protocol}`. `mode: "away"` measures the complement instead — whether the Mac
 // has had no input for N minutes, at the start of the turn or at its end.
 import { execFileSync } from "node:child_process"
-import { readFile } from "node:fs/promises"
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
-import { join } from "node:path"
+import { dirname, join } from "node:path"
 
 import { Plugin } from "@opencode/plugin"
+
+import { Notify, TOPIC, isMode, type Mode, type Snapshot } from "./rpc.ts"
 
 const CONFIG_DIR = process.env.XDG_CONFIG_HOME || join(homedir(), ".config")
 const CONFIG = join(CONFIG_DIR, "opencode", "oc-notify.json")
@@ -25,7 +27,6 @@ const CONFIG = join(CONFIG_DIR, "opencode", "oc-notify.json")
 const TIMEOUT_MS = 5_000
 /** One push per session per window: the idle hook runs again right after a background job ends. */
 const QUIET_MS = 30_000
-const TOPIC = /^[-_A-Za-z0-9]{1,64}$/
 
 /** The process-wide state, behind a symbol so no other plugin's key can collide with ours. It spans every
  *  loaded location on purpose: the loader instantiates a plugin once per open project, and two instances
@@ -72,6 +73,42 @@ async function settings(machine: Machine): Promise<Config | undefined> {
 	}
 }
 
+/** The configuration as both surfaces read it: the file's defaults where it says nothing. */
+function shown(config: Config | undefined): Snapshot {
+	const raw = config ?? {}
+	const awayAfter = Number(raw.awayAfter)
+	return {
+		mode: isMode(raw.mode) ? raw.mode : "always",
+		awayAfter: Number.isFinite(awayAfter) && awayAfter >= 0 ? awayAfter : 5,
+		includeTitle: raw.includeTitle === true,
+		topic: String(raw.topic ?? ""),
+		broken: raw.broken === true,
+	}
+}
+
+/** The one write path. Validated here because any client of the rpc can call it, and written whole so the
+ *  key the page does not show — `server` — survives. Atomic, so an interrupted write cannot leave the very
+ *  half-written file the read path has to forgive. */
+async function save(machine: Machine, input: any): Promise<Snapshot> {
+	if (!isMode(input?.mode)) throw new Error(`unknown mode: ${String(input?.mode)}`)
+	const awayAfter = Number(input?.awayAfter)
+	if (!Number.isFinite(awayAfter) || awayAfter < 0) throw new Error("awayAfter must be a number of minutes")
+	const topic = String(input?.topic ?? "")
+	if (!TOPIC.test(topic)) throw new Error("a topic is letters, digits, `-` or `_`, up to 64 characters")
+
+	const known: Config = { ...(machine.last ?? {}) }
+	delete known.broken
+	const next: Config = { ...known, mode: input.mode as Mode, awayAfter, includeTitle: input?.includeTitle === true, topic }
+	try {
+		await mkdir(dirname(CONFIG), { recursive: true })
+		await writeFile(`${CONFIG}.tmp`, `${JSON.stringify(next, null, "\t")}\n`)
+		await rename(`${CONFIG}.tmp`, CONFIG)
+	} catch (error) {
+		throw new Error(`could not write ${CONFIG}: ${error instanceof Error ? error.message : String(error)}`)
+	}
+	return shown((machine.last = next))
+}
+
 /** Seconds since the last user input on this Mac. `undefined` where `ioreg` does not exist, which the away
  *  mode reads as "away": one push too many beats a plugin that never speaks. */
 function idleSeconds(): number | undefined {
@@ -109,6 +146,13 @@ export default Plugin.define({
 	id: "oc-notify",
 	async setup(context: any) {
 		const machine: Machine = ((globalThis as any)[MACHINE] ??= { sent: new Map(), idleAtStart: new Map() })
+
+		// The settings page and, later, the terminal command read and write through here, so neither of them
+		// ever knows the file's path or its shape.
+		await context.rpc.register(Notify, {
+			get: async (): Promise<Snapshot> => shown(await settings(machine)),
+			set: async (input: any): Promise<Snapshot> => save(machine, input),
+		})
 
 		// Where you were when the turn started: a prompt typed on the phone arrives while the Mac is idle.
 		const admitted = await context.session.hook("prompt", (input: any) => {

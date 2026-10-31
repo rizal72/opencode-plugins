@@ -17,7 +17,7 @@ agent calls). One plugin, one state, two surfaces — the terminal half first, t
 | `@rizal72/oc-plugin-updates` | update OpenCode plugins: one by one or all of them at once | a line in the sidebar, and a dialog on `/plugin-updates` | a pill above the composer | ✓ |
 | `oc-context` | the Context block in the sidebar, with the window its percent is a percent of | sidebar | — | — redraws a built-in |
 | `oc-budget` | the paying provider's budget: sidebar, footer, `/budget` | sidebar, footer, `/budget` | the figure in the session header, with a popover | — my wallet |
-| `oc-notify` | a notification on the phone when a turn ends | — | — | — needs the ntfy app |
+| `oc-notify` | a notification on the phone when a turn ends | — | a settings page for the four choices | — needs the ntfy app |
 | `oc-donsetch` | keeps the `donsetch` binary current | — | — | — needs that binary |
 
 Something broken? Open an issue: https://github.com/rizal72/opencode-plugins/issues — paste the error line
@@ -53,6 +53,8 @@ count appears in a pill above the composer, with the update one click away.
 
 The ones marked `—` in the npm column are here to be read: they assume something about my setup (a wallet,
 a rules file, a binary, an app on the phone), so packaging them would only sell you a config you do not have.
+`oc-notify` is the exception among them: a topic of your own on ntfy.sh and the app on your phone are all it
+asks, so clone the repository and load it by path.
 
 Where these came from: [Why I left OpenCode for Pi, then came back for v2](https://www.reddit.com/r/opencodeCLI/comments/1xcgnpr/why_i_left_opencode_for_pi_then_came_back_for_v2/).
 

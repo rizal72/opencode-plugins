@@ -1,6 +1,10 @@
 {
 	"name": "oc-notify",
 	"type": "module",
-	"exports": "./index.ts",
-	"files": ["*.ts", "README.md"]
+	"exports": {
+		".": "./index.ts",
+		"./rpc": "./rpc.ts",
+		"./gui-experimental": "./dist/gui-experimental.cjs"
+	},
+	"files": ["*.ts", "README.md", "dist"]
 }
