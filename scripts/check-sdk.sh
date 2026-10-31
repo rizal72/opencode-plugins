@@ -24,11 +24,18 @@ if [ "$app" != "$types" ]; then
 	exit 1
 fi
 # The CLI on PATH is a second server waiting to be started: one that lags the app loads the halves
-# against older types. Not a failure of this repository, so it warns instead of blocking.
+# against older types. So the gate repairs it here, once, instead of asking — and never downwards: a CLI
+# ahead of the app is an app left behind, and downgrading the CLI is not that repair.
 if [ "$where" = server ]; then
 	cli=$(opencode --version 2>/dev/null | sed -n 's/^opencode v//p')
 	if [ -n "$cli" ] && [ "$cli" != "$app" ]; then
-		echo "check-sdk: the app is $app but the CLI on PATH is $cli — opencode upgrade $app"
+		lowest=$(printf '%s\n%s\n' "$cli" "$app" | sort -t. -k1,1n -k2,2n -k3,3n | head -1)
+		if [ "$lowest" = "$cli" ]; then
+			echo "check-sdk: the app is $app but the CLI on PATH is $cli — upgrading it"
+			opencode upgrade "$app" >/dev/null 2>&1 || echo "check-sdk: the upgrade failed; run opencode upgrade $app"
+		else
+			echo "check-sdk: the CLI on PATH is $cli, ahead of the app at $app — left alone"
+		fi
 	fi
 fi
 echo "check-sdk ok: @opencode/plugin $types"

@@ -20,7 +20,11 @@ Every app release, two questions — the first is a gate, the second a reading:
    a renamed export or a moved shape surfaces before a plugin does. **The app is the service, not the
    `opencode` binary on PATH**: the desktop updates itself and leaves the CLI alone, and a gate reading the
    CLI passed green against a 2.2.2 binary while 2.2.3 was loading the halves (measured 2026-10-30).
-   `scripts/check-sdk.sh` asks `/api/info` and falls back to the CLI only when nothing runs.
+   `scripts/check-sdk.sh` asks `/api/info` and falls back to the CLI only when nothing runs. A CLI that
+   lags the app is **upgraded on the spot**, to the app's version and never downwards: the second server
+   a terminal would start is what has to be current, and asking each time is the one thing that does not
+   happen. An upgrade replaces the binary by rename, so a TUI already open in a terminal keeps running the
+   version it started with and the next one runs the new.
 2. **What can we delete now?** A workaround written against a missing feature is dead weight the day the
    feature lands. The ones we carry today, and what retires each:
 
@@ -105,7 +109,7 @@ wallets, not the session's spend.
 |---|---|---|
 | `oc-git` | `ComposerPill` | branch and counts always visible; the details open on a click |
 | `oc-budget` | `ComposerPill` with a popover (`menu`) | the paying wallet in the face, the other three and the Go bar one click away |
-| `oc-context` | `Slot "session.header"` | percent and window beside the app's token count |
+| `oc-context` | none: no GUI half | the block is the terminal's; the desktop draws the session's tokens and cost itself, so there is nothing left to draw |
 | `oc-models-pro` | `Command` + `Panel` | a second implementation of the table, not the terminal's: a grid, a click to switch, the rows' meaning shared |
 | `oc-session-search` | `Command` with `slash` + `Panel` | results in a view, not a block of text |
 | `oc-coffee` | `ComposerPill` | the server owns the level and the assertion, so a pill is all the window adds |
@@ -117,10 +121,13 @@ wallets, not the session's spend.
 Three, and they are the whole budget for a widget that needs no click: `Slot "session.header"` (one
 line, per session), `Slot "window.bottom"` (full width, global), and `ComposerPill` (per session: a menu of
 rows, or since 2.2.1 a popover the plugin draws itself through `menu` — the host keeps the capsule, the
-placement, the focus and the dismissal, and `rows`/`run` go unused while it is set). `TitlebarItem` is
-documented as always visible and drew nothing in a vertical-tabs
-window, where the titlebar holds only the traffic lights. Everything else — panels, the panel-end
-action, menu items, settings pages, commands — exists behind an affordance.
+placement, the focus and the dismissal, and `rows`/`run` go unused while it is set).
+
+`TitlebarItem` is the fourth, and it takes no content: a round button with an icon, a label that shows on
+hover, and a click. The app's own update pill is one, and it drew in a horizontal-tabs window (measured
+2026-10-31); with vertical tabs the same code places the items in the tabs footer, which we have not seen
+on screen. Everything else — panels, the panel-end action, menu items, settings pages, commands — exists
+behind an affordance.
 
 `tone` colours the **icon**, not the label: a pill without an icon has no colour to show. Icons come
 from the app's own set (`branch`, `fork`, `outline-worktree`, …), not from the Nerd Font the TUI uses.
