@@ -317,6 +317,11 @@ file is already open, never as a campaign.
   host's and no CSS on the content moves it — unlike a `rows` menu, which hugs its longest row. Design the
   contents to fill that width; a narrow layout leaves a column of dead space, and a grid that shrinks a
   track below its content paints over its neighbour.
+- **An `anchor()` in a stylesheet names its anchor literally**, so a per-instance `anchor-name` — one per
+  mounted timeline, so a cached one cannot steal the popover — must be paired with `position-anchor`,
+  `top: anchor(…)` and `right: anchor(…)` set **on the elements**; otherwise the box falls to its static
+  position, which is the window's top-left corner (measured 2026-10-31, `oc-budget`). `anchor(--name
+  bottom, 44px)` takes a fallback, so a name that stops resolving lands under the header instead of at 0,0.
 - **And it clips nothing.** Probed the same day with a 120-character word in the popover: the box did not
   grow, a sentence rewrapped inside it, and the unbreakable word painted straight across the app. A `rows`
   menu is the host's drawing and wraps on its own; a `menu` is the plugin's, so the container needs

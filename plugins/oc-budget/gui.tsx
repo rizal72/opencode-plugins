@@ -72,8 +72,7 @@ const CSS = `
 .ocb-mark { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; }
 .ocb-head-label { white-space: nowrap; color: inherit; }
 /* The block, in the top layer: nothing clips it, and the platform owns Escape and the light dismiss. */
-.ocb-pop { position: fixed; inset: auto; position-anchor: --ocb-anchor; top: anchor(--ocb-anchor bottom);
-  right: anchor(--ocb-anchor right); margin: 6px 0 0; width: max-content; min-width: 18em;
+.ocb-pop { position: fixed; inset: auto; margin: 6px 0 0; width: max-content; min-width: 18em;
   max-width: min(22em, calc(100vw - 16px)); padding: 8px 10px; border-radius: 8px;
   border: 1px solid var(--v2-border-border-muted, rgba(255, 255, 255, .12));
   background: var(--v2-background-bg-layer-02, #1b1b1b);
@@ -491,6 +490,16 @@ export default Plugin.define({
 			// Anchors are per instance: a cached timeline stays mounted, and one shared name would let the
 			// visible figure's popover point at the hidden timeline's button — or at nothing.
 			const name = `ocb-${++mounted}`
+			/** The anchor's name is per instance and `anchor()` reads it as a literal, so the four declarations
+			 *  cannot live in the stylesheet. The fallbacks keep a failed anchor just under the header instead
+			 *  of at the window's top-left corner — the place a bare `auto` lands. */
+			const anchor = (el: HTMLButtonElement) => el.style.setProperty("anchor-name", `--${name}`)
+			const placed = (el: HTMLDivElement) => {
+				panel = el
+				el.style.setProperty("position-anchor", `--${name}`)
+				el.style.setProperty("top", `anchor(--${name} bottom, 44px)`)
+				el.style.setProperty("right", `anchor(--${name} right, 12px)`)
+			}
 			const [open, setOpen] = createSignal(false)
 			let panel: HTMLDivElement | undefined
 
@@ -543,7 +552,7 @@ export default Plugin.define({
 								<button
 									type="button"
 									class="ocb-head"
-									style={{ "anchor-name": `--${name}` }}
+									ref={anchor}
 									aria-haspopup="dialog"
 									aria-expanded={open()}
 									aria-controls={name}
@@ -578,13 +587,12 @@ export default Plugin.define({
 								}
 							/>
 							<div
-								ref={panel}
+								ref={placed}
 								id={name}
 								class="ocb-pop"
 								popover="auto"
 								role="dialog"
 								aria-label={s().text}
-								style={{ "position-anchor": `--${name}` }}
 							>
 								<Block input={props.input} />
 							</div>
