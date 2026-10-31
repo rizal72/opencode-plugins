@@ -124,10 +124,9 @@ rows, or since 2.2.1 a popover the plugin draws itself through `menu` — the ho
 placement, the focus and the dismissal, and `rows`/`run` go unused while it is set).
 
 `TitlebarItem` is the fourth, and it takes no content: a round button with an icon, a label that shows on
-hover, and a click. The app's own update pill is one, and it drew in a horizontal-tabs window (measured
-2026-10-31); with vertical tabs the same code places the items in the tabs footer, which we have not seen
-on screen. Everything else — panels, the panel-end action, menu items, settings pages, commands — exists
-behind an affordance.
+hover, and a click — the app's own update pill is one. Where it draws depends on the layout, which
+*Where a contribution lands* below spells out. Everything else — panels, the panel-end action, menu items,
+settings pages, commands — exists behind an affordance.
 
 `tone` colours the **icon**, not the label: a pill without an icon has no colour to show. Icons come
 from the app's own set (`branch`, `fork`, `outline-worktree`, …), not from the Nerd Font the TUI uses.
@@ -153,6 +152,55 @@ of its own — a bar, an error line, a value that moves while it is open.
 and a name that is not there draws a `plus` — no error, no warning, `tsc` satisfied. Confirm the glyph
 by eye in the window before relying on it: the day a name is added to the union is not the day it is
 added to the app.
+
+## What each surface takes, and where it draws
+
+| surface | content | where it draws | exists |
+|---|---|---|---|
+| `ComposerPill`, the capsule | a label, **one** icon, `tone` | the row above the composer | per session |
+| `ComposerPill`, `menu` | any JSX | a popover under the capsule; the host owns its width, placement, focus and dismissal | while open |
+| `Slot "session.header"` | any JSX, one line | the row carrying the app's context ring, token count and session cost | per session |
+| `Slot "window.bottom"` | any JSX | a full-width strip above the toasts | always |
+| `TitlebarItem` | one icon, a label on hover, a click | the titlebar, or the rail's footer — by layout, below | always |
+| `Panel` | any JSX | a tab in the session's side region | per session |
+| `Slot "session.panel.end"` | any JSX | the end of the side region's tab strip | per session |
+| `Slot "session.location.menu"` | any JSX | inside the location menu | while open |
+| `Dialogs.open` | any JSX | above everything, in the host's dialog frame | while open |
+| `SettingsPage`, `Command`, `MenuItem` | rows, not drawing | settings, the palette, the host's own menus | always |
+
+Visible without a click: `session.header`, `window.bottom`, the titlebar item, and the capsule. Everything
+else is behind an affordance the user opens.
+
+## Where a contribution lands, by layout
+
+The app has three layouts — `appearance.tabLayout` is `horizontal`, `vertical` or `inbox` — and the shell
+draws the tab strip for the first alone: the whole condition is `tabLayout !== "horizontal"`. So the two
+rows above the timeline are not always both there:
+
+```text
+horizontal      ●●●  🔍  [tab] [tab] …  [+]                  ← the titlebar
+                progetto / sessione     ◯ 214k · $0.00  ▣  main  ▤   ← the session header
+
+vertical/inbox  ┌ rail ─────┬ progetto / sessione     ◯ 214k · $0.00  ▣  main  ▤
+                │ sessioni  │                                 ← the session header, now the first row
+                │ …         │
+                │ footer    │   ← a TitlebarItem draws here, at the bottom of the rail
+                └───────────┴
+```
+
+| layout | a `TitlebarItem` draws | `Slot "session.header"` |
+|---|---|---|
+| `horizontal` | in the titlebar, after the last tab | the row below the titlebar |
+| `vertical` | in the footer at the bottom of the left rail | the first row of the content |
+| `inbox` | the same footer (measured 2026-10-31) | the first row of the content |
+| window under 768 px | back in the titlebar, whatever the layout | above the timeline |
+
+So a widget that must sit beside the app's own context ring, token count and session cost goes in
+`session.header`: a figure read at a glance belongs in that row. A titlebar item shares it only in
+`horizontal`, and moves to the foot of the rail in the two layouts that hide the tab strip.
+
+The slot also knows when room runs out: `compact` turns true once the title no longer fits beside the
+actions, and the contribution shrinks to its icon then.
 
 ## A pill never shows a stale value as fresh
 
