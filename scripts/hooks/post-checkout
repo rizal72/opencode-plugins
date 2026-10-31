@@ -1,0 +1,27 @@
+#!/bin/sh
+# Rebuilds the GUI halves when a checkout moved their sources.
+#
+# `plugins/*/dist/` is ignored, so it does not travel with a branch: after a `git switch` the window keeps
+# loading the bundle of the branch you left, silently, because the app reads that file from the working copy.
+# The build takes about 1.5 s for every half, so the gate does it rather than remembering to.
+#
+# Git calls this as: post-checkout <prev> <new> <flag>, flag 1 for a branch and 0 for a file checkout.
+# Enabled once per clone: git config core.hooksPath scripts/hooks
+set -u
+
+[ "${3:-0}" = "1" ] || exit 0
+root=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+cd "$root" || exit 0
+
+case "${1:-}" in
+	# A clone has no previous commit: nothing on disk to compare, and no bundle either.
+	"" | 0000000000000000000000000000000000000000) need=1 ;;
+	*) if git diff --quiet "$1" "${2:-HEAD}" -- plugins/ 2>/dev/null; then need=0; else need=1; fi ;;
+esac
+
+[ "$need" = "1" ] || exit 0
+
+echo "post-checkout: plugins/ moved — rebuilding the GUI halves"
+if ! node scripts/build-gui.mjs; then
+	echo "post-checkout: the build failed — run node scripts/build-gui.mjs before looking at the app" >&2
+fi
