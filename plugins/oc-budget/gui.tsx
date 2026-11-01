@@ -27,6 +27,7 @@ import {
 import type { Wallet } from "./budget.ts"
 import { Budget } from "./rpc.ts"
 import type { BudgetSnapshot } from "./rpc.ts"
+import { HeaderMenu } from "./header-menu.tsx"
 import { clock, doubles as peakDoubles, isPeak } from "./peak.ts"
 
 /** The mark says "this tariff is in its doubled window"; the figure adds it to the *paying* model only. */
@@ -61,23 +62,27 @@ const CSS = `
 .ocb-fill { display: block; height: 100%; border-radius: 3px; background: currentColor; }
 .ocb-rule { height: 1px; margin: 2px 0; background: color-mix(in srgb, currentColor 18%, transparent); }
 /* The app's own toolbar button, hand-written: its height and its hover plate are what make the figure read as
-   one of the header's controls. The anchor name is set inline, one per mounted timeline. */
+   one of the header's controls. */
 .ocb-head { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 6px; border: 0;
   border-radius: 6px; background: none; color: var(--v2-text-text-faint); font: inherit; font-size: 13px;
   font-weight: 440; letter-spacing: -0.04px; font-variant-numeric: tabular-nums; cursor: pointer; }
-.ocb-head:hover, .ocb-head:focus-visible {
+.ocb-head:hover, .ocb-head:focus-visible, .ocb-head-on {
   background: color-mix(in srgb, var(--v2-text-text-base) 8%, transparent);
   color: var(--v2-text-text-base);
 }
+.ocb-head-on { background: color-mix(in srgb, var(--v2-text-text-base) 12%, transparent); }
 .ocb-mark { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; }
 .ocb-head-label { white-space: nowrap; color: inherit; }
-/* The block, in the top layer: nothing clips it, and the platform owns Escape and the light dismiss. */
-.ocb-pop { position: fixed; inset: auto; margin: 6px 0 0; width: max-content; min-width: 18em;
+/* The block: Kobalte puts it in the app's own top layer and positions it from the trigger, so there is no
+   position rule here — only the box. */
+.ocb-pop { width: max-content; min-width: 18em;
   max-width: min(22em, calc(100vw - 16px)); padding: 8px 10px; border-radius: 8px;
   border: 1px solid var(--v2-border-border-muted, rgba(255, 255, 255, .12));
   background: var(--v2-background-bg-layer-02, #1b1b1b);
   box-shadow: 0 8px 24px rgba(0, 0, 0, .35); color: var(--v2-text-text-base, inherit); font-size: 13px; }
-.ocb-pop:popover-open { display: block; }
+/* The hover hint is wider than this panel, so it would show beside it: while the figure's panel is open, no
+   tooltip. Keyed on the button's own state, so it cannot silence another control's hint. */
+body:has(.ocb-head[aria-expanded="true"]) [data-component="tooltip-v2"] { display: none; }
 `
 
 type Tone = "success" | "warning" | "danger"
@@ -483,43 +488,16 @@ export default Plugin.define({
 		 *  colour: a ring where a percentage exists, a card where the wallet is money, the warning icon when
 		 *  nothing could be read. The popover is the platform's — the top layer, the light dismiss and Escape
 		 *  come with it. */
-		let mounted = 0
 		const Tooltip = ctx.ui.Tooltip
 		const HeaderBudget = (props: { input: SlotMap["session.header"] }) => {
 			const figures = () => view(props.input)
-			// Anchors are per instance: a cached timeline stays mounted, and one shared name would let the
-			// visible figure's popover point at the hidden timeline's button — or at nothing.
-			const name = `ocb-${++mounted}`
-			/** The anchor's name is per instance and `anchor()` reads it as a literal, so the four declarations
-			 *  cannot live in the stylesheet. The fallbacks keep a failed anchor just under the header instead
-			 *  of at the window's top-left corner — the place a bare `auto` lands. */
-			const anchor = (el: HTMLButtonElement) => el.style.setProperty("anchor-name", `--${name}`)
-			const placed = (el: HTMLDivElement) => {
-				panel = el
-				el.style.setProperty("position-anchor", `--${name}`)
-				el.style.setProperty("top", `anchor(--${name} bottom, 44px)`)
-				el.style.setProperty("right", `anchor(--${name} right, 12px)`)
-			}
 			const [open, setOpen] = createSignal(false)
-			let panel: HTMLDivElement | undefined
 
-			// The platform closes the popover too, with Escape and a click outside: the signal follows it.
-			onMount(() => {
-				const element = panel
-				if (!element) return
-				const follow = (event: Event) => setOpen((event as ToggleEvent).newState === "open")
-				element.addEventListener("toggle", follow)
-				onCleanup(() => element.removeEventListener("toggle", follow))
-			})
-
-			const toggle = () => {
-				if (!panel) return
-				// The tick is five minutes: open on a fresh read.
-				if (panel.matches(":popover-open")) panel.hidePopover()
-				else {
-					refreshNow?.()
-					panel.showPopover()
-				}
+			/** The popover owns its dismissals — outside click, Escape — so this is the only place an open can
+			 *  start, and it starts on a fresh read: the tick is five minutes. */
+			const change = (next: boolean) => {
+				if (next) refreshNow?.()
+				setOpen(next)
 			}
 
 			/** Nothing read yet is not an error; a failure with nothing behind it is one, and hiding it is what
@@ -544,21 +522,14 @@ export default Plugin.define({
 			return (
 				<Show when={shown()}>
 					{(s: () => NonNullable<ReturnType<typeof shown>>) => (
-						<>
-							<Tooltip
-								value={seat(s().f)}
-								placement="bottom"
-								children={
-								<button
-									type="button"
-									class="ocb-head"
-									ref={anchor}
-									aria-haspopup="dialog"
-									aria-expanded={open()}
-									aria-controls={name}
-									aria-label={s().f.stale ? `~${s().text}` : s().text}
-									onClick={toggle}
-								>
+						<HeaderMenu
+							label={s().text}
+							hint={seat(s().f)}
+							tip={Tooltip}
+							open={open()}
+							onOpenChange={change}
+							trigger={
+								<>
 									<span class={`ocb-mark ${cls(s().tone)}`}>
 										<Show
 											when={s().mark === "ring"}
@@ -583,20 +554,11 @@ export default Plugin.define({
 											{PEAK_MARK}
 										</span>
 									</Show>
-								</button>
-								}
-							/>
-							<div
-								ref={placed}
-								id={name}
-								class="ocb-pop"
-								popover="auto"
-								role="dialog"
-								aria-label={s().text}
-							>
-								<Block input={props.input} />
-							</div>
-						</>
+								</>
+							}
+						>
+							<Block input={props.input} />
+						</HeaderMenu>
 					)}
 				</Show>
 			)

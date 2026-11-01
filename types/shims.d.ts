@@ -18,6 +18,14 @@ declare module "solid-js" {
 	// object (every function matches a permissive index signature) and lose its parameter type. The
 	// accessor callbacks in our code annotate their parameter at this boundary.
 	export function Show(props: { when: any; keyed?: boolean; fallback?: any; children?: any }): any
+	// The three shapes a component library builds on, so a third-party `.d.ts` resolves instead of collapsing:
+	// without them `ParentProps<P>` loses `P`, and every prop of a library component becomes unassignable.
+	export namespace JSX {
+		type Element = any
+	}
+	export type Accessor<T> = () => T
+	export type Component<P = {}> = (props: P) => any
+	export type ParentProps<P = {}> = P & { children?: any }
 }
 
 // `bun:sqlite` is inside the binary OpenCode runs as: no external `sqlite3` to install. Only the
@@ -36,5 +44,10 @@ declare namespace JSX {
 	}
 	interface Element {
 		[key: string]: any
+	}
+	/** Without this, the compiler does not know that a component's JSX children belong to its `children` prop:
+	 *  every component of ours would report "children is missing" at the tag, and nothing else would. */
+	interface ElementChildrenAttribute {
+		children: {}
 	}
 }

@@ -282,6 +282,28 @@ so the width and the placement a `ComposerPill` `menu` imposed no longer apply (
 `budget.ts` holds what both halves must agree on — the four thresholds, `payingWallet` and
 `windowPercent` — and `peak.ts` the tariff; each half keeps its own formatting.
 
+## The header popover
+
+`header-menu.tsx`, and it is the plugin's only dependency.
+
+The pattern is the app's own (`packages/gui-plugins/src/details/popover.tsx`): a **Kobalte** popover whose
+open state is ours, so a second click on the trigger closes what the first opened. The platform's
+`popover="auto"` cannot: it dismisses on any click outside the panel, the trigger is outside, so the click that
+should close arrives at a button whose panel is already gone and reopens it — measured 2026-11-01, and the
+reason the hand-written `anchor-name`/`anchor()` code went away with it.
+
+`@kobalte/core` is pinned **exactly, `0.13.13`** — the version in the app's own catalog (`anomalyco/opencode`,
+root `package.json`, `catalog`), the engine the app's `Tooltip` wraps and the library its details plugin uses.
+It is bundled into our half, so it does not follow their upgrades: if the panel ever looks or behaves unlike the
+app's own popovers after an update, the first suspect is that drift — check their catalog, bump ours, rebuild.
+`scripts/check-sdk.sh` already fails when the installed SDK is not the running app's version, which is the
+alarm that starts this check.
+
+Two details the host does not give us: a `ctx.ui` has no popover, so this is where the rule from
+`docs/gui-plugins.md` applies — the host's components where they exist, the app's own library where the kit has
+a hole. And the hover hint is wider than the panel, so a stylesheet rule hides the host's tooltip while
+`aria-expanded` is true: their own details panel needs no such rule because it is drawn over the hint.
+
 ## Publication
 
 The package is named `oc-budget`, **unscoped**, and the workflow publishes only `@rizal72/*`

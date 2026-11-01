@@ -340,11 +340,17 @@ file is already open, never as a campaign.
   host's and no CSS on the content moves it — unlike a `rows` menu, which hugs its longest row. Design the
   contents to fill that width; a narrow layout leaves a column of dead space, and a grid that shrinks a
   track below its content paints over its neighbour.
+- **A `popover="auto"` cannot be closed by its own trigger**: the platform dismisses it on a click outside the
+  panel, the trigger is outside, so the handler runs on a panel that is already closed and reopens it. Use a
+  controlled popover — Kobalte's, as `packages/gui-plugins/src/details/popover.tsx` does — or `popover="manual"`
+  with your own outside handler and Escape (measured 2026-11-01, `oc-budget`).
 - **An `anchor()` in a stylesheet names its anchor literally**, so a per-instance `anchor-name` — one per
   mounted timeline, so a cached one cannot steal the popover — must be paired with `position-anchor`,
   `top: anchor(…)` and `right: anchor(…)` set **on the elements**; otherwise the box falls to its static
   position, which is the window's top-left corner (measured 2026-10-31, `oc-budget`). `anchor(--name
   bottom, 44px)` takes a fallback, so a name that stops resolving lands under the header instead of at 0,0.
+  **No longer in use**: since 2026-11-01 that half positions its panel with Kobalte and the anchor code is
+  gone; the trap stands for anything that writes an `anchor()` by hand.
 - **And it clips nothing.** Probed the same day with a 120-character word in the popover: the box did not
   grow, a sentence rewrapped inside it, and the unbreakable word painted straight across the app. A `rows`
   menu is the host's drawing and wraps on its own; a `menu` is the plugin's, so the container needs
