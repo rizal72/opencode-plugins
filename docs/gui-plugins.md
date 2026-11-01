@@ -363,9 +363,9 @@ file is already open, never as a campaign.
   (measured 2026-11-01, `oc-budget`). The holes are filled as a global `JSX` namespace whose `Element` is
   `import("solid-js").JSX.Element`, never as a module declaration. Intrinsic elements stay permissive
   `[element: string]: any`: **two renderers share one program** — the TUI's `span` takes `style={{ fg }}`,
-  the GUI's takes `class` — and borrowing Solid's own `IntrinsicElements` does not work either, since an
-  interface extending it from the global namespace is dropped outright (measured: 208 errors, every DOM tag
-  missing).
+  the GUI's takes `class` — and borrowing Solid's own `IntrinsicElements` was tried and failed: an interface
+  extending it from the global namespace left every DOM tag missing (208 errors, measured 2026-11-01 with
+  `npx tsc --noEmit`). Why it fails is not established.
 
 ## Where the truth lives
 
