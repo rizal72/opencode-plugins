@@ -10,16 +10,19 @@ only to a site installed in the home screen, and nothing in OpenCode's own windo
 
 ## Install
 
-Not published yet: clone this repository and point one line in `~/.config/opencode/opencode.jsonc` at the
-plugin's directory.
-
-```jsonc
-"plugins": ["/path/to/opencode-plugins/plugins/oc-notify"]
+```sh
+opencode plugin add @rizal72/oc-notify
 ```
 
-The settings page lives in the GUI half, and `dist/` is not in the repository: build it once —
-`npm install`, then `node scripts/build-gui.mjs oc-notify` — or enable the checkout hooks described in
-`AGENTS.md`. Without the bundle the plugin still notifies, and the file below is the whole interface.
+Or by hand, one line in `~/.config/opencode/opencode.jsonc`:
+
+```jsonc
+"plugins": ["@rizal72/oc-notify"]
+```
+
+The settings page lives in the GUI half, which ships compiled in the package: nothing to build. A checkout
+loaded by path is the exception — build `dist/` once with `node scripts/build-gui.mjs oc-notify`. Without the
+bundle the plugin still notifies, and the file below is the whole interface.
 
 Then, on the phone: install **ntfy** from the App Store or Google Play, allow its notifications, and subscribe
 to the topic you put in the configuration below. Under *Settings → Instant notifications* leave the default on
@@ -65,8 +68,8 @@ that did, and the notification's body ends with `config error` — a typo must n
 
 ## Update
 
-Nothing to update: a plugin loaded by path moves with the checkout. A published version would follow the usual
-`opencode plugin check` / `opencode plugin update`, or
+V2 checks package plugins at startup and never applies the update, so a package only moves when you ask:
+`opencode plugin check`, then `opencode plugin update`. Or install
 [`@rizal72/oc-plugin-updates`](https://www.npmjs.com/package/@rizal72/oc-plugin-updates) for the count in the
 app.
 

@@ -16,8 +16,8 @@ agent calls). One plugin, one state, two surfaces — the terminal half first, t
 | [`@rizal72/oc-session-search`](plugins/oc-session-search/README.md) | `session_search`: keyword search over the transcripts of past sessions | — | — | ✓ |
 | [`@rizal72/oc-plugin-updates`](plugins/oc-plugin-updates/README.md) | update OpenCode plugins: one by one or all of them at once | a line in the sidebar, and a dialog on `/plugin-updates` | a pill above the composer | ✓ |
 | [`oc-context`](plugins/oc-context/README.md) | the Context block in the sidebar, with the window its percent is a percent of | sidebar | — | — redraws a built-in |
-| [`oc-budget`](plugins/oc-budget/README.md) | the paying provider's budget: sidebar, footer, `/budget` | sidebar, footer, `/budget` | the figure in the session header, with a popover | — my wallet |
-| [`oc-notify`](plugins/oc-notify/README.md) | a notification on the phone when a turn ends | — | a settings page for the four choices | — needs the ntfy app |
+| [`@rizal72/oc-budget`](plugins/oc-budget/README.md) | the paying provider's budget: sidebar, footer, `/budget` | sidebar, footer, `/budget` | the figure in the session header, with a popover | ✓ |
+| [`@rizal72/oc-notify`](plugins/oc-notify/README.md) | a notification on the phone when a turn ends | — | a settings page for the four choices | ✓ |
 | [`oc-donsetch`](plugins/oc-donsetch/README.md) | keeps the `donsetch` binary current | — | — | — needs that binary |
 
 Something broken? Open an issue: https://github.com/rizal72/opencode-plugins/issues — paste the error line
@@ -32,6 +32,8 @@ opencode plugin add @rizal72/oc-coffee
 opencode plugin add @rizal72/oc-ponytail-widget
 opencode plugin add @rizal72/oc-session-search
 opencode plugin add @rizal72/oc-plugin-updates
+opencode plugin add @rizal72/oc-budget
+opencode plugin add @rizal72/oc-notify
 ```
 
 Each plugin directory is a package of its own: a `package.json`, an `index.ts` for the server half, a
@@ -51,10 +53,9 @@ opencode plugin update    # apply them, and let the server reload
 Or install [`@rizal72/oc-plugin-updates`](https://www.npmjs.com/package/@rizal72/oc-plugin-updates): the
 count appears in a pill above the composer, with the update one click away.
 
-The ones marked `—` in the npm column are here to be read: they assume something about my setup (a wallet,
-a rules file, a binary, an app on the phone), so packaging them would only sell you a config you do not have.
-`oc-notify` is the exception among them: a topic of your own on ntfy.sh and the app on your phone are all it
-asks, so clone the repository and load it by path.
+The ones marked `—` in the npm column are here to be read: `oc-context` takes over a built-in and needs a line
+in `cli.json`, and `oc-donsetch` only updates a binary you install yourself, so neither is a package. The rest
+install with `opencode plugin add`, and `oc-notify` asks for one thing more — the free ntfy app on the phone.
 
 Where these came from: [Why I left OpenCode for Pi, then came back for v2](https://www.reddit.com/r/opencodeCLI/comments/1xcgnpr/why_i_left_opencode_for_pi_then_came_back_for_v2/).
 

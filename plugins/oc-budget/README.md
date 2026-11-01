@@ -11,11 +11,14 @@ login`.
 
 ## Install
 
-Not published: clone this repository and point one line in `~/.config/opencode/opencode.jsonc` at the plugin's
-directory.
+```sh
+opencode plugin add @rizal72/oc-budget
+```
+
+Or by hand, one line in `~/.config/opencode/opencode.jsonc`:
 
 ```jsonc
-"plugins": ["/path/to/opencode-plugins/plugins/oc-budget"]
+"plugins": ["@rizal72/oc-budget"]
 ```
 
 Then connect the wallets you care about, exactly as you would without it:
@@ -32,8 +35,15 @@ Nothing else to configure. A wallet you never connected is simply not drawn.
 
 ## Update
 
-Nothing to update while it is loaded by path: it moves with the checkout. A published version would follow
-`opencode plugin check` and `opencode plugin update`.
+V2 checks package plugins at startup and never applies the update, so a package only moves when you ask:
+
+```sh
+opencode plugin check     # which of the installed packages are behind
+opencode plugin update    # apply them, and let the server reload
+```
+
+Or install [`@rizal72/oc-plugin-updates`](https://www.npmjs.com/package/@rizal72/oc-plugin-updates): the
+count appears in a pill above the composer, with the update one click away.
 
 ## What it shows
 

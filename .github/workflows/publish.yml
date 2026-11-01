@@ -66,7 +66,7 @@ jobs:
               const manifest = JSON.parse(fs.readFileSync(file, "utf8"))
               manifest.exports = { ...manifest.exports, "./tui": "./tui.js" }
               const declared = Array.isArray(manifest.files) ? manifest.files : []
-              manifest.files = ["*.ts", "tui.js", "README.md", ...(declared.includes("dist") ? ["dist"] : [])]
+              manifest.files = ["*.ts", "!*.test.ts", "tui.js", "README.md", ...(declared.includes("dist") ? ["dist"] : [])]
               fs.writeFileSync(file, JSON.stringify(manifest, null, "\t") + "\n")
             ' "${dir}package.json"
           done

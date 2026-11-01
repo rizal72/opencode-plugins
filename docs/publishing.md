@@ -7,6 +7,14 @@ The install channel is npm alone: `opencode plugin add` reads a registry name, a
 story. The sources live here, in the public repository, which is also where they are written:
 `docs/github.md`.
 
+## The documents go first
+
+**Before any version moves, every document that describes the package is true of it.** A README that says
+"not published, clone this repository" ships inside the tarball it describes, so it tells the first person who
+reads the package the opposite of what the registry says; a record that calls a plugin private does the same
+in the repository. The set is short: the install and update sections of the plugin's README, its row in the
+repository's table, and its own record in `docs/`. All of it, in the same commit as the bump.
+
 ## A new package: the name has to exist before the workflow can publish it
 
 The trusted publisher lives on the package's **settings page on npmjs.com**, and a package that does not
@@ -323,7 +331,7 @@ SB=$(mktemp -d)
 export HOME=$SB/home XDG_DATA_HOME=$SB/data XDG_CONFIG_HOME=$SB/config
 mkdir -p $HOME $XDG_DATA_HOME $XDG_CONFIG_HOME
 
-for p in oc-coffee oc-git oc-models-pro oc-ponytail-widget oc-session-search; do
+for p in oc-budget oc-coffee oc-git oc-models-pro oc-notify oc-plugin-updates oc-ponytail-widget oc-session-search; do
   opencode plugin add @rizal72/$p
 done
 

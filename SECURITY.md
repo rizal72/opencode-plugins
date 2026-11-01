@@ -13,8 +13,9 @@ advisory naming the versions to upgrade from and to.
 ## What is in scope
 
 - Every package this repository publishes — the `plugins/` directory whose `package.json` names it
-  `@rizal72/…` — and the sources behind it: the halves, and the scripts that build and publish them. The
-  other three directories are tools for this machine alone: not published, so not reachable by anyone else.
+  `@rizal72/…` — and the sources behind it: the halves, and the scripts that build and publish them. Two
+  directories are tools for this machine alone — `oc-context`, which takes a built-in over, and `oc-donsetch`,
+  which only keeps a binary of your own current — so neither is published or reachable by anyone else.
 
 ## What is not
 

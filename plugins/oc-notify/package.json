@@ -1,10 +1,31 @@
 {
-	"name": "oc-notify",
+	"name": "@rizal72/oc-notify",
+	"version": "0.1.0",
 	"type": "module",
+	"description": "A notification on your phone when a turn ends, through ntfy: no account, no cloud of its own, and a settings page in the desktop app",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/rizal72/opencode-plugins.git"
+	},
+	"license": "MIT",
+	"keywords": [
+		"opencode",
+		"opencode-plugin",
+		"notifications",
+		"ntfy",
+		"push"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
 	"exports": {
 		".": "./index.ts",
 		"./rpc": "./rpc.ts",
 		"./gui-experimental": "./dist/gui-experimental.cjs"
 	},
-	"files": ["*.ts", "README.md", "dist"]
+	"files": [
+		"*.ts",
+		"README.md",
+		"dist"
+	]
 }

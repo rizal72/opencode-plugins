@@ -4,9 +4,9 @@ One widget for the active provider's budget, ported from pi-budget but reading O
 credentials instead of a file of ours. The operative summary is the README's plugin table; this is the
 record.
 
-Config: none of its own. The only thing to configure is the plugin path in
-`~/.config/opencode/opencode.jsonc`, and the credentials, which live in OpenCode's integration store
-(`opencode auth login`).
+Config: none of its own. The only thing to configure is its line in `~/.config/opencode/opencode.jsonc` — a
+package name now that it is published, a path while working on the checkout — and the credentials, which live
+in OpenCode's integration store (`opencode auth login`).
 
 Its sidebar block reaches the top with `prepend`, like the other three of ours; the mechanism and the
 measurement are in `docs/sidebar.md`.
@@ -23,8 +23,8 @@ measurement are in `docs/sidebar.md`.
 | `plugins/oc-budget/peak.ts` | DeepSeek's two tariffs, shared by both surfaces; `--self-check` |
 
 The loader does **not** read `package.json` for a directory target: it looks for files named
-`server`/`index`, `tui`, `rpc` at the package root (`PackageModule.resolve`). Entries therefore stay
-at the root, and `exports` is kept only so the package would resolve by name if it were ever published.
+`server`/`index`, `tui`, `rpc` at the package root (`PackageModule.resolve`). Entries therefore stay at the
+root, and `exports` is what a published package resolves by name.
 
 ## Two halves, one contract
 
@@ -355,12 +355,10 @@ Three consequences, measured on the review of that commit:
 
 ## Publication
 
-The package is named `oc-budget`, **unscoped**, and the workflow publishes only `@rizal72/*`
-(`.github/workflows/publish.yml`): a push moves the code and publishes nothing, which is the state today.
-Making it public is a rename to `@rizal72/oc-budget` — `package.json` and the `README` row — and a first
-publish **by hand**, because the workflow reads its trusted publisher from a page a package that does not
-exist yet does not have (`docs/publishing.md`, *A new package*). From the version after, a push publishes.
-Not decided yet.
+`@rizal72/oc-budget` on npm, and the workflow is what publishes it: a version bump and a push
+(`.github/workflows/publish.yml`). The first publish was **by hand**, because the workflow reads its trusted
+publisher from a page a package that does not exist yet does not have (`docs/publishing.md`, *A new
+package*); from the version after, the push is the publication.
 
 ## Open items
 

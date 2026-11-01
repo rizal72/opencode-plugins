@@ -1,7 +1,7 @@
 # oc-notify
 
-**Status: in use, private.** Not published, so the README's npm column says so; loaded by path from
-`plugins/oc-notify`: a server half, and a settings page in the desktop app. No terminal half, on purpose.
+**Status: published.** `@rizal72/oc-notify` on npm, so the README's npm column says so; a server half and a
+settings page in the desktop app. No terminal half, on purpose.
 
 A notification on the phone when a turn ends while you are not at the Mac, so a task started from the
 mobile can be abandoned and picked up when it is over. The Apple Watch shows it as a mirrored

@@ -269,16 +269,15 @@ reloaded, the server restarted, the window closed. `createKeyed(source, fn)` fro
 is that version: it re-runs `fn` when the keyed source's value changes, and it is disposed with the owner
 that created it. None of ours calls it yet.
 
-**The sites tolerated today** — six calls in five halves. One is in `oc-budget`, which is unpublished,
-so its migration costs nothing but rewriting a poller that works; the other five sit in published
-packages, where the same change would cost a version for no change in behaviour.
+**The sites tolerated today** — six calls in five halves, all in published packages, where the migration
+would cost a version for no change in behaviour.
 
 | site | what it does | why it stays |
 |---|---|---|
 | `oc-git/gui.tsx:22` | one poller for the session on screen: clears and re-arms its timer when the routing moves | published; the poll is per *server*, so the effect re-runs with the session's own |
 | `oc-coffee/gui.tsx:29` | the same, per server | published |
 | `oc-ponytail-widget/gui.tsx:54` | reads the session, polls every `REFRESH_MS`, cleared by `onCleanup` | published |
-| `oc-budget/gui.tsx:176` | one poll per server, plus `refreshNow` for the popover | free to change; the reference migration when the poller is next touched |
+| `oc-budget/gui.tsx:176` | one poll per server, plus `refreshNow` for the popover | published; the reference migration when the poller is next touched |
 | `oc-models-pro/gui.tsx:296` | re-measures the scrollbar gutter when the rows change | published |
 | `oc-models-pro/gui.tsx:301` | a `ResizeObserver`, in an effect with nothing reactive in it | published, and a form defect: `onMount` says it |
 
