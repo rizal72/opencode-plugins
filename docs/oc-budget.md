@@ -294,6 +294,16 @@ sidebar's heading is drawn either way, so silence there is a title with nothing 
 | `prompt.footer` | nothing: that row reports the wallet that pays, and no wallet pays |
 | `/budget` | `No provider connected`, then the command — a command was asked for, so it answers |
 
+**Two silences share that figure.** The same dim mark is drawn when wallets exist and none of them pays the
+model in front: a subscription that ended in the middle of a session, or a provider outside the four. The
+popover then lists every wallet with its own line, and that is the only place the reason lives — before this,
+the figure vanished and the reason with it (measured 2026-11-01, an expiring Go workspace with the credit
+still at 30%: nothing in the header said a word).
+
+The words a failed read shows are the reader's, not the body's: a Go workspace with no plan says `no Go plan
+on this workspace`, because the console answers without meters exactly then, and `unexpected go status shape`
+described a JSON object to someone looking at their credit.
+
 **One decision, in `budget.ts`**: `connected(snapshot)` answers "does any wallet exist", and a wallet that
 exists and whose read failed still counts — the fault is what must be seen, not an absence. Both halves
 read it, so the state cannot be recognised on one surface and missed on the other. It is covered by

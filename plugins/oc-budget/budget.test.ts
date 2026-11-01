@@ -6,7 +6,7 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
-import { connected } from "./budget.ts"
+import { connected, payingWallet } from "./budget.ts"
 
 test("a snapshot with no wallet is an account with nothing connected", () => {
 	assert.equal(connected(null), false)
@@ -23,4 +23,13 @@ test("any one of the four is enough", () => {
 	assert.equal(connected({ at: 1, go: { monthly: { percent: 12 } } }), true)
 	assert.equal(connected({ at: 1, ds: { balance: 3 } }), true)
 	assert.equal(connected({ at: 1, zen: { available: 0 } }), true)
+})
+
+test("wallets exist and none of them pays this model: the state still has to be drawn", () => {
+	// The case measured 2026-11-01: the subscription ended and the console answered without meters, so the
+	// model in front stopped being one of the four. The wallet is still there — the figure must not vanish,
+	// because a vanishing figure cannot be told from a plugin that is not installed.
+	const snapshot = { at: 1, go: { error: "no Go plan on this workspace" }, ds: { balance: 5.33 } }
+	assert.equal(connected(snapshot), true)
+	assert.equal(payingWallet({ providerID: "anthropic", modelID: "claude" }, snapshot), "none")
 })

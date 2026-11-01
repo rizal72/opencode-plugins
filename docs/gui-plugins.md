@@ -267,7 +267,9 @@ follow a plugin's lifetime and its dependencies' restarts, which hand-written ef
 The reason is one sentence: an effect written by hand does not know when to die. The SDK does — a plugin
 reloaded, the server restarted, the window closed. `createKeyed(source, fn)` from `@opencode/plugin/gui`
 is that version: it re-runs `fn` when the keyed source's value changes, and it is disposed with the owner
-that created it. None of ours calls it yet.
+that created it. Three call it now: `oc-budget` twice — the popover's open state, and the provider behind the
+composer, which is the only signal a client has that a credential changed — and `oc-notify` once, watching its
+own snapshot. The six hand-written effects below are what is left.
 
 **The sites tolerated today** — six calls in five halves, all in published packages, where the migration
 would cost a version for no change in behaviour.

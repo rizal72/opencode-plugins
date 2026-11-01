@@ -1,6 +1,6 @@
 {
 	"name": "@rizal72/oc-budget",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "How much credit is left on the account behind the model you are using: the Go subscription's windows, the Zen balance, and the pay-per-use wallets, in the sidebar, the footer and the header",
 	"repository": {

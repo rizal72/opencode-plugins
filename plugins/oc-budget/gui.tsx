@@ -35,6 +35,12 @@ import { clock, doubles as peakDoubles, isPeak } from "./peak.ts"
 const PEAK_MARK = "↗"
 
 const REFRESH_MS = 5 * 60 * 1000
+/** A provider change never forces a read on a reading younger than this. Five seconds covers a bounce of the
+ *  catalog at startup and nothing more: a person who switches a workspace and comes back takes longer, and that
+ *  return is exactly when the reading behind them is the other account's. Measured at thirty on 2026-11-01,
+ *  where the return arrived inside the guard and showed the expired workspace's error under the paying one. */
+const PROVIDER_SWITCH_MS = 5_000
+
 /** A failed poll is not a slow poll: ask again in half a minute, before the five-minute tick. */
 const RETRY_MS = 30_000
 /** Two missed polls: from here the numbers on screen are history, and the figure says so. */
@@ -528,6 +534,20 @@ export default Plugin.define({
 				setOpen(next)
 			}
 
+			/** The **provider**, not the model: the snapshot holds all four wallets already, so picking another
+			 *  model of the same provider re-renders from what is here — a fifth model on DeepSeek changes which
+			 *  line is drawn, not what is read. What the client cannot see is the credential behind a provider:
+			 *  an account that expired, or a workspace switched. That shows up as the provider leaving the
+			 *  catalog, or as the selected model falling to another one — measured 2026-11-01, a Go workspace
+			 *  whose subscription ended mid-session. `createKeyed` is the SDK's, not a raw effect, so the re-run
+			 *  follows the plugin's lifetime. */
+			createKeyed(
+				() => props.input.screen.composer.model()?.providerID ?? "none",
+				() => {
+					if (figures().age > PROVIDER_SWITCH_MS) refreshNow?.()
+				},
+			)
+
 			/** Nothing read yet is not an error; a failure with nothing behind it is one, and hiding it is what
 			 *  cost a whole night — `docs/gui-plugins.md`, *a pill never shows a stale value as fresh*. Stale wins
 			 *  over the figure: what is on screen is history, and the mark says so. */
@@ -541,10 +561,12 @@ export default Plugin.define({
 				if (f.error) {
 					return { f, text: "budget", tone: "danger" as Tone, mark: "error" as Mark }
 				}
-				// Nothing connected, and the figure still exists: the plugin is installed and running, so
-				// vanishing would say it is not. The mark is the wallet's own, the tone absent, so it reads
-				// as switched off rather than as an alarm.
-				if (f.ready && f.empty) {
+				// No label means nothing to report for the model in front — either no wallet is connected,
+				// or wallets are and none of them pays this one (a subscription that just ended, a provider
+				// outside the four). The figure still exists either way: the plugin is installed and running,
+				// so vanishing would say it is not. The mark is the wallet's own and the tone absent, so it
+				// reads as switched off rather than as an alarm, and the popover carries the detail.
+				if (f.ready && !f.label) {
 					return { f, text: "budget", tone: undefined as Tone | undefined, mark: "card" as Mark }
 				}
 				return undefined
@@ -554,9 +576,11 @@ export default Plugin.define({
 				f.error ??
 				(f.empty
 					? "Budget · no provider connected"
-					: f.stale
-						? `Budget · last read ${ageText(f.age)} ago`
-						: "Budget — what pays, and every wallet")
+					: !f.label
+						? "Budget · no wallet pays this model"
+						: f.stale
+							? `Budget · last read ${ageText(f.age)} ago`
+							: "Budget — what pays, and every wallet")
 
 			// `shown()` can go falsy and come back while the panel is open — the server switches and returns, a
 			// snapshot loses the paying wallet's label — and the menu would remount already open, with no gesture

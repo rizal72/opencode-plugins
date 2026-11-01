@@ -24,6 +24,10 @@
 import { Budget } from "./rpc.ts"
 import type { BudgetSnapshot, UsageWindow } from "./rpc.ts"
 
+/** What a Go read says when the console answers without meters: the workspace has no plan, and a shape
+ *  nobody recognises is the only way that endpoint reports it. The words are the user's, not the body's. */
+const NO_GO_PLAN = "no Go plan on this workspace"
+
 /** How long a collected snapshot is reused; the TUI also polls on this cadence. */
 const TTL_MS = 5 * 60 * 1000
 const TIMEOUT_MS = 10_000
@@ -158,14 +162,14 @@ async function collectGo(ctx: any): Promise<BudgetSnapshot["go"]> {
 		try {
 			const body = await getJson(GO_STATUS_URL, { Authorization: `Bearer ${console.key}` })
 			const meters = body?.access?.meters
-			if (!meters) throw new Error("unexpected go status shape")
+			if (!meters) throw new Error(NO_GO_PLAN)
 			const reading = {
 				rolling: goMeter(meters.fiveHour),
 				weekly: goMeter(meters.week),
 				monthly: goMeter(meters.month),
 			}
 			if (!reading.rolling && !reading.weekly && !reading.monthly) {
-				throw new Error("unexpected go status shape")
+				throw new Error(NO_GO_PLAN)
 			}
 			return reading
 		} catch (error) {
@@ -191,14 +195,14 @@ async function collectGo(ctx: any): Promise<BudgetSnapshot["go"]> {
 	try {
 		const body = await getJson(GO_USAGE_URL, { Authorization: `Bearer ${credential.key}` })
 		const usage = body?.usage
-		if (!usage) return { error: "unexpected usage response shape" }
+		if (!usage) return { error: NO_GO_PLAN }
 		const reading = {
 			rolling: goWindow(usage.rolling),
 			weekly: goWindow(usage.weekly),
 			monthly: goWindow(usage.monthly),
 		}
 		if (!reading.rolling && !reading.weekly && !reading.monthly) {
-			return { error: "unexpected usage response shape" }
+			return { error: NO_GO_PLAN }
 		}
 		return reading
 	} catch (error) {
@@ -214,7 +218,7 @@ async function collectDeepSeek(ctx: any): Promise<BudgetSnapshot["ds"]> {
 		const body = await getJson(DS_BALANCE_URL, { Authorization: `Bearer ${credential.key}` })
 		const info = body?.balance_infos?.[0]
 		const balance = info?.total_balance === undefined ? Number.NaN : Number(info.total_balance)
-		if (!Number.isFinite(balance)) return { error: "unexpected balance response shape" }
+		if (!Number.isFinite(balance)) return { error: "could not read the balance" }
 		return { balance, currency: info?.currency ?? "USD" }
 	} catch (error) {
 		return { error: message(error) }
@@ -231,7 +235,7 @@ async function collectOpenRouter(ctx: any): Promise<BudgetSnapshot["or"]> {
 		const totalCredits = body?.data?.total_credits
 		const totalUsage = body?.data?.total_usage
 		if (typeof totalCredits !== "number" || typeof totalUsage !== "number") {
-			return { error: "unexpected credits response shape" }
+			return { error: "could not read the credits" }
 		}
 		const result: NonNullable<BudgetSnapshot["or"]> = {
 			totalCredits,
@@ -270,7 +274,7 @@ async function collectZen(ctx: any): Promise<BudgetSnapshot["zen"]> {
 		// the only way to switch which wallet the balance describes.
 		const current = await getJson(ZEN_CURRENT_URL, headers)
 		const org = current?.org
-		if (!org?.id) return { error: "Console session reports no current workspace" }
+		if (!org?.id) return { error: "the console session has no workspace" }
 		const body = await getJson(ZEN_STATUS_URL, { ...headers, "x-org-id": org.id })
 		const microOf = (value: unknown) => {
 			const n = typeof value === "string" ? Number(value) : value
@@ -283,7 +287,7 @@ async function collectZen(ctx: any): Promise<BudgetSnapshot["zen"]> {
 		// account has one. Clamping the ledger in our code would lose the debt; reading this field
 		// keeps both, and stays right the day a limit is set.
 		const balance = microOf(body?.balanceMicroCents)
-		if (balance === undefined) return { error: "unexpected billing status shape", org: org.name }
+		if (balance === undefined) return { error: "could not read the Zen balance", org: org.name }
 		const available = microOf(body?.availableMicroCents) ?? Math.max(0, balance)
 		return {
 			balance: microCentsToDollars(balance),
