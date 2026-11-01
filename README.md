@@ -23,6 +23,10 @@ agent calls). One plugin, one state, two surfaces — the terminal half first, t
 Something broken? Open an issue: https://github.com/rizal72/opencode-plugins/issues — paste the error line
 and the opencode version. That is the whole form.
 
+A plugin that **vanishes after an update** — `opencode plugin list` no longer shows it, and it draws nothing —
+is a server that reloaded plugins while the package was being replaced, and skipped the entry without saying
+so. Restart it with `opencode service restart`: nothing is lost, and the plugin comes back.
+
 ## Install
 
 ```sh
