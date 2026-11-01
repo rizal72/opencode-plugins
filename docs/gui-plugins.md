@@ -189,7 +189,8 @@ render function, and the host contributes none of the rows.
   `ctx.servers.get` answers `undefined` until the interface mounts: read it inside a `createKeyed` on
   `ctx.servers.list().length`, and use the `builtin` server, which is the desktop's own.
 - **Nothing is kept in the window.** The state is a file on the server, read and written through the plugin's
-  `rpc`; the page shows what the last `set` returned, so two windows never disagree.
+  `rpc`, and the page shows what its last read or write returned. Two open windows do not push to each other,
+  so a stale one writes its own view back: a settings page is one window's, and a second should be reopened.
 - A new settings page in a plugin the app already loaded needs a **restart of the app** — the bundle is
   resolved when the plugin loads (`plugin/dist/host.js:40`).
 

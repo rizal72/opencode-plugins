@@ -35,7 +35,7 @@ deprecation runs the other way: a stable client method is deprecated *toward* `c
 `Removed in the next minor` on it (`client/dist/effect/generated/client.d.ts`), and the stable `ctx.generate`
 says `Use experimental.generate.text` (`promise/plugin.d.ts:44`). The loader resolves one GUI entry,
 `gui-experimental`, and has no `gui` fallback (`plugin/dist/host.js:40`); the protocol states that experimental
-routes carry "no compatibility promise" (`protocol/dist/groups/experimental.js:1`,
+routes carry "no compatibility promise" (`protocol/dist/groups/experimental.js:5`,
 `protocol/dist/client.js:50-52`); and the V1 → V2 migration dropped experimental hooks rather than aliasing
 them (`opencode.ai/v2/docs/build/plugins/migrate-v1`).
 
@@ -44,7 +44,7 @@ So what can break here, and is repaired by an update rather than by an old name 
 
 ## The rules
 
-Config: `~/.config/opencode/oc-notify.json`, read at every prompt and every turn end and never cached — an
+Config: `~/.config/opencode/oc-notify.json`, read at every turn end and on every `rpc` call and never cached — an
 edit applies at the next turn, with no restart.
 
 | key | default | meaning |
@@ -77,8 +77,8 @@ beats a plugin that never speaks.
 
 - The loader instantiates a plugin once per open location — four identical loads of this one were in the log
   at once — so the sent-map lives on the process, behind `Symbol.for("oc-notify.machine")`.
-- The claim on a session is taken **synchronously, before the first `await`** in the handler: a claim after
-  a read would let two instances through and produce two notifications.
+- The check and the claim on a session are contiguous, with no `await` between them: a gap there would let two
+  instances through and produce two notifications.
 - Work still owned by the session silences the push, because the hook runs again when it ends: a background
   shell or a subagent would otherwise be announced as finished. A descendant's work is listed in
   `background` for information only (`session.d.ts:161-164`) and does not silence it.

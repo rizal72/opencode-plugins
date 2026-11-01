@@ -94,9 +94,12 @@ async function save(machine: Machine, input: any): Promise<Snapshot> {
 	const awayAfter = Number(input?.awayAfter)
 	if (!Number.isFinite(awayAfter) || awayAfter < 0) throw new Error("awayAfter must be a number of minutes")
 	const topic = String(input?.topic ?? "")
+	if (!topic) throw new Error("a topic is required: subscribe to it in the ntfy app")
 	if (!TOPIC.test(topic)) throw new Error("a topic is letters, digits, `-` or `_`, up to 64 characters")
 
-	const known: Config = { ...(machine.last ?? {}) }
+	// From the file, not from what this process happens to remember: a `set` can be the first call after a
+	// restart, with the page still open, and `server` has to survive that as much as the page's own keys do.
+	const known: Config = { ...((await settings(machine)) ?? {}) }
 	delete known.broken
 	const next: Config = { ...known, mode: input.mode as Mode, awayAfter, includeTitle: input?.includeTitle === true, topic }
 	try {
@@ -177,15 +180,16 @@ export default Plugin.define({
 				if (background.some((job: any) => String(job?.sessionID ?? "") === sessionID)) return
 
 				if (config.mode === "away") {
-					const wait = Math.max(0, Number(config.awayAfter ?? 5)) * 60
+					// The rule `shown()` applies, so a hand-edited "5 minutes" cannot make the mode silent.
+					const minutes = Number(config.awayAfter)
+					const wait = (Number.isFinite(minutes) && minutes >= 0 ? minutes : 5) * 60
 					const start = machine.idleAtStart.get(sessionID)
 					const end = idleSeconds()
 					if (!(start !== undefined && start >= wait) && !(end === undefined || end >= wait)) return
 				}
 
-				// Claimed here, synchronously and before the first await: every open location loads this
-				// plugin, so several instances see the same event, and a claim after a read would let two of
-				// them through.
+				// The check and the claim are contiguous — no `await` between them: every open location loads
+				// this plugin, so several instances see the same event, and a gap there would let two through.
 				const now = Date.now()
 				if (now - (machine.sent.get(sessionID) ?? 0) < QUIET_MS) return
 				machine.sent.set(sessionID, now)
@@ -194,7 +198,13 @@ export default Plugin.define({
 				// A child session is not a turn you are waiting for: its parent's hook reports the work.
 				if (!session || session.parentID) return
 
-				await send(config, session)
+				try {
+					await send(config, session)
+				} catch (error) {
+					// Released: a delivery that failed must not silence the next real turn of this session.
+					machine.sent.delete(sessionID)
+					throw error
+				}
 			} catch (error) {
 				// Never the turn's problem: a push that fails is a missed buzz, not a broken session.
 				console.error(`[oc-notify] ${error instanceof Error ? error.message : String(error)}`)

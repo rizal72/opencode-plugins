@@ -77,19 +77,21 @@ function Page(props: { ctx: any }) {
 		setProblem(undefined)
 	}
 
+	/** The file's truth, through the server: a window keeps no copy of its own. */
+	const read = async () => {
+		const rpc = call()
+		if (!rpc) return
+		try {
+			show(await rpc.get({}))
+		} catch (error) {
+			setProblem(message(error))
+		}
+	}
+
 	// A settings page can mount before the app lists a server, so the read waits for the list to have one.
 	createKeyed(
 		() => props.ctx.servers.list().length,
-		() =>
-			void (async () => {
-				const rpc = call()
-				if (!rpc) return
-				try {
-					show(await rpc.get({}))
-				} catch (error) {
-					setProblem(message(error))
-				}
-			})(),
+		() => void read(),
 	)
 
 	const save = async () => {
@@ -104,6 +106,8 @@ function Page(props: { ctx: any }) {
 		try {
 			show(await rpc.set({ mode: mode(), awayAfter, includeTitle: title(), topic: topic() }))
 		} catch (error) {
+			// The file kept its value: read it back, so a refused write cannot leave a row claiming otherwise.
+			await read()
 			setProblem(message(error))
 		} finally {
 			setSaving(false)
@@ -211,14 +215,16 @@ function Page(props: { ctx: any }) {
 								<span style={NOTE}>The file on disk does not parse: these are the last settings that did.</span>
 							</div>
 						</Show>
-
-						<Show when={problem()}>
-							<div style={ROW}>
-								<span style={NOTE}>{problem()}</span>
-							</div>
-						</Show>
 					</>
 				)}
+			</Show>
+
+			{/* Outside the loaded branch on purpose: the first read can fail, and that error is the one the page
+			    must show instead of a loader that never stops. */}
+			<Show when={problem()}>
+				<div style={{ padding: "14px 0" }}>
+					<span style={NOTE}>{problem()}</span>
+				</div>
 			</Show>
 		</div>
 	)

@@ -17,6 +17,10 @@ plugin's directory.
 "plugins": ["/path/to/opencode-plugins/plugins/oc-notify"]
 ```
 
+The settings page lives in the GUI half, and `dist/` is not in the repository: build it once —
+`npm install`, then `node scripts/build-gui.mjs oc-notify` — or enable the checkout hooks described in
+`AGENTS.md`. Without the bundle the plugin still notifies, and the file below is the whole interface.
+
 Then, on the phone: install **ntfy** from the App Store or Google Play, allow its notifications, and subscribe
 to the topic you put in the configuration below. Under *Settings → Instant notifications* leave the default on
 — that is what makes a message arrive with the app closed. Leave *Use another server* off unless you run your
@@ -55,7 +59,7 @@ set:
 The topic works as a password: whoever knows it can read what arrives on it. Treat it as one, and change it
 if it leaks — then subscribe to the new one in the app.
 
-The file is read at every prompt and every turn end, so an edit applies at the next turn with no restart. No
+The file is read at every turn end and on every `rpc` call, so an edit applies at the next turn with no restart. No
 file, no channel: the absence of the file is the switch. A file that does not parse keeps the last settings
 that did, and the notification's body ends with `config error` — a typo must not look like a quiet agent.
 
