@@ -30,6 +30,12 @@ that is now listening. A variable that did not arrive says so; it never looks li
 what it closed: the app through its bundle, a terminal in a new Ghostty window on the same command line.
 `--help` names the shape.
 
+**Every plugin carries a switch for the states a real machine cannot produce** — a wallet nobody has
+connected, an update that is not there. One environment variable, read by the half that computes the
+state, inert unless it is set, named after the plugin. It answers **before** any cache and is never
+cached: otherwise a real reading is served while the switch is on, and the fake outlives the variable it
+came from.
+
 ## A slot exists only where its surface exists
 
 Every surface a plugin draws into hangs off a screen, and the screens do not all exist at once.

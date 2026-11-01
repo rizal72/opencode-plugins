@@ -277,7 +277,42 @@ so the width and the placement a `ComposerPill` `menu` imposed no longer apply (
   opens with `stale 12m`; and **nothing read yet with a failure** — the label `budget`, icon
   `circle-exclamation`, tone `danger`, the error in the tooltip and as the popover's only text. A failed
   poll keeps the last good reading and asks again in 30 s; it does not blank the figure. Before the first
-  answer it stays hidden: a fresh window is not a fault.
+  answer it stays hidden: a fresh window is not a fault. The fourth state, an account with no provider at
+  all, is the section below.
+
+## No provider connected
+
+An account with no wallet is a state of its own: not an error, and not nothing. It is drawn, in the lowest
+voice the plugin has, because vanishing would say the plugin is not installed while it is — and because the
+sidebar's heading is drawn either way, so silence there is a title with nothing under it.
+
+| surface | what it draws |
+|---|---|
+| header figure | the wallet mark, the word `budget`, no tone: the same grey as the app's inactive controls, never yellow or red |
+| its popover | `no provider connected`, then `opencode auth login` |
+| sidebar block | the heading, then one muted line `no provider connected` |
+| `prompt.footer` | nothing: that row reports the wallet that pays, and no wallet pays |
+| `/budget` | `No provider connected`, then the command — a command was asked for, so it answers |
+
+**One decision, in `budget.ts`**: `connected(snapshot)` answers "does any wallet exist", and a wallet that
+exists and whose read failed still counts — the fault is what must be seen, not an absence. Both halves
+read it, so the state cannot be recognised on one surface and missed on the other. It is covered by
+`budget.test.ts` (`npm run test`), which is the only part of this that needs no client, no credentials and
+no switch: an account with nothing at all, a wallet in error, and one of each of the four.
+
+The server half follows the same rule it already had, now without its one exception: **a wallet with no
+connection is left out of the snapshot**, Zen included. Before, a machine with no Console account carried a
+permanent `ZEN —` line explaining a connection that had never been made.
+
+**The test switch** is `OC_BUDGET_DEV=empty`: `scripts/oc-dev-env.sh on OC_BUDGET_DEV=empty` fakes a
+snapshot with nothing in it, and `off` returns to normal. It answers **before** the cache and is never
+cached, so a real reading cannot be served while it is on and the fake cannot outlive the variable. It is
+inert unless set — the convention every plugin follows (`docs/plugin-surfaces.md`, *One server, many
+clients*), first paid for by `oc-plugin-updates`' switch.
+
+What it still cannot prove is a real account that has never connected anything: that one exists only on a
+machine that is not this one.
+
 
 `budget.ts` holds what both halves must agree on — the four thresholds, `payingWallet` and
 `windowPercent` — and `peak.ts` the tariff; each half keeps its own formatting.

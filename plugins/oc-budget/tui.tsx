@@ -36,6 +36,7 @@ import {
 	OR_WARN_USD,
 	ZEN_WARN_USD,
 	ageText,
+	connected,
 	countdown,
 	payingWallet,
 	windowPercent,
@@ -222,6 +223,12 @@ export default Plugin.define({
 				}
 				if (ready() && !snap) out.push(<text fg={RED}>budget —</text>)
 				if (failure()) out.push(<text fg={DIM}>{failure()}</text>)
+				// No wallet at all. The title above is drawn either way, so without this line it would be a
+				// promise with nothing under it; one muted line says what the account is, and `/budget`
+				// carries the command that changes it.
+				if (ready() && snap && !connected(snap)) {
+					out.push(<text fg={DIM}>no provider connected</text>)
+				}
 
 				if (snap?.go && !snap.go.error) {
 					out.push(
@@ -390,9 +397,18 @@ export default Plugin.define({
 				or: "OpenRouter — paying: credit balance (pay-per-use, no quota windows)",
 				none: "No budget provider selected",
 			}
-			lines.push(label[wallet])
+			// Two silences that are not the same silence: no provider connected is a setup that has not
+			// happened, while "no budget provider selected" is a model whose provider the four wallets do
+			// not cover — a Go subscription and an Anthropic model, say. Answering the second for the
+			// first would name the wrong problem.
+			const nothing = !!snap && !connected(snap)
+			lines.push(nothing ? "No provider connected" : label[wallet])
 			if (snap?.zen?.org) lines.push(`workspace: ${snap.zen.org}`)
 			lines.push("")
+			if (nothing) {
+				lines.push("  connect one with:  opencode auth login")
+				return lines.join("\n")
+			}
 
 			// `pays` is true for the monthly window only: that is the window the paying wallet rule
 			// reads, so flagging an exhausted five-hour window would claim ZEN pays when it does not.

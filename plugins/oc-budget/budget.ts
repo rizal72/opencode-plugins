@@ -31,6 +31,14 @@ export function payingWallet(model: ModelRef | undefined, snapshot: BudgetSnapsh
 	return "none"
 }
 
+/** Whether any wallet exists at all. A snapshot carrying nothing is not an empty reading: it is an
+ *  account with no provider connected, a state of its own and not a fault, and every surface says so
+ *  instead of drawing a figure or a title with nothing under it. A wallet that exists and whose read
+ *  failed still counts: the fault is what must be seen, not an absence. */
+export function connected(snapshot: BudgetSnapshot | null | undefined): boolean {
+	return !!(snapshot?.go || snapshot?.zen || snapshot?.ds || snapshot?.or)
+}
+
 /** How old a reading is, in the shortest form that still says something — both surfaces say it. */
 export function ageText(ms: number): string {
 	const minutes = Math.floor(ms / 60_000)

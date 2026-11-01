@@ -18,10 +18,9 @@
 // file here and no device flow to reimplement.
 //
 // Nothing rejects outward, and the two are not the same thing: a wallet with **no connection** is
-// left out of the snapshot, so both halves simply do not draw it; a connected wallet whose read
-// failed keeps its branch and its `error`, because a fault must be visible where the number would
-// be. Zen is the exception in one direction only: it is OpenCode's own, so it is always reported,
-// with the reason when the Console is not connected.
+// left out of the snapshot, so both halves simply do not draw it — Zen included; a connected wallet
+// whose read failed keeps its branch and its `error`, because a fault must be visible where the number
+// would be.
 import { Budget } from "./rpc.ts"
 import type { BudgetSnapshot, UsageWindow } from "./rpc.ts"
 
@@ -29,6 +28,12 @@ import type { BudgetSnapshot, UsageWindow } from "./rpc.ts"
 const TTL_MS = 5 * 60 * 1000
 const TIMEOUT_MS = 10_000
 const USER_AGENT = "oc-budget/0.1"
+
+/** A test switch, inert unless the variable is set: `scripts/oc-dev-env.sh on OC_BUDGET_DEV=empty`.
+ *  `empty` fakes the one state a real machine cannot produce on demand — an account with nothing
+ *  connected. It answers **before** the cache and is never cached, so a real reading cannot be served
+ *  while the switch is on, and the fake cannot outlive the variable it came from. */
+const DEV = process.env.OC_BUDGET_DEV ?? ""
 
 const GO_USAGE_URL = "https://opencode.ai/zen/go/v1/usage"
 const GO_STATUS_URL = "https://opencode.ai/console/api/go/status"
@@ -250,6 +255,11 @@ async function collectOpenRouter(ctx: any): Promise<BudgetSnapshot["or"]> {
 
 async function collectZen(ctx: any): Promise<BudgetSnapshot["zen"]> {
 	const token = await resolveConsoleToken(ctx)
+	// No Console connection at all is an absence, exactly like the other three: the account has no Zen
+	// wallet, and a line explaining a connection never made is the plugin teaching its own setup in
+	// someone else's sidebar. A Console that exists and cannot read keeps its error, because that is a
+	// fault and must be visible where the number would be.
+	if (token.missing) return undefined
 	if (token.error) return { error: token.error }
 	const headers = { Authorization: `Bearer ${token.key}` }
 	try {
@@ -332,6 +342,7 @@ export default {
 
 		await ctx.rpc.register(Budget, {
 			snapshot: async (input: any) => {
+				if (DEV === "empty") return { at: Date.now() }
 				const force = input?.force === true
 				if (!force && cache && Date.now() - cacheAt < TTL_MS) return cache
 				// A forced read must not join a collection that started before it: a credential switch

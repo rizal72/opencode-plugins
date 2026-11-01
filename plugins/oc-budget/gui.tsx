@@ -20,6 +20,7 @@ import {
 	OR_WARN_USD,
 	ZEN_WARN_USD,
 	ageText,
+	connected,
 	countdown,
 	payingWallet,
 	windowPercent,
@@ -56,6 +57,10 @@ const CSS = `
 .ocb-warn { color: var(--v2-state-fg-warning, inherit); }
 .ocb-bad { color: var(--v2-state-fg-danger, inherit); }
 .ocb-dim { color: var(--v2-text-text-muted, inherit); }
+/* The empty state's two lines only: the words are short and the panel is 18em wide, so left-aligned they
+   leave a column of dead space under the figure they belong to. They sit against the same edge the figure
+   does, and nothing else in this plugin is right-aligned. */
+.ocb-empty { text-align: right; }
 .ocb-accent { color: var(--v2-text-text-accent, inherit); }
 .ocb-bar { flex: 1 1 auto; min-width: 90px; height: 6px; border-radius: 3px; overflow: hidden;
   background: color-mix(in srgb, currentColor 16%, transparent); }
@@ -143,6 +148,9 @@ type SurfaceInput = Pick<SlotMap["session.header"], "session" | "screen">
  *  renders it reactively, and the popover reads the same signal while it is open. */
 type Figures = {
 	ready: boolean
+	/** No wallet exists at all: an account with no provider connected, which is a state and not a fault.
+	 *  Every surface says it instead of drawing a figure, and the header keeps its figure clickable. */
+	empty: boolean
 	error?: string
 	label?: string
 	walletTone?: Tone
@@ -244,7 +252,17 @@ export default Plugin.define({
 			const atPeak = isPeak(now)
 
 			if (!current || current.server !== input.session.server.id) {
-				return { ready: false, error, wallet: "none", stale: false, age: 0, atPeak, marked: false, ...NO_LINES }
+				return {
+					ready: false,
+					empty: false,
+					error,
+					wallet: "none",
+					stale: false,
+					age: 0,
+					atPeak,
+					marked: false,
+					...NO_LINES,
+				}
 			}
 
 			const value = current.value
@@ -299,6 +317,7 @@ export default Plugin.define({
 
 			return {
 				ready: true,
+				empty: !connected(value),
 				error,
 				label,
 				walletTone,
@@ -387,6 +406,10 @@ export default Plugin.define({
 								</Show>
 								<Show when={f().error}>
 									<div class="ocb-dim">{f().error}</div>
+								</Show>
+								<Show when={f().empty}>
+									<div class="ocb-dim ocb-empty">no provider connected</div>
+									<div class="ocb-dim ocb-empty">opencode auth login</div>
 								</Show>
 								<Show when={f().go}>
 									{(g: () => NonNullable<Figures["go"]>) => (
@@ -518,11 +541,22 @@ export default Plugin.define({
 				if (f.error) {
 					return { f, text: "budget", tone: "danger" as Tone, mark: "error" as Mark }
 				}
+				// Nothing connected, and the figure still exists: the plugin is installed and running, so
+				// vanishing would say it is not. The mark is the wallet's own, the tone absent, so it reads
+				// as switched off rather than as an alarm.
+				if (f.ready && f.empty) {
+					return { f, text: "budget", tone: undefined as Tone | undefined, mark: "card" as Mark }
+				}
 				return undefined
 			}
 
 			const seat = (f: Figures) =>
-				f.error ?? (f.stale ? `Budget · last read ${ageText(f.age)} ago` : "Budget — what pays, and every wallet")
+				f.error ??
+				(f.empty
+					? "Budget · no provider connected"
+					: f.stale
+						? `Budget · last read ${ageText(f.age)} ago`
+						: "Budget — what pays, and every wallet")
 
 			// `shown()` can go falsy and come back while the panel is open — the server switches and returns, a
 			// snapshot loses the paying wallet's label — and the menu would remount already open, with no gesture

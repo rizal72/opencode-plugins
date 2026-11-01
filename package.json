@@ -3,8 +3,9 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"check": "node scripts/check-source.mjs && scripts/check-sdk.sh && tsc --noEmit",
-		"check:ci": "node scripts/check-source.mjs && tsc --noEmit"
+		"check": "node scripts/check-source.mjs && scripts/check-sdk.sh && npm run test && tsc --noEmit",
+		"check:ci": "node scripts/check-source.mjs && npm run test && tsc --noEmit",
+		"test": "node --test plugins/*/*.test.ts"
 	},
 	"devDependencies": {
 		"@babel/core": "^7.29.7",
