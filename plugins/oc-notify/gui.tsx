@@ -9,7 +9,7 @@
 // a title, its control, a muted note — because mixing a host `Switch`, which draws its own label inline,
 // with hand-made rows is what made the first draft uneven.
 import { Plugin, SettingsPage, createKeyed } from "@opencode/plugin/gui"
-import { For, Show, createSignal } from "solid-js"
+import { For, Show, createSignal, type Accessor } from "solid-js"
 
 import { MODES, Notify, TOPIC, type Mode, type Snapshot } from "./rpc.ts"
 
@@ -130,7 +130,7 @@ function Page(props: { ctx: any }) {
 					</div>
 				}
 			>
-				{() => (
+				{(s: Accessor<Snapshot>) => (
 					<>
 						<div style={{ ...ROW, "border-bottom": RULE }}>
 							<span style={TITLE}>When to notify</span>
@@ -210,7 +210,7 @@ function Page(props: { ctx: any }) {
 							</div>
 						</Show>
 
-						<Show when={state()?.broken}>
+						<Show when={s().broken}>
 							<div style={ROW}>
 								<span style={NOTE}>The file on disk does not parse: these are the last settings that did.</span>
 							</div>

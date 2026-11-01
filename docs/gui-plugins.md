@@ -355,6 +355,17 @@ file is already open, never as a campaign.
   grow, a sentence rewrapped inside it, and the unbreakable word painted straight across the app. A `rows`
   menu is the host's drawing and wraps on its own; a `menu` is the plugin's, so the container needs
   `overflow-wrap: anywhere` — or any error message carrying a URL or a token escapes the panel.
+- **A `declare module "x"` at the top level of a `.d.ts` replaces that module's typings for the whole program,
+  it does not extend them.** `types/shims.d.ts` did exactly that for `solid-js` and it cost the type check its
+  teeth without ever showing: everything the shim did not name became `any` under `skipLibCheck`, and a third
+  party's `.d.ts` written against the real library — Kobalte's `.d.ts` against `ComponentProps`, `Setter`,
+  `JSX.CSSProperties`, `ParentProps` — degraded to a string index signature, so a misspelt prop compiled
+  (measured 2026-11-01, `oc-budget`). The holes are filled as a global `JSX` namespace whose `Element` is
+  `import("solid-js").JSX.Element`, never as a module declaration. Intrinsic elements stay permissive
+  `[element: string]: any`: **two renderers share one program** — the TUI's `span` takes `style={{ fg }}`,
+  the GUI's takes `class` — and borrowing Solid's own `IntrinsicElements` does not work either, since an
+  interface extending it from the global namespace is dropped outright (measured: 208 errors, every DOM tag
+  missing).
 
 ## Where the truth lives
 
