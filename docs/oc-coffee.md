@@ -122,5 +122,4 @@ location, so disabling the plugin leaves its child (and its assertion) until the
 ## Publishing
 
 Publishable as it stands: it drives `caffeinate`, keeps no paths of its own and holds nothing personal.
-Published as `@rizal72/oc-coffee@0.1.0` on 2026-10-22, `0.1.1` on 2026-10-25 with the compiled TUI half
-(`docs/publishing.md`); procedure in `docs/publishing.md`.
+Published as `@rizal72/oc-coffee`; procedure in `docs/publishing.md`.

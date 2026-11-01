@@ -380,5 +380,4 @@ untouched by the rule.
 
 Publishable as it stands: it reads the app's own `model.json` and public catalogues, and its only constant
 is the Go plan in `multipliers.ts` — a fact about Go, not about this machine. Published as
-`@rizal72/oc-models-pro@0.1.0` on 2026-10-22, `0.1.1` on 2026-10-23, `0.1.4` on 2026-10-25 with the compiled TUI
-half; procedure in `docs/publishing.md`.
+`@rizal72/oc-models-pro`; procedure in `docs/publishing.md`.

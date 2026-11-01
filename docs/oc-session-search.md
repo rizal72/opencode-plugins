@@ -1,8 +1,6 @@
 # oc-session-search
 
-**Status: in use; published as `@rizal72/oc-session-search` (0.1.0, 0.1.1, `0.2.0` on 2026-10-27: the
-ranking rewrite below, published before its review — `0.2.1` the same day carries the four defects that
-review found).**
+**Status: in use; published as `@rizal72/oc-session-search`.**
 
 The `session_search` tool: keyword search over every past OpenCode session, so "we discussed this
 already" can be answered instead of guessed. Ported from `pi-session-search` (Pi).

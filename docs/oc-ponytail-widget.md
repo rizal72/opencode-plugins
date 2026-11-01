@@ -132,7 +132,4 @@ and not the plugin itself — the README opens with "unofficial" for the same re
 it imports nothing from that package, so their release calendar cannot break it, and a badge of their own
 would sit beside it, not replace it.
 
-Published as `@rizal72/oc-ponytail-widget@0.1.0` on 2026-10-22, `0.1.1` on 2026-10-25 with the compiled TUI
-half; procedure in `docs/publishing.md`. **The desktop half and the write are unreleased**: the next
-version is the first that ships a `gui-experimental.cjs` and an `rpc` export, and it should be published
-only after the terminal's rewrite has run in the wild for a day.
+Published as `@rizal72/oc-ponytail-widget`; procedure in `docs/publishing.md`.
