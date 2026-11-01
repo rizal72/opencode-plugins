@@ -51,7 +51,7 @@ Nothing is read from a file, and nothing is stored by the plugin — unlike pi-b
 |---|---|---|
 | `opencode-go` | key | `GO %` |
 | `deepseek` | key | `DS $` |
-| `openrouter` | env (`OPENROUTER_API_KEY`) | `OR $` |
+| `openrouter` | key | `OR $` |
 | `opencode` (OpenCode Console) | oauth | `ZEN $` |
 
 An integration can hold **several credentials with one active**, which is what makes account switching
