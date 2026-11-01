@@ -304,6 +304,21 @@ Two details the host does not give us: a `ctx.ui` has no popover, so this is whe
 a hole. And the hover hint is wider than the panel, so a stylesheet rule hides the host's tooltip while
 `aria-expanded` is true: their own details panel needs no such rule because it is drawn over the hint.
 
+Three consequences, measured on the review of that commit:
+
+- **The tooltip rule is app-wide, not ours.** CSS cannot select the app's tooltip of one trigger, and the
+  panel is not modal, so while a figure is open no tooltip draws anywhere in the window. A trade, not an
+  accident: the alternative was leaving the hint visible beside a panel narrower than it.
+- **The panel is portalled into the body.** The old inline popover hid with the timeline that owned it; this
+  one does not, so whether it floats over another session when the app hides a cached timeline is the app's
+  behaviour, unverified here.
+- **The type check is weaker than it looks.** `types/shims.d.ts` declares `solid-js` ambiently, which shadows
+  the library's own typings for the whole program; every Solid type the shim does not name — `ComponentProps`,
+  `Setter`, `JSX.CSSProperties` and the rest — becomes `any` under `skipLibCheck`, so Kobalte's polymorphic
+  props are a string index signature at our JSX sites and a misspelt prop would pass. Removing the block is not
+  a small edit: the shim's global `JSX.Element` and Solid's DOM `Element` disagree, and the program then
+  reports 555 errors (measured 2026-11-01). Open item below.
+
 ## Publication
 
 The package is named `oc-budget`, **unscoped**, and the workflow publishes only `@rizal72/*`
@@ -315,6 +330,10 @@ Not decided yet.
 
 ## Open items
 
+- **`types/shims.d.ts` shadows `solid-js` for the whole program**, so a third-party component library's props
+  are unchecked at our JSX sites (*The header popover*, the third consequence). The fix is not local: the
+  shim's global `JSX.Element` and Solid's DOM `Element` have to be reconciled first, and the program then
+  reports 555 errors. A work order of its own, not a patch to this plugin.
 - `/budget`: the report is plain text and its numbers carry no colour — the dialog takes a
   string, so colouring them would mean drawing the report as a custom JSX dialog. The sidebar's
   window line is coloured; the report is not.

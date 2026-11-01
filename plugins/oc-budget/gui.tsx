@@ -11,7 +11,7 @@
 //
 // Colours come from the theme, never from hex: a GUI plugin has no theme API, but the app publishes its
 // tokens as CSS variables, and these are the three alert levels the terminal uses.
-import { Plugin, Slot, Style, type SlotMap } from "@opencode/plugin/gui"
+import { Plugin, Slot, Style, createKeyed, type SlotMap } from "@opencode/plugin/gui"
 import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 
 import {
@@ -66,11 +66,15 @@ const CSS = `
 .ocb-head { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 6px; border: 0;
   border-radius: 6px; background: none; color: var(--v2-text-text-faint); font: inherit; font-size: 13px;
   font-weight: 440; letter-spacing: -0.04px; font-variant-numeric: tabular-nums; cursor: pointer; }
-.ocb-head:hover, .ocb-head:focus-visible, .ocb-head-on {
+.ocb-head:hover, .ocb-head:focus-visible {
   background: color-mix(in srgb, var(--v2-text-text-base) 8%, transparent);
   color: var(--v2-text-text-base);
 }
-.ocb-head-on { background: color-mix(in srgb, var(--v2-text-text-base) 12%, transparent); }
+/* Two classes, so the open plate outranks the hover plate while the pointer still rests on the trigger. */
+.ocb-head.ocb-head-on {
+  background: color-mix(in srgb, var(--v2-text-text-base) 12%, transparent);
+  color: var(--v2-text-text-base);
+}
 .ocb-mark { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; }
 .ocb-head-label { white-space: nowrap; color: inherit; }
 /* The block: Kobalte puts it in the app's own top layer and positions it from the trigger, so there is no
@@ -80,8 +84,9 @@ const CSS = `
   border: 1px solid var(--v2-border-border-muted, rgba(255, 255, 255, .12));
   background: var(--v2-background-bg-layer-02, #1b1b1b);
   box-shadow: 0 8px 24px rgba(0, 0, 0, .35); color: var(--v2-text-text-base, inherit); font-size: 13px; }
-/* The hover hint is wider than this panel, so it would show beside it: while the figure's panel is open, no
-   tooltip. Keyed on the button's own state, so it cannot silence another control's hint. */
+/* The hover hint is wider than this panel, so it would show beside it: while any figure's panel is open, no
+   tooltip is drawn anywhere. CSS cannot select only ours, and the panel is not modal, so the rest of the header
+   stays hoverable — a trade, recorded in docs/oc-budget.md. */
 body:has(.ocb-head[aria-expanded="true"]) [data-component="tooltip-v2"] { display: none; }
 `
 
@@ -519,11 +524,20 @@ export default Plugin.define({
 			const seat = (f: Figures) =>
 				f.error ?? (f.stale ? `Budget · last read ${ageText(f.age)} ago` : "Budget — what pays, and every wallet")
 
+			// `shown()` can go falsy and come back while the panel is open — the server switches and returns, a
+			// snapshot loses the paying wallet's label — and the menu would remount already open, with no gesture
+			// behind it. Closing with the menu that vanishes is the only state that cannot lie.
+			createKeyed(
+				() => (shown() ? true : undefined),
+				() => {},
+				{ otherwise: () => setOpen(false) },
+			)
+
 			return (
 				<Show when={shown()}>
 					{(s: () => NonNullable<ReturnType<typeof shown>>) => (
 						<HeaderMenu
-							label={s().text}
+							label={s().f.stale ? `~${s().text}` : s().text}
 							hint={seat(s().f)}
 							tip={Tooltip}
 							open={open()}
