@@ -10,14 +10,14 @@ agent calls). One plugin, one state, two surfaces — the terminal half first, t
 | plugin | what it does | TUI | GUI | npm |
 |---|---|---|---|---|
 | [`@rizal72/oc-models-pro`](plugins/oc-models-pro/README.md) | `/models-pro`: every model with its price, context, intelligence index, tok/s and the Go credit | ✓ | ✓ | ✓ |
+| [`@rizal72/oc-budget`](plugins/oc-budget/README.md) | the paying provider's budget: sidebar, footer, `/budget` | sidebar, footer, `/budget` | the figure in the session header, with a popover | ✓ |
+| [`@rizal72/oc-plugin-updates`](plugins/oc-plugin-updates/README.md) | update OpenCode plugins: one by one or all of them at once | a line in the sidebar, and a dialog on `/plugin-updates` | a pill above the composer | ✓ |
+| [`@rizal72/oc-notify`](plugins/oc-notify/README.md) | a notification on the phone when a turn ends | — | a settings page for the four choices | ✓ |
 | [`@rizal72/oc-git`](plugins/oc-git/README.md) | the repository: branch, the three counts, ahead/behind | sidebar, and the counts in the footer while dirty | a pill above the composer | ✓ |
 | [`@rizal72/oc-coffee`](plugins/oc-coffee/README.md) | keeps the Mac awake while the agent works (macOS only) | cup badge in the footer, `/coffee` | a pill with the four levels | ✓ |
 | [`@rizal72/oc-ponytail-widget`](plugins/oc-ponytail-widget/README.md) | the ponytail level | badge in the footer | a pill, and the only selector | ✓ |
 | [`@rizal72/oc-session-search`](plugins/oc-session-search/README.md) | `session_search`: keyword search over the transcripts of past sessions | — | — | ✓ |
-| [`@rizal72/oc-plugin-updates`](plugins/oc-plugin-updates/README.md) | update OpenCode plugins: one by one or all of them at once | a line in the sidebar, and a dialog on `/plugin-updates` | a pill above the composer | ✓ |
 | [`oc-context`](plugins/oc-context/README.md) | the Context block in the sidebar, with the window its percent is a percent of | sidebar | — | — redraws a built-in |
-| [`@rizal72/oc-budget`](plugins/oc-budget/README.md) | the paying provider's budget: sidebar, footer, `/budget` | sidebar, footer, `/budget` | the figure in the session header, with a popover | ✓ |
-| [`@rizal72/oc-notify`](plugins/oc-notify/README.md) | a notification on the phone when a turn ends | — | a settings page for the four choices | ✓ |
 | [`oc-donsetch`](plugins/oc-donsetch/README.md) | keeps the `donsetch` binary current | — | — | — needs that binary |
 
 Something broken? Open an issue: https://github.com/rizal72/opencode-plugins/issues — paste the error line
@@ -27,13 +27,13 @@ and the opencode version. That is the whole form.
 
 ```sh
 opencode plugin add @rizal72/oc-models-pro
+opencode plugin add @rizal72/oc-budget
+opencode plugin add @rizal72/oc-plugin-updates
+opencode plugin add @rizal72/oc-notify
 opencode plugin add @rizal72/oc-git
 opencode plugin add @rizal72/oc-coffee
 opencode plugin add @rizal72/oc-ponytail-widget
 opencode plugin add @rizal72/oc-session-search
-opencode plugin add @rizal72/oc-plugin-updates
-opencode plugin add @rizal72/oc-budget
-opencode plugin add @rizal72/oc-notify
 ```
 
 Each plugin directory is a package of its own: a `package.json`, an `index.ts` for the server half, a
