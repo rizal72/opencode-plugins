@@ -31,9 +31,11 @@ const KEY = "check"
  */
 const DEV = process.env.OC_PLUGIN_UPDATES_DEV ?? ""
 
+// Demo rows for the dev switch: two of our own packages, one version behind. Decorative — nothing here is
+// read from the registry, so the numbers fall behind with every release and that is fine.
 const FAKE: UpdateRow[] = [
-	{ id: "oc-git", target: "@rizal72/oc-git", version: "0.2.0" },
-	{ id: "github-panel", target: "opencode-github-panel", version: "0.1.0" },
+	{ id: "oc-coffee", target: "@rizal72/oc-coffee", version: "0.2.1" },
+	{ id: "oc-budget", target: "@rizal72/oc-budget", version: "0.1.1" },
 ]
 
 /**

@@ -111,5 +111,10 @@ whole of `docs/plugin-surfaces.md`, *One server, many clients*:
 scripts/oc-dev-env.sh on OC_PLUGIN_UPDATES_DEV=outdated
 ```
 
-Then a session with one message in it: the line appears in the sidebar, and the fake rows read `oc-git
-0.2.0` and `github-panel 0.1.0`.
+Then a session with one message in it, and the line appears in the sidebar.
+
+**Turning it off takes a restart, not an unset.** The server reads its environment when the process starts, so
+a variable that is removed from the shell — or set to a different value — reaches nothing that is already
+running: measured 2026-11-02, the pill kept offering the fake rows after the switch was gone, and `opencode
+service restart` — not a new session, not a window reload — is what cleared it. The same restart is what
+`scripts/oc-dev-env.sh off` performs.
