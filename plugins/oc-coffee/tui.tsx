@@ -12,13 +12,14 @@
 //
 // The badge shows the level whenever it is not `off` — the setting, not the moment — and only the
 // cup lights up (green) while the assertion is up, so the state is one mark and the level stays
-// legible. `/coffee` opens the menu, `/coffee <level>` sets one, `/coffee status` reports.
+// legible. `/coffee` opens the menu with the level in force marked, `/coffee <level>` sets one: the menu
+// is the status, and there is no separate command to ask for it.
 //
 // macOS only: elsewhere the server never spawns the child, and the badge simply never lights.
 import { Plugin } from "@opencode/plugin/tui"
 import { createRoot, createSignal } from "solid-js"
 
-import { Coffee, LEVELS, flagsText, isLevel, withTimeout, type CoffeeSnapshot, type Level } from "./rpc.ts"
+import { Coffee, LEVELS, isLevel, withTimeout, type CoffeeSnapshot, type Level } from "./rpc.ts"
 
 /** md-coffee_outline (U+F06CA), the glyph pi's own badge uses. */
 const CUP_GLYPH = "\u{f06ca}"
@@ -27,12 +28,14 @@ const CUP_GLYPH = "\u{f06ca}"
 const REFRESH_MS = 2_000
 const RPC_TIMEOUT_MS = 15_000
 
-/** The four menu rows, the wording pi uses. */
-const LEVEL_MENU: Record<Level, string> = {
-	off: "Off — Do not prevent any sleep",
-	idle: "Prevent Idle Sleep — Keep the system awake while the agent works (caffeinate -i)",
-	display: "Prevent Display Sleep — Also keep the display from idle-sleeping (caffeinate -i -d)",
-	system: "Prevent System Sleep — Also block all system sleep on AC and declare the user active (caffeinate -i -d -s -u)",
+/** The four menu rows: a name short enough that truncation never eats it, and the effect in words, which a
+ *  narrow terminal may cut. The `caffeinate` flags stay in the desktop popover — in a menu they were the
+ *  longest part and the least useful. */
+const LEVEL_ROW: Record<Level, { title: string; detail: string }> = {
+	off: { title: "Off", detail: "no prevention" },
+	idle: { title: "Idle", detail: "Mac stays awake, screen may sleep" },
+	display: { title: "Display", detail: "Mac and screen stay awake" },
+	system: { title: "System", detail: "nothing sleeps, you count as active" },
 }
 
 /** Fallbacks, used only when the theme defines none of the candidates. */
@@ -88,8 +91,17 @@ export default Plugin.define({
 			}
 		}
 
-		const describe = (): string =>
-			`Sleep prevention: ${level() === "off" ? "off" : `${level()} (${flagsText(level())})`} — assertion ${held() ? "up" : "idle"}`
+		/** What the level is doing to the Mac at this moment, without the level's name: the menu already marks
+		 *  that with the current row. */
+		const stateText = (): string =>
+			level() === "off"
+				? "the Mac sleeps as usual"
+				: held()
+					? "the Mac is being kept awake now"
+					: "nothing to keep awake right now"
+
+		/** The same for a toast, where the level has to be said: nothing else on screen names it. */
+		const describe = (): string => `Coffee: ${level()} — ${stateText()}`
 
 		void read()
 		const timer = setInterval(() => void read(), REFRESH_MS)
@@ -119,10 +131,8 @@ export default Plugin.define({
 						await read()
 						const argument = (input ?? "").trim().split(/\s+/).filter(Boolean)[0]
 
-						if (argument === "status") {
-							await context.ui.dialog.alert({ title: `${CUP_GLYPH} Coffee`, message: describe() })
-							return
-						}
+						// `/coffee display` sets a level without the menu; the menu itself is the status, since
+						// `current` marks the level in force and the footer's cup says whether it is holding.
 						if (isLevel(argument)) {
 							await setLevel(argument)
 							context.ui.toast.show({ message: describe() })
@@ -130,7 +140,7 @@ export default Plugin.define({
 						}
 						if (argument !== undefined) {
 							context.ui.toast.show({
-								message: `usage: /coffee [${LEVELS.join(" | ")} | status]`,
+								message: `usage: /coffee [${LEVELS.join(" | ")}]`,
 								variant: "warning",
 							})
 							return
@@ -139,13 +149,26 @@ export default Plugin.define({
 						const picked = await context.ui.dialog.select({
 							title: `${CUP_GLYPH} Sleep prevention`,
 							current: level(),
-							options: LEVELS.map((candidate) => ({
-								title: LEVEL_MENU[candidate],
-								value: candidate,
-							})),
+							options: [
+								...LEVELS.map((candidate) => ({
+									title: LEVEL_ROW[candidate].title,
+									description: LEVEL_ROW[candidate].detail,
+									value: candidate as string,
+								})),
+								// A reading, not a setting: the row says what the level is doing right now, and
+								// picking it only closes the menu. It cannot be disabled — this app drops disabled
+								// options from the list instead of greying them out — and it cannot open a second
+								// panel either, because the menu is already the status.
+								{
+									title: "Status",
+									description: stateText(),
+									value: "status",
+									category: "Status",
+								},
+							],
 						})
-						if (picked) {
-							await setLevel(String(picked) as Level)
+						if (isLevel(picked)) {
+							await setLevel(picked)
 							context.ui.toast.show({ message: describe() })
 						}
 					},

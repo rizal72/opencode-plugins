@@ -42,7 +42,7 @@ const CSS = `
 .occ-mark { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; }
 .occ-label { white-space: nowrap; color: inherit; }
 .occ-ok { color: var(--v2-state-fg-success, inherit); }
-.occ-dim { color: var(--v2-text-text-muted, inherit); }
+.occ-count { text-align: right; padding: 4px 6px 0; color: var(--v2-text-text-muted, inherit); font-size: 12px; }
 /* The block: Kobalte puts it in the app's own top layer and positions it from the trigger, so there is no
    position rule here, only the box. */
 .occ-pop { width: max-content; min-width: 13em; padding: 6px; border-radius: 8px;
@@ -158,9 +158,6 @@ export default Plugin.define({
 								</>
 							}
 						>
-							<Show when={v().running > 0}>
-								<div class="occ-dim">{v().running} running</div>
-							</Show>
 							{LEVELS.map((level) => (
 								<button
 									type="button"
@@ -186,6 +183,11 @@ export default Plugin.define({
 									<span class="occ-detail">{flagsText(level)}</span>
 								</button>
 							))}
+							{/* Below the four levels, so a count that comes and goes never moves a target under the
+							    pointer, and flush with the flags on the right for the same reason they sit there. */}
+							<Show when={v().running > 0}>
+								<div class="occ-count">tasks running: {v().running}</div>
+							</Show>
 						</HeaderMenu>
 					)}
 				</Show>

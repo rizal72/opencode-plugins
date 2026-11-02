@@ -29,7 +29,7 @@ const Snapshot = {
 	type: "object",
 	properties: {
 		level: Level,
-		/** Sessions executing right now, across the whole server: the assertion is machine-wide. */
+		/** Turns and commands in flight right now, across the whole server: the assertion is machine-wide. */
 		running: { type: "number" },
 		/** Whether our own `caffeinate` is up. */
 		held: { type: "boolean" },

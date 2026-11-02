@@ -30,8 +30,8 @@ count appears in a pill above the composer, with the update one click away.
 
 ## TUI
 
-A cup in the prompt footer, green while a run is active and grey when idle. `/coffee` alone opens the
-menu, `/coffee display` sets a level, `/coffee status` reports.
+A cup in the prompt footer, green while a run is active and grey when idle. `/coffee` opens the menu of
+the four levels with the one in force marked, and `/coffee display` sets one without the menu.
 
 ## GUI
 
@@ -49,9 +49,11 @@ there moves the same level the terminal shows, because both ask the server rathe
 | `system` | everything, and the user is declared active — `-i -d -s -u` |
 
 The level and the child belong to the server half: one `caffeinate` runs, however many windows are open and
-whichever client changed it. The assertion exists only while a run is active — engaged when the agent
-starts, released when it succeeds, fails or is interrupted — and the child is bound to the server's
-process (`caffeinate -w`), so it cannot outlive the thing that owns it. A closed window is not the signal;
-the end of the run is.
+whichever client changed it. The keep-awake exists only while there is work — the agent's run, and any
+command still running after the run has finished — and the child is bound to the server's process
+(`caffeinate -w`), so it cannot outlive the thing that owns it. A closed window is not the signal; the end
+of the work is. The host reports that leftover work when a session goes idle, which it does not after an
+interruption or a failure: a command from an abandoned turn holds nothing, and a report is replaced only by
+a successful one, so the keep-awake can outlive a command until that session next goes idle cleanly.
 
 Requires OpenCode v2 and macOS. TypeScript, no build step, no runtime dependencies.

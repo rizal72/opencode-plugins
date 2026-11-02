@@ -16,11 +16,34 @@ store is no longer written.
 | `display` | `-i -d` |
 | `system` | `-i -d -s -u` |
 
-Cumulative, and the assertion is held **only while a turn is active**: opened by `session.step.started`,
-closed by the step that ends with anything but `tool-calls` — a step finishing in `tool-calls` means its
-tools run next, so the turn is not over. Nothing is timed, which is exactly what lets a command run for a
-minute without the cup dropping under it. `session.deleted` / `session.archived` also clear the session,
-so a removed one cannot leave its ID behind.
+Cumulative, and the assertion is held **while there is work**: opened by `session.step.started`, closed by
+the step that ends with anything but `tool-calls` — a step finishing in `tool-calls` means its tools run
+next, so the turn is not over. Nothing is timed, which is exactly what lets a command run for a minute
+without the cup dropping under it.
+
+A command that outlives its turn is **not on that stream at all**. Measured 2026-11-03: a background loop
+for 90 s emitted no `session.shell.*` event, and the cup went out within 2 s with the process still alive —
+the turn was over, so `running` was 0. The host answers the question itself: the `experimental.idle` hook
+reports the background work still going when a session goes idle (`SessionIdleBackground`, a `shell` with
+its `shellID`), and runs again when that work ends. So `shells` is a map of session → its live shells,
+**replaced** on every report rather than merged: the report is the whole picture, so a shell missing from it
+has ended. Only the jobs the session **owns** are filed: a descendant's shell is listed for information
+only, its end wakes the descendant and not the ancestor, so an entry under the ancestor would never be
+replaced. The count in the popover is turns plus commands — a session once for its turn, each shell once.
+
+Two paths are **not** covered, and the reason is in the hook's own contract: it does not run after an
+interruption, a failure, or control-only work, so a background command started in a turn that is then
+abandoned holds nothing; and a shell whose session is gone before any further idle holds nothing after the
+`session.deleted` / `session.archived` cleanup below, which now clears `shells` too.
+
+The same contract has a third edge, in the other direction: a report is replaced only by a **successful**
+idle, so if the wake turn that follows a command's end is interrupted or fails, the entry it would have
+replaced stands and the child outlives the command until that session next goes idle cleanly. Erring toward
+holding is the choice this plugin makes everywhere — a Mac awake for nothing wastes battery, a Mac asleep
+under a running command loses work.
+
+`session.deleted` / `session.archived` also clear the session and its shells, so a removed one cannot leave
+its ID behind holding the child for ever.
 
 **The subscription is a loop, not one `for await`.** A stream can end while the process lives, and a
 single hiccup used to stop the cup until the next restart with nothing written anywhere: measured
@@ -33,7 +56,7 @@ writes one line when the stream ends.
 one `execution` event — so the cup stopped engaging with no error anywhere. The old names are still
 watched, and the tool events are watched too, because the names that say "the agent is working" have
 already changed once.
-Between turns the Mac sleeps normally, which is the point. Raising the level mid-run respawns the child
+Between turns, with nothing else running, the Mac sleeps normally, which is the point. Raising the level mid-run respawns the child
 with the new flags, which is exactly when it is wanted: the Mac is dozing now, not later.
 
 `-w <pid>` binds the child to the **server** process, so the assertion dies with the server however it
@@ -52,6 +75,12 @@ in the TUI and made closing it mid-run drop the assertion. Re-measured 2026-10-2
 desktop in sight: **both edges arrive**, and `pmset -g assertions` names the child the server spawned as
 asserting on behalf of the server's pid. The older note is obsolete. The events were in the API's own
 catalogue all along, which is where to look first next time.
+
+**A reload replaces the setup, not the machine.** The object on `Symbol.for("oc-coffee.machine")` was
+built by the code that first loaded, so a plugin reload leaves the old object in place: new `setup`, old
+machine, and any member the old one did not have is `undefined`. Measured 2026-11-03, adding `setBackground`
+threw exactly that. The hook checks for the member and returns instead of failing; making the change take
+effect is what a server restart is for.
 
 The counter is over **all** sessions, subagents included: the assertion is machine-wide, so one session
 finishing must not put the Mac back to sleep while another works.
@@ -108,9 +137,16 @@ context, it reads as if it belonged to either; last would land it after the key 
 
 ## The command
 
-- `/coffee` — the menu of the four levels (`ui.dialog.select`, the active one marked as `current`)
-- `/coffee <level>`
-- `/coffee status` — the level, the flags and whether the assertion is up
+- `/coffee` — the menu of the four levels (`ui.dialog.select`). It **is** the status: the level in force is
+  marked as `current`, and the footer's cup says whether it is holding right now, so there is no separate
+  `status` command. Each row is a one-word title and a sentence about the Mac, because a row is one line and
+  a narrow terminal cuts it (`docs/tui-plugins.md`); the `caffeinate` flags are not here. A `Status` row sits
+  below a `category` of its own and carries the live sentence — `nothing to keep awake right now`, `the Mac
+  is being kept awake now`, or `the Mac sleeps as usual` — and picking it only closes the menu.
+- `/coffee <level>` — the same change without the menu; the toast that follows says what it is doing to the
+  Mac: `Coffee: display — the Mac is being kept awake now`, or `nothing to keep awake right now`, or
+  `Coffee: off — the Mac sleeps as usual`. No flag text and no count there: a toast does not update, so
+  anything that moves would be stale while it is read.
 
 The level is the only thing persisted; nothing else is state.
 

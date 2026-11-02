@@ -45,11 +45,18 @@ const WATCHED = [
 
 /** A step ends before its tools run and the next one starts after them, so the turn is not a step: it is
  *  open from the first step to the step that finishes with anything but `tool-calls`. Nothing here is
- *  timed, which is what lets a command run for a minute without the cup dropping under it. */
+ *  timed, which is what lets a command run for a minute without the cup dropping under it.
+ *
+ *  A command that outlives its turn is not on this stream at all: measured 2026-11-03, a background loop
+ *  emitted no `session.shell.*` event, and the cup went out while the process kept running. The host
+ *  answers that question itself — the `experimental.idle` hook lists the background work still going —
+ *  and that is where the second half of the state comes from. */
 
 interface Machine {
 	readonly snapshot: () => CoffeeSnapshot
 	readonly setLevel: (next: Level) => Promise<CoffeeSnapshot>
+	/** What the host reported still running when a session last went idle, replacing that session's entry. */
+	readonly setBackground: (sessionID: string, shells: readonly string[]) => void
 }
 
 const machine = (ctx: any): Promise<Machine> => ((globalThis as any)[MACHINE] ??= start(ctx))
@@ -78,6 +85,9 @@ async function start(ctx: any): Promise<Machine> {
 	if (isLevel(stored)) level = stored
 
 	const running = new Set<string>()
+	/** Shells a session left running, grouped by the session that reports them. Replaced on every report, never
+	 *  merged: the report is the whole picture, so a shell that is no longer listed is a shell that ended. */
+	const shells = new Map<string, Set<string>>()
 	let child: ChildProcess | undefined
 	/** The level the live child was spawned with, so a change can be told from a no-op. */
 	let childLevel: Level | undefined
@@ -89,9 +99,12 @@ async function start(ctx: any): Promise<Machine> {
 		held?.kill("SIGTERM")
 	}
 
+	/** Turns in flight, plus every command they left behind: a session counts once for its turn, each shell once. */
+	const inFlight = () => running.size + [...shells.values()].reduce((total, ids) => total + ids.size, 0)
+
 	// The assertion is up exactly while there is work and the level asks for it.
 	const apply = () => {
-		const wanted = supported && level !== "off" && running.size > 0
+		const wanted = supported && level !== "off" && inFlight() > 0
 		if (wanted && child && childLevel !== level) stop()
 		if (wanted && !child) {
 			const spawned = spawn("caffeinate", [...FLAGS[level as Exclude<Level, "off">], "-w", String(process.pid)], {
@@ -109,7 +122,7 @@ async function start(ctx: any): Promise<Machine> {
 		if (!wanted && child) stop()
 	}
 
-	const snapshot = (): CoffeeSnapshot => ({ level, running: running.size, held: !!child })
+	const snapshot = (): CoffeeSnapshot => ({ level, running: inFlight(), held: !!child })
 
 	// A stream can end while the process lives: one hiccup used to stop the cup until the next restart, and
 	// it did so silently. So this is a loop that always comes back, with a backoff so a subscription that
@@ -123,15 +136,18 @@ async function start(ctx: any): Promise<Machine> {
 					const data = (event as any).data ?? {}
 					const id = String(data.sessionID ?? "")
 					const opened = event.type === "session.step.started" || event.type === "session.execution.started"
+					// A session that is gone can never report again, so its shells go with it: a keep-awake is
+					// only worth holding while something can still end it.
+					const gone = event.type === "session.deleted" || event.type === "session.archived"
 					const closed =
 						event.type === "session.execution.succeeded" ||
 						event.type === "session.execution.failed" ||
 						event.type === "session.execution.interrupted" ||
-						event.type === "session.deleted" ||
-						event.type === "session.archived" ||
+						gone ||
 						(event.type === "session.step.ended" && String(data.finish ?? "") !== "tool-calls")
 					if (opened && id) running.add(id)
 					else if (closed && id) running.delete(id)
+					if (gone && id) shells.delete(id)
 					apply()
 				}
 			} catch (error) {
@@ -148,6 +164,12 @@ async function start(ctx: any): Promise<Machine> {
 
 	return {
 		snapshot,
+		setBackground: (sessionID: string, ids: readonly string[]) => {
+			if (!sessionID) return
+			if (ids.length) shells.set(sessionID, new Set(ids))
+			else shells.delete(sessionID)
+			apply()
+		},
 		setLevel: async (next: Level) => {
 			// Persisted first: a rejected write must leave the level it found, with no child moved.
 			await ctx.storage.set(KEY, next)
@@ -169,6 +191,29 @@ export default Plugin.define({
 				if (!isLevel(input?.level)) throw new Error(`unknown coffee level: ${String(input?.level)}`)
 				return coffee.setLevel(input.level)
 			},
+		})
+		// The host's own answer to "what is still running": the turn is over, and a command it left behind is
+		// not. Only the jobs this session **owns**: a descendant's shell is listed for information only, its
+		// end wakes the descendant, and an entry filed under the ancestor would never be replaced.
+		//
+		// `setBackground` is checked because a reload replaces this setup and not the machine: the object on
+		// `globalThis` was built by the previous code, so a new member is missing until the server restarts.
+		// The warning is best effort — a plugin's `console` output has not been seen in `opencode.log`
+		// (`docs/oc-notify.md`) — but silence would leave a fix live and quietly off.
+		let stale = false
+		await ctx.session.hook("experimental.idle", (input: any) => {
+			if (typeof (coffee as any).setBackground !== "function") {
+				if (!stale) console.warn("oc-coffee: this server predates the background report; restart it")
+				stale = true
+				return
+			}
+			const sessionID = String(input?.sessionID ?? "")
+			const background = Array.isArray(input?.background) ? input.background : []
+			const ids = background
+				.filter((job: any) => job?.kind === "shell" && String(job?.sessionID ?? "") === sessionID)
+				.map((job: any) => String(job?.shellID ?? ""))
+				.filter(Boolean)
+			coffee.setBackground(sessionID, ids)
 		})
 		// No cleanup: the machine belongs to the process, not to a location. Disabling the plugin leaves
 		// the child until the server restarts, which is the price of one assertion for one machine.
