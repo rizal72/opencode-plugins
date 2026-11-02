@@ -12,8 +12,8 @@ does stop between turns while the level does not. pi never blinked either: its p
 key (`externalStatusKey` in `pi-footer.json`), not a lighting badge. So the colour now says which level is
 in force, which is the fact this widget exists to report, and the cup keeps saying whether work is running.
 
-On the desktop the same level is a **pill in the composer row**, at `order` 6 — beside the coffee cup, as
-in the footer — showing the level word alone, with the four levels as the rows behind it: the pill is
+On the desktop the same level is a **pill in the composer row**, at `order` 6, showing the level word alone,
+with the four levels as the rows behind it: the pill is
 the selector the terminal never had. The icon is `glasses`: the icon set has neither a horse nor a
 ponytail, and the horse was a Nerd Font stand-in. A click writes the state file, so the pill and
 `/ponytail lite` produce the same state, and both surfaces read it back.
@@ -111,8 +111,8 @@ tmp-and-rename; the shared config is never written.
 
 ## Desktop half
 
-A `ComposerPill`: `glasses` and the level word alone (`full`), `order` 6 so it lands beside the coffee cup
-as the footer badge does. The icon carries the level's colour, the same table as the terminal — `off` takes
+A `ComposerPill`: `glasses` and the level word alone (`full`), `order` 6. The icon carries the level's colour,
+the same table as the terminal — `off` takes
 none, `lite` warning, `full` success, `ultra` danger — because the pill contract has exactly three tones
 and `off` is not a warning, it is nothing. The four levels are the rows, the one in force carrying a
 **green check** — a state, not a label, so it is coloured like the capsule. A click writes the state file

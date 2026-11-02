@@ -112,7 +112,7 @@ the ones the account has (`docs/oc-budget.md`, *The four wallets*) — not the s
 | `oc-context` | none: no GUI half | the block is the terminal's; the desktop draws the session's tokens and cost itself, so there is nothing left to draw |
 | `oc-models-pro` | `Command` + `Panel` | a second implementation of the table, not the terminal's: a grid, a click to switch, the rows' meaning shared |
 | `oc-session-search` | none: no GUI half | a tool the agent calls; its results read in the transcript |
-| `oc-coffee` | `ComposerPill` | the server owns the level and the assertion, so a pill is all the window adds |
+| `oc-coffee` | `Slot "session.header"`, order 12 | the server owns the level and the assertion; the cup is the terminal's own glyph, which a pill could only swap for a `monitor` |
 | `oc-ponytail-widget` | `ComposerPill` | the level word alone, ordered beside the cup; the four levels are its rows, so the pill is the selector |
 | `oc-plugin-updates` | `ComposerPill` | a count when there is something to install, nothing when there is not; the rows are the act |
 
