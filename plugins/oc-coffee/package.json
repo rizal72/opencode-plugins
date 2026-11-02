@@ -1,8 +1,8 @@
 {
 	"name": "@rizal72/oc-coffee",
-	"version": "0.2.1",
+	"version": "0.2.2",
 	"type": "module",
-	"description": "Keeps the Mac awake while the agent works: the server owns the level, the terminal draws a cup badge, the desktop a pill",
+	"description": "Keeps the Mac awake while the agent works: the server owns the level, the terminal draws a cup badge, the desktop a cup in the session header",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/rizal72/opencode-plugins.git"

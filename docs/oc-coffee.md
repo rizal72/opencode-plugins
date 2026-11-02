@@ -65,24 +65,30 @@ from it, and the child is reaped at start so a plugin that is gone cannot leave 
 
 ## The desktop half
 
-A `ComposerPill`, `order` 5 — **first**, as `oc-coffee` is first in `opencode.jsonc`: the pills sort by
-that number, not by load order, so the number is the only way to keep the desktop's row in the order the
-terminal's footer has. Git takes 10 and the budget 15. The capsule is the level, the four rows are the
-levels, and the one set carries a **green** `check` — green because that row is the one in force, the
-same reading the capsule's green icon gives. The `detail` of each row is the `caffeinate` command it
-means. `tone` colours the icon only, so the mark is a `monitor` that turns green while the assertion is
-up: the badge's rule on a surface that has no footer.
+A `session.header` slot, `order` 12 — **after** the budget's figure (11) and before the app's actions (20).
+It sits with the app's own system facts, the context ring and the cost, because that is what it is: whether
+this machine is being kept awake, not a setting of the conversation in front of you. Ponytail's pill stays
+above the composer for the opposite reason — its level is a control you change on purpose, and a pill is
+one click where a header popover is two.
 
-The icon is a stand-in. The app's set has no cup, and `monitor` is the closest thing to "keep this
-awake". An icon name that the app does not have draws a `plus` **without an error** — `tsc` accepts
-every name in the SDK's union, and the union is wider than the drawing set — so the name is written once,
-in one constant, and confirmed by eye.
+The mark is the cup the terminal draws, not an imitation: **Material Design Icons' `coffee-outline`**
+(U+F06CA, Apache-2.0), the same glyph the badge prints, embedded as its published path at `viewBox 24` and
+coloured through `fill`. A `ComposerPill` could only choose from the app's icon set, which has no cup — the
+old half fell back to `monitor` — while a slot draws its own markup. It is lit in the success colour while
+`caffeinate` is up and inherits the faint header colour otherwise; the level is written beside it, and
+`compact` leaves the cup alone.
+
+The four levels live in the popover, which is `header-menu.tsx`, lifted as it stands from `oc-budget`: the
+open state is ours, so a second click on the cup closes what the first opened, which the platform's
+`popover="auto"` cannot do. The row in force carries a tick in the same success colour — drawn here rather
+than taken from `ctx.ui.Icon`, because the SDK's icon union is wider than the set the app draws and an
+absent name shows a `plus` with no error — and each row's detail is the `caffeinate` command it means.
+Picking closes the panel and writes the level.
 
 Both halves read the same `coffee.snapshot` and write the same `coffee.set`, over `rpc.ts`; neither
-decides whether the Mac is awake. Two traps, both about this plugin already existing: its new
-`./gui-experimental` is resolved only after `opencode service restart`, and a rebuilt bundle does not
-always reach a window that is already open — reloading the window is the fix for that one, not the
-service.
+decides whether the Mac is awake. One trap, about this plugin already existing: its new
+`./gui-experimental` is resolved only after `opencode service restart` (`docs/gui-plugins.md`, *Traps* —
+a rebuilt bundle, once the half is known, reaches the open windows on its own).
 
 ## The badge
 

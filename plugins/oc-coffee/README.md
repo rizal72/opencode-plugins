@@ -35,9 +35,9 @@ menu, `/coffee display` sets a level, `/coffee status` reports.
 
 ## GUI
 
-The cup becomes a pill above the composer: the level as the capsule, the four levels as its rows. Picking
-one there moves the same level the terminal shows, because both ask the server rather than their own
-screen.
+The cup sits in the session header, beside the app's own context ring and cost: lit while the machine is
+kept awake, the level written next to it, and the four levels in the panel behind a click. Picking one
+there moves the same level the terminal shows, because both ask the server rather than their own screen.
 
 ## How it works
 
