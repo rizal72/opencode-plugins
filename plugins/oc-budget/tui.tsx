@@ -35,6 +35,7 @@ import {
 	GO_WARN_PERCENT,
 	OR_WARN_USD,
 	ZEN_WARN_USD,
+	WALLET_NAME,
 	ageText,
 	connected,
 	countdown,
@@ -277,36 +278,50 @@ export default Plugin.define({
 					out.push(<text fg={DIM}>{snap.go.error}</text>)
 				}
 
-				if (snap?.ds && !snap.ds.error) {
+				// The three money wallets in two columns: the name is padded to the longest one drawn, so the
+				// figures line up under each other. No width is assumed — the panel does not know the sidebar's
+				// width — and a name that grows later moves the column instead of breaking it.
+				const money = [
+					{
+						name: WALLET_NAME.ds.long,
+						wallet: snap?.ds,
+						error: snap?.ds?.error,
+						body: usd(snap?.ds?.balance),
+						color: balanceColor(snap?.ds?.balance, DS_WARN_USD),
+						mark: atPeak ? PEAK_GLYPH : "",
+					},
+					{
+						name: WALLET_NAME.or.long,
+						wallet: snap?.or,
+						error: snap?.or?.error,
+						body: usd(snap?.or?.balance),
+						color: balanceColor(snap?.or?.balance, OR_WARN_USD),
+						mark: "",
+					},
+					{
+						name: WALLET_NAME.zen.long,
+						wallet: snap?.zen,
+						error: snap?.zen?.error,
+						body: usd(zenCredit(snap?.zen)),
+						color: balanceColor(zenCredit(snap?.zen), ZEN_WARN_USD),
+						mark: "",
+					},
+				]
+				const column = Math.max(0, ...money.filter((w) => w.wallet).map((w) => w.name.length))
+				for (const w of money) {
+					// A wallet with no connection stays out, as before: a dash would claim a reading.
+					if (!w.wallet) continue
+					if (w.error) {
+						out.push(<text fg={DIM}>{`${w.name.padEnd(column)} —`}</text>)
+						out.push(<text fg={DIM}>{w.error}</text>)
+						continue
+					}
 					out.push(
 						<box flexDirection="row">
-							<text fg={balanceColor(snap.ds.balance, DS_WARN_USD)}>DS {usd(snap.ds.balance)}</text>
-							{atPeak ? <text fg={RED}> {PEAK_GLYPH}</text> : null}
+							<text fg={w.color}>{`${w.name.padEnd(column)} ${w.body}`}</text>
+							{w.mark ? <text fg={RED}> {w.mark}</text> : null}
 						</box>,
 					)
-				} else if (snap?.ds?.error) {
-					out.push(<text fg={DIM}>DS —</text>)
-					out.push(<text fg={DIM}>{snap.ds.error}</text>)
-				}
-
-				if (snap?.or && !snap.or.error) {
-					out.push(
-						<box flexDirection="row">
-							<text fg={balanceColor(snap.or.balance, OR_WARN_USD)}>OR {usd(snap.or.balance)}</text>
-						</box>,
-					)
-				} else if (snap?.or?.error) {
-					out.push(<text fg={DIM}>OR —</text>)
-					out.push(<text fg={DIM}>{snap.or.error}</text>)
-				}
-
-				if (snap?.zen && !snap.zen.error) {
-					out.push(
-						<text fg={balanceColor(zenCredit(snap.zen), ZEN_WARN_USD)}>ZEN {usd(zenCredit(snap.zen))}</text>,
-					)
-				} else if (snap?.zen?.error) {
-					out.push(<text fg={DIM}>ZEN —</text>)
-					out.push(<text fg={DIM}>{snap.zen.error}</text>)
 				}
 
 				return out
@@ -346,7 +361,7 @@ export default Plugin.define({
 				if (wallet === "zen") {
 					return {
 						color: balanceColor(zenCredit(snap?.zen), ZEN_WARN_USD),
-						body: `ZEN ${snap?.zen?.error ? "—" : usd(zenCredit(snap?.zen))}`,
+						body: `${WALLET_NAME.zen.short} ${snap?.zen?.error ? "—" : usd(zenCredit(snap?.zen))}`,
 						marker: "",
 					}
 				}
@@ -392,7 +407,7 @@ export default Plugin.define({
 
 			const label: Record<Wallet, string> = {
 				go: "OpenCode — paying: GO (subscription)",
-				zen: "OpenCode — paying: ZEN (pay-per-use balance)",
+				zen: "OpenCode — paying: credits (prepaid, workspace-wide)",
 				ds: "DeepSeek — paying: balance (pay-per-use, no quota windows)",
 				or: "OpenRouter — paying: credit balance (pay-per-use, no quota windows)",
 				none: "No budget provider selected",
@@ -411,12 +426,12 @@ export default Plugin.define({
 			}
 
 			// `pays` is true for the monthly window only: that is the window the paying wallet rule
-			// reads, so flagging an exhausted five-hour window would claim ZEN pays when it does not.
+			// reads, so flagging an exhausted five-hour window would claim the credits pay when they do not.
 			const goWindow = (name: string, window: UsageWindow | undefined, pays: boolean) => {
 				if (!window || typeof window.percent !== "number") return `  ${name.padEnd(8)} (no data)`
 				const percent = Math.round(window.percent)
 				const reset = countdown(window.resetsAt)
-				const flag = pays && window.status === "rate-limited" ? "  ZEN paying" : ""
+				const flag = pays && window.status === "rate-limited" ? "  credits paying" : ""
 				return `  ${name.padEnd(8)} ${bar(percent)} ${String(percent).padStart(3)}%${reset ? `  reset in ${reset}` : ""}${flag}`
 			}
 

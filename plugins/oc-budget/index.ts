@@ -122,7 +122,7 @@ async function consolePeers(ctx: any): Promise<number | undefined> {
 
 /** One Go window, from the console's own meter. The rule is the console's, copied from its bundle
  *  (`(used*200 + limit) / (limit*2)`): round the percent, and cap it at 99 until the window is truly
- *  spent, because the console says `>99% used` there and the wallet must not fall back to ZEN before
+ *  spent, because the console says `>99% used` there and the wallet must not fall back to the credits before
  *  the limit is reached. The public endpoint rounds **down** instead: 0.98% reads 0 there and 1 here. */
 function goMeter(meter: any): UsageWindow | undefined {
 	const used = Number(meter?.usedMicroCents)

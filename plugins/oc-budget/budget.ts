@@ -20,6 +20,16 @@ export const DS_WARN_USD = 2
 export const OR_WARN_USD = 5
 export const ZEN_WARN_USD = 5
 
+/** The three money wallets, in two forms: the sigla where a name *is* the row — the header figure and the
+ *  footer — and the full name where there is a column to spare, the popover and the sidebar block. Go is left
+ *  out: it heads its own block and carries the bar. `OC` is not invented here — `oc-models-pro/tags.ts`
+ *  already reserves it for the `opencode` provider, which is the same account that opens this balance. */
+export const WALLET_NAME: Record<Exclude<Wallet, "go" | "none">, { short: string; long: string }> = {
+	ds: { short: "DS", long: "DeepSeek" },
+	or: { short: "OR", long: "OpenRouter" },
+	zen: { short: "OC", long: "OC credits" },
+}
+
 /** Which wallet pays, read from the model first: a Zen selection never uses the Go subscription however
  *  much of the quota is left, and a Go model falls back to the Zen balance once the month is exhausted. */
 export function payingWallet(model: ModelRef | undefined, snapshot: BudgetSnapshot | null): Wallet {

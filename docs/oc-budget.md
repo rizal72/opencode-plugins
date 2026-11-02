@@ -52,7 +52,7 @@ Nothing is read from a file, and nothing is stored by the plugin — unlike pi-b
 | `opencode-go` | key | `GO %` |
 | `deepseek` | key | `DS $` |
 | `openrouter` | key | `OR $` |
-| `opencode` (OpenCode Console) | oauth | `ZEN $` |
+| `opencode` (OpenCode Console) | oauth | `OC $` |
 
 An integration can hold **several credentials with one active**, which is what makes account switching
 free: `connection.active` follows the active one, so the widget never needs to know there is more than
@@ -63,9 +63,22 @@ one account.
 | state | what it shows | source | thresholds |
 |---|---|---|---|
 | `GO nn%` | the subscription pays | console `go/status` meters (fallback `zen/go/v1/usage`) | green < 90, yellow from 90, red at 100 (exhausted) |
-| `ZEN $x.xx` | the pay-per-use credit pays | console `billing/status`, `availableMicroCents` | green > $5, yellow ≤ $5 (the console's auto-recharge), red at 0 |
+| `OC $x.xx` | the pay-per-use credit pays | console `billing/status`, `availableMicroCents` | green > $5, yellow ≤ $5 (the console's auto-recharge), red at 0 |
 | `DS $x.xx` | native DeepSeek wallet | `GET api.deepseek.com/user/balance` | green > $2, yellow ≤ $2, red at 0 |
 | `OR $x.xx` | OpenRouter credits | `GET openrouter.ai/api/v1/credits` (+ `/key`) | green > $5, yellow ≤ $5, red at 0 |
+
+The three money wallets carry **two forms, both in `WALLET_NAME` in `budget.ts`**: the sigla where a name *is*
+the row — `DS`, `OR`, `OC`, in the header figure and the footer — and the full name where there is a column to
+spare — `DeepSeek`, `OpenRouter`, `OC credits`, in the popover and the sidebar block. Go stays short
+everywhere, because it heads its own block and carries the bar. `OC` is not invented here:
+`oc-models-pro/tags.ts` already reserves it for the `opencode` provider — the same account whose credits this
+wallet reads — and `GO` pairs with it. The sigla is defined once, so a rename lands in one place.
+
+The third one says `credits` and not `Zen`: "OpenCode Zen" is a retired name — `opencode.ai/zen` answers `302`
+to `/console/models` and `v2/docs/zen` is a `404` (measured 2026-11-02), while the current documentation calls
+the figure *prepaid credits that cover the whole workspace*. The word survives as this record's own name for
+the wallet, and in the vendor's identifiers — the `opencode-zen` provider and `OPENCODE_ZEN_API_KEY` — which is
+why `zen` stays the key everywhere in the code and in this document.
 
 **A wallet with no connection never reaches the window.** The server leaves it out of the snapshot
 rather than filling it with an error, so the sidebar's block, the wallet sections of `/budget` and the
@@ -73,11 +86,9 @@ header figure draw only what the account has. One line still names a wallet the 
 it talks about the *model* rather than the wallet: `/budget`'s first line — a Go model on an account with
 no Go connection still says so, and prints no figure. The footer has nothing to say about that wallet and
 hides instead, where a dash would claim a reading. A connection that exists but whose read failed is a
-different thing and keeps its line with the reason: an absence is silent, a fault is said. Two
-consequences worth knowing:
+different thing and keeps its line with the reason: an absence is silent, a fault is said. One consequence
+worth knowing:
 
-- **Zen is always reported.** It is OpenCode's own wallet, so a missing Console connection leaves
-  `ZEN —` with the reason instead of removing the line.
 - **Go is hidden when neither path can read it.** The Console session and a Go key are each enough on
   their own; when the Console is absent, or its read fails, and no Go key resolves, GO is left out — a
   workspace without the subscription answers a failed read exactly like a broken endpoint, and reporting
@@ -87,8 +98,8 @@ consequences worth knowing:
 Which wallet *pays* is decided by each half from the model of its own surface — the composer's in the
 window, the session's in the terminal — because the two pickers disagree on purpose
 (`docs/gui-plugins.md`, *A model pick belongs to a surface, not to the session*): `deepseek` → DS,
-`openrouter` → OR, `opencode`/`opencode-zen` → ZEN, `opencode-go` → GO unless the monthly window is
-`rate-limited`, in which case the gateway falls back to ZEN.
+`openrouter` → OR, `opencode`/`opencode-zen` → OC, `opencode-go` → GO unless the monthly window is
+`rate-limited`, in which case the gateway falls back to OC.
 
 The sidebar prints one line per Go window, its reset on the same line — `5h 4%   reset 2h 10m`,
 `wk 31%  reset 3d 14h`, `mo 16%  reset 24d 3h`. The labels are muted, **each percent is coloured on its own
@@ -103,7 +114,7 @@ fixed length follows it and closes the Go block, so the wallets below read as a 
 fixed and not measured because the panel does not know how wide the sidebar is. It clears every line the
 block prints short of exhaustion: the widest is `mo 100%  reset 24d 3h`, 21 columns, and a window row at
 three digits with a day-scale reset is the only case that runs past it. The workspace is not a
-property of the balancing wallet: it is the console session, which governs the Go windows *and* the `ZEN`
+property of the balancing wallet: it is the console session, which governs the Go windows *and* the `OC`
 balance. The **sidebar** prints it only when more than one console connection is saved; with one there is
 nothing to distinguish. `/budget` prints it always, under its first line: there it is information, not a
 crowded row.
@@ -116,8 +127,8 @@ inside OpenCode.
 `go/status` first, because it carries the exact meters; a Go API key next, through `zen/go/v1/usage`. The
 second is not only for a machine with no console session — a session that cannot read the meters (a
 workspace without the subscription answers `403`) falls through to the key instead of failing, and if both
-fail the error names both. The Zen balance has no such choice: only the console session opens billing, so
-`ZEN` needs that connection and nothing else.
+fail the error names both. The credits have no such choice: only the console session opens billing, so
+`OC` needs that connection and nothing else.
 
 The Go percents come from `console/api/go/status`, whose `access.meters` gives the spend in micro-cents
 against a known limit: the only form that can agree with the page the owner is looking at. Both sides of
@@ -125,7 +136,7 @@ that page were read, the endpoint and the bundle, because the first answer was w
 
 - the console's own rule, from its bundle: `(used*200 + limit) / (limit*2)`, i.e. **round** the percent,
   and cap it at 99 until `used >= limit` — that is the `>99% used` the page shows, and the cap keeps the
-  paying wallet from falling back to ZEN before the limit is actually reached;
+  paying wallet from falling back to OC before the limit is actually reached;
 - the public `zen/go/v1/usage` rounds **down**, so it answered `0 0 0` while the page read `1% 0% 1%`
   (measured 2026-10-26, same workspace, same minute: 1.04% / 0.42% / 0.99% of the three limits). It stays
   only as the fallback for a machine with no console session, where its integer is all there is.
@@ -182,7 +193,7 @@ console session). Switching is native:
 
 ```
 opencode auth switch opencode-go "<label>"   # GO %
-opencode auth switch opencode            "<label>"   # ZEN
+opencode auth switch opencode            "<label>"   # OC
 ```
 
 or the TUI `/connect` dialog. The widget follows, with no restart: the switch emits
@@ -245,8 +256,8 @@ colour, as pi does: a coloured mark beside a coloured word would be two signals 
 
 The desktop has a figure where the TUI has the footer and a popover where it has the sidebar block, and
 the two now say the same thing: the **figure carries the paying wallet** (`GO · 7%`, with a ring filled to
-the month), and the **popover is the block** — the Go bar, one row per window with its reset, the workspace, a rule, then DS,
-OR and ZEN.
+the month), and the **popover is the block** — the Go bar, one row per window with its reset, the workspace, a rule, then
+DeepSeek, OpenRouter and OC credits.
 
 The block is the plugin's own popover, in the top layer and anchored to the figure: no host menu wraps it,
 so the width and the placement a `ComposerPill` `menu` imposed no longer apply (`docs/gui-plugins.md`,
@@ -312,7 +323,7 @@ no switch: an account with nothing at all, a wallet in error, and one of each of
 
 The server half follows the same rule it already had, now without its one exception: **a wallet with no
 connection is left out of the snapshot**, Zen included. Before, a machine with no Console account carried a
-permanent `ZEN —` line explaining a connection that had never been made.
+permanent `OC —` line explaining a connection that had never been made.
 
 **The test switch** is `OC_BUDGET_DEV=empty`: `scripts/oc-dev-env.sh on OC_BUDGET_DEV=empty` fakes a
 snapshot with nothing in it, and `off` returns to normal. It answers **before** the cache and is never

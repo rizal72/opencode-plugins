@@ -19,6 +19,7 @@ import {
 	GO_WARN_PERCENT,
 	OR_WARN_USD,
 	ZEN_WARN_USD,
+	WALLET_NAME,
 	ageText,
 	connected,
 	countdown,
@@ -289,15 +290,15 @@ export default Plugin.define({
 						: undefined
 					: wallet === "zen"
 						? value.zen
-							? `ZEN · ${usd(zen)}`
+							? `${WALLET_NAME.zen.short} · ${usd(zen)}`
 							: undefined
 						: wallet === "ds"
 							? value.ds
-								? `DS · ${usd(value.ds.balance)}`
+								? `${WALLET_NAME.ds.short} · ${usd(value.ds.balance)}`
 								: undefined
 							: wallet === "or"
 								? value.or
-									? `OR · ${usd(value.or.balance)}`
+									? `${WALLET_NAME.or.short} · ${usd(value.or.balance)}`
 									: undefined
 								: undefined
 
@@ -461,14 +462,18 @@ export default Plugin.define({
 								<div class="ocb-rule" />
 								<Show when={f().ds}>
 									{(line: () => Line) => (
-										<WalletLine name="DS" line={line()} mark={f().atPeak ? PEAK_MARK : ""} />
+										<WalletLine
+											name={WALLET_NAME.ds.long}
+											line={line()}
+											mark={f().atPeak ? PEAK_MARK : ""}
+										/>
 									)}
 								</Show>
 								<Show when={f().or}>
-									{(line: () => Line) => <WalletLine name="OR" line={line()} />}
+									{(line: () => Line) => <WalletLine name={WALLET_NAME.or.long} line={line()} />}
 								</Show>
 								<Show when={f().zen}>
-									{(line: () => Line) => <WalletLine name="ZEN" line={line()} />}
+									{(line: () => Line) => <WalletLine name={WALLET_NAME.zen.long} line={line()} />}
 								</Show>
 							</>
 						)}
