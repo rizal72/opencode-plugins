@@ -4,7 +4,7 @@ Plugins for OpenCode v2, built for my own workflow and published because they tu
 The sources are here to be read and forked.
 
 Each one says what it does in **the terminal**, in **the desktop app**, or in neither (a tool that only the
-agent calls). One plugin, one state, two surfaces — the terminal half first, then the desktop app:
+agent calls). One plugin, one state, two surfaces, GUI and TUI:
 
 ![The same plugins in the terminal and in the desktop app](screenshots/demo.gif)
 
