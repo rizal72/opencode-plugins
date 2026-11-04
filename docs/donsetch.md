@@ -28,6 +28,22 @@ and Jina MCP all want an account and are paid, Playwright / Puppeteer / Chrome D
 page by page and hand you automation, not markdown. No OpenCode plugin does this on V2: the only
 self-installing one runs the V1 plugin API.
 
+## A logged-in session, headless
+
+`donsetch login <domain>` opens a real browser window on that site; the owner signs in, presses Enter in
+the terminal, and the cookies go into the same 0600 vault the engine already uses. Every later `fetch` on
+that domain replays them, so a page behind a login is read **headless** — no tab to keep in front, no
+consent per page, nothing to click mid-read. `--list`, `--status <domain>` and `--logout <domain>`
+inspect and remove; `--import cookies.txt` takes a Netscape export instead of a sign-in; `--fresh` wipes
+the login profile first, for a shared machine.
+
+The password is typed into the page and nowhere else: no keystroke capture, no screenshot, and no CDP
+before Enter. What is stored is the session, not the credentials.
+
+**Not run here yet**: `login --list` reports no stored logins, so the mechanism above is the one its own
+help declares. The cost it carries is the one that decides the route: the session belongs to the tool's
+browser, not the owner's Chrome, so it has none of his extensions, his fingerprint or his other logins.
+
 ## The binary is installed separately
 
 **This is the part easy to forget.** `plugins/oc-donsetch/` does *not* install DonSeTch: it expects the
