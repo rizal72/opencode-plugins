@@ -72,6 +72,12 @@ The server reads the registry at most once every six hours and keeps it across r
 five minutes and gets that cache. `Plugins: check for updates` in the command palette — or
 `/plugin-updates` — forces a fresh read, which is the only way to ask again while the pill is invisible.
 
+That cache is served only while the live inventory still shows the versions it was taken from: an update run
+elsewhere — `opencode plugin update` in the terminal, another window's CLI — leaves the stored reading alone,
+and the pill would otherwise offer a package that is already there for the rest of the six hours. The
+inventory costs nothing to read and carries no `outdated` flag, so it confirms a reading and never replaces
+the check; one that cannot be read leaves the reading standing.
+
 ## Testing
 
 `OC_PLUGIN_UPDATES_DEV=outdated|fail|slow` fakes the states a healthy machine cannot reach: packages with

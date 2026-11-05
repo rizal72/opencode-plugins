@@ -138,6 +138,31 @@ async function read(): Promise<CheckResult> {
 	return { ok: true, at: Date.now(), rows }
 }
 
+/**
+ * A reading is true only while the inventory still shows the versions it was taken from. An update run
+ * anywhere else — the terminal, another window's CLI, our own click in a second window — leaves
+ * `ctx.storage` alone, and without this the pill would keep offering a package that is already there for the
+ * rest of the six hours. An inventory that cannot be read is not a changed inventory: the reading stands.
+ */
+export function stillTrue(rows: UpdateRow[], data: unknown): boolean {
+	if (!Array.isArray(data)) return true
+	const versions = new Map<string, unknown>()
+	for (const plugin of data) {
+		const source = (plugin as { source?: Record<string, unknown> })?.source
+		if (source?.type === "package" && typeof source.target === "string") versions.set(source.target, source.version)
+	}
+	return rows.every((row) => versions.has(row.target) && versions.get(row.target) === row.version)
+}
+
+/** The live inventory, in-process and free: it carries no `outdated` flag, so it can confirm a reading, never replace the check. */
+async function inventory(ctx: any): Promise<unknown> {
+	try {
+		return (await ctx.plugin.list())?.data
+	} catch {
+		return undefined
+	}
+}
+
 export default Plugin.define({
 	id: "oc-plugin-updates",
 	async setup(ctx) {
@@ -146,7 +171,7 @@ export default Plugin.define({
 				const cached = input?.force === true ? undefined : held(await ctx.storage.get(KEY))
 				// A reading taken under a test switch dies with the switch: the cache outlives the server, so
 				// otherwise the fake rows would be served for six hours after the variable is gone.
-				if (cached && cached.dev === DEV && Date.now() - cached.at < TTL_MS)
+				if (cached && cached.dev === DEV && Date.now() - cached.at < TTL_MS && stillTrue(cached.rows, await inventory(ctx)))
 					return { ok: true, at: cached.at, rows: cached.rows }
 				try {
 					const result = await read()
