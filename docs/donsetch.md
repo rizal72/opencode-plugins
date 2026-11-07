@@ -1,7 +1,9 @@
 # DonSeTch — the record
 
-The escape hatch for pages that refuse an agent: 403s, Cloudflare walls, JS-only shells. Its **CLI**
-is the path for the agent; the MCP server is not registered, and the binary is kept current by
+The escape hatch for pages that refuse an agent: 403s, Cloudflare walls, JS-only shells. Since browse
+exists it is no longer the first move — the owner's cookies win a login, `webfetch` wins a public page —
+and it is the route when those refuse, and for the agent's own research, which never runs as the owner.
+Its **CLI** is the path for the agent; the MCP server is not registered, and the binary is kept current by
 **`oc-donsetch`**, our plugin, which checks the binary's update once a day.
 
 ## How it got here
