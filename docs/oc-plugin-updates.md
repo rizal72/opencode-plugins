@@ -97,9 +97,10 @@ the pill is invisible — while a click on the sidebar line opens the dialog wit
 click is cheap and a registry read is not.
 
 **A reading is served only while the live inventory still shows the versions it was taken from**
-(`ctx.plugin.list`, in-process and free). Measured 2026-11-05: `opencode plugin update` in the terminal left
-the stored reading alone, and the pill went on offering two plugins that were already installed — for the
-rest of the six hours, since the cache outlives the server and a restart does not clear it either. The
+(`ctx.plugin.list`, in-process and free). An update run anywhere else — `opencode plugin update` in the
+terminal, another window's CLI — leaves the stored reading alone, and the cache outlives the server, so a
+restart does not clear it either: without the comparison the pill goes on offering packages that are already
+installed. The
 inventory carries no `outdated` flag, so it confirms a reading and never replaces the check: one that fails
 the comparison is dropped and the check runs again, and one whose inventory cannot be read stands.
 

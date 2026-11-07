@@ -72,7 +72,10 @@ away when that changes.
 **CI** section of `/cli/commands`, and it describes an agent inside a pipeline, not a bridge between
 OpenCode and git: `--standalone` for a private server, the provider key from the workflow secrets,
 `--format json` for NDJSON a script can read, `--agent` to choose the behaviour, `--file` to attach the
-text of the report.
+text of the report, `--archived` to create the session already archived so a scripted run stays out of the
+inbox, home and session lists. A run also **waits for the background jobs its prompt started, with no time
+limit**: a job that never exits, a dev server or a file watcher, holds it open until Ctrl+C or SIGTERM, so
+every CI job needs its own timeout.
 
 Three levels, in the order of value over risk.
 
