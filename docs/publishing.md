@@ -249,14 +249,23 @@ In place since 2026-10-24. The push happens from `main` only — the work branch
 1. `repository.url` in every published `package.json`, exactly `rizal72/opencode-plugins` — npm refuses
    to publish from a workflow when the two disagree.
 2. `.github/workflows/publish.yml`: on a push to `main` and on `workflow_dispatch`, `id-token: write`,
-   `contents: read`, Node 24, then `npm ci`, `check:ci`, the two builds and the manifest rewrite before the
-   publish loop.
+   `contents: write` (the release step makes a tag), Node 24, then `npm ci`, `check:ci`, the two builds and
+   the manifest rewrite before the publish loop, and the release after it.
 3. A trusted publisher per package on npmjs.com (user `rizal72`, repository `opencode-plugins`, workflow
    `publish.yml`, **`npm publish` allowed** — `npm stage publish` is always allowed and is not a switch).
    Package settings then set to *require 2FA and disallow bypass tokens*, which leaves two doors: the
    owner with an OTP, and this workflow through OIDC.
 4. A guard in the workflow: a package is published only when its version is **forward** of the registry's,
    so a sync with unchanged versions is a green no-op and an old number can never move `latest` back.
+
+**Every version the run actually publishes also becomes a GitHub release.** The tag is the package's short
+name and its version, `oc-budget@0.1.3`, and the notes are the body of the commit that pushed it plus
+`Record: docs/<plugin>.md`. Only what shipped in this run gets one, so a sync with nothing to publish adds
+nothing to the page, and the step runs even when a package later in the batch fails: what did ship still gets
+its row. It is a step of its own with `continue-on-error`: a release that fails leaves the package published
+and the run green, because the registry is the fact and the page is the record, and one failing release does
+not drop the rest of a batch. Nothing older is backfilled — the versions before it carry no commit of their
+own to point at — and `v0.2.0-desktop`, left by the generated era, is a tag and not a release.
 
 Measured 2026-10-24, the first automatic release: `oc-models-pro@0.1.2`, 21 s of runner, provenance signed
 and published to the transparency log, and the registry entry carrying `_npmUser: GitHub Actions` with the

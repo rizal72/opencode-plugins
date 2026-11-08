@@ -19,6 +19,12 @@ stranger needs, and they are what makes a second repository worth its cost.
 have yet, with provenance, through npm's trusted publisher. No token and no secret: the workflow is accepted
 through OIDC, configured per package on npmjs.com.
 
+**Each of those versions also appears on the Releases page**, under a tag that is its name and its number —
+`oc-budget@0.1.3` — with the body of the commit that pushed it as its notes. That page answers "how many
+times has this shipped, and when" without a changelog file to keep, and it is written by the same push:
+nothing extra to run. Only versions that actually reached the registry get a row, and nothing older was
+backfilled.
+
 **The repository holds sources, the registry receives a package.** `tui.tsx` and `gui.tsx` are what we write;
 the workflow compiles them, points `./tui` at `tui.js` and rewrites the whitelist so no `.tsx` ships. That is
 not tidiness: OpenCode compiles a `.tsx` from `node_modules` with the wrong JSX runtime and the plugin stops

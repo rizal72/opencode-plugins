@@ -18,7 +18,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
   id-token: write
 
 jobs:
@@ -29,6 +29,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          # The token is not needed in git, and this job can write: a lifecycle script of `npm ci` must not
+          # find push rights in the checkout. The release step uses `GH_TOKEN` over the API.
+          persist-credentials: false
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
@@ -91,4 +95,26 @@ jobs:
             fi
             echo "publishing $name@$version (registry has $published)"
             (cd "$dir" && npm publish)
+            # Only what this run actually shipped gets a release: the two guards above are the list.
+            echo "${name#@rizal72/} $version" >> "$RUNNER_TEMP/published"
           done
+
+      # The page is the repository's count of what shipped and when, and it is a by-product of the publish.
+      # Its own step, so a release that fails cannot hide a package that already published, and `always`
+      # so a batch that broke halfway still records what did ship.
+      - name: Tag and release
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          [ -f "$RUNNER_TEMP/published" ] || exit 0
+          while read -r plugin version; do
+            git log -1 --pretty=%B > "$RUNNER_TEMP/notes"
+            printf '\nRecord: docs/%s.md\n' "$plugin" >> "$RUNNER_TEMP/notes"
+            # One failure must not swallow the rest: seven packages can ship in one push.
+            gh release create "${plugin}@${version}" --target "$GITHUB_SHA" --title "${plugin}@${version}" \
+              --notes-file "$RUNNER_TEMP/notes" ||
+              echo "::warning::release ${plugin}@${version} not created"
+          done < "$RUNNER_TEMP/published"
