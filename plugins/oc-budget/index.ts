@@ -1,31 +1,12 @@
-// oc-budget — server half.
-//
-// Owns the one thing the TUI cannot do: resolving a provider's credential out of
-// OpenCode's own integration store (`ctx.integration.connection.resolve`), never
-// from a file of ours. With a key (or the Console account token) in hand it reads
-// the four wallets and caches the result, so the TUI's slots and its `/budget`
-// command are pure rendering.
-//
-//   opencode-go  -> GET console/api/go/status             (5h / weekly / monthly meters)
-//                   GET opencode.ai/zen/go/v1/usage        (fallback: a machine with no console session)
-//   deepseek     -> GET api.deepseek.com/user/balance      (native wallet)
-//   openrouter   -> GET openrouter.ai/api/v1/credits (+ /key for the month)
-//   opencode     -> GET console/api/orgs -> /console/api/billing/status  (Zen balance)
-//
-// The Zen balance is the reason the Console integration exists: no API key opens
-// the console (it answers 401 to an `oc_sk_` key), only the account session does.
-// That is exactly what `opencode auth login opencode` stores, so there is no token
-// file here and no device flow to reimplement.
-//
-// Nothing rejects outward, and the two are not the same thing: a wallet with **no connection** is
-// left out of the snapshot, so both halves simply do not draw it — Zen included; a connected wallet
-// whose read failed keeps its branch and its `error`, because a fault must be visible where the number
-// would be.
+// oc-budget — server half: resolves the provider credentials out of OpenCode's own integration store,
+// never from a file of ours, reads the four wallets and caches the snapshot so both surfaces are pure
+// rendering. The endpoints, the two ways into the Go meters and the absence-versus-fault rule are the
+// doc's — docs/oc-budget.md, The four wallets and Credentials.
 import { Budget } from "./rpc.ts"
 import type { BudgetSnapshot, UsageWindow } from "./rpc.ts"
 
-/** What a Go read says when the console answers without meters: the workspace has no plan, and a shape
- *  nobody recognises is the only way that endpoint reports it. The words are the user's, not the body's. */
+/** What a Go read says when the console answers without meters: the workspace has no plan — the doc,
+ *  The four wallets. */
 const NO_GO_PLAN = "no Go plan on this workspace"
 
 /** How long a collected snapshot is reused; the TUI also polls on this cadence. */
@@ -33,10 +14,8 @@ const TTL_MS = 5 * 60 * 1000
 const TIMEOUT_MS = 10_000
 const USER_AGENT = "oc-budget/0.1"
 
-/** A test switch, inert unless the variable is set: `scripts/oc-dev-env.sh on OC_BUDGET_DEV=empty`.
- *  `empty` fakes the one state a real machine cannot produce on demand — an account with nothing
- *  connected. It answers **before** the cache and is never cached, so a real reading cannot be served
- *  while the switch is on, and the fake cannot outlive the variable it came from. */
+/** A test switch, inert unless set: `scripts/oc-dev-env.sh on OC_BUDGET_DEV=empty` fakes an account with
+ *  nothing connected, before the cache and never cached — the doc, No provider connected. */
 const DEV = process.env.OC_BUDGET_DEV ?? ""
 
 const GO_USAGE_URL = "https://opencode.ai/zen/go/v1/usage"
@@ -100,9 +79,8 @@ async function getJson(url: string, headers: Record<string, string>): Promise<an
 	return (await response.json()) as any
 }
 
-/** Micro-cents (1e-8 USD) to a dollar amount, rounded on the integer: the console's
- *  own scale, fixed by its invoices. `(micro / 1e8).toFixed(2)` is a cent low on
- *  values like 100500000, so cents are rounded before the division. */
+/** Micro-cents (1e-8 USD) to dollars, rounded on the integer before the division: rounding after it is a
+ *  cent low on values like 100500000 — the doc, The four wallets. */
 function microCentsToDollars(micro: number): number {
 	return Math.round(micro / 1e6) / 100
 }
@@ -120,10 +98,8 @@ async function consolePeers(ctx: any): Promise<number | undefined> {
 	}
 }
 
-/** One Go window, from the console's own meter. The rule is the console's, copied from its bundle
- *  (`(used*200 + limit) / (limit*2)`): round the percent, and cap it at 99 until the window is truly
- *  spent, because the console says `>99% used` there and the wallet must not fall back to the credits before
- *  the limit is reached. The public endpoint rounds **down** instead: 0.98% reads 0 there and 1 here. */
+/** One Go window from the console's meter: the console's own rule, capped at 99 until the limit is reached
+ *  — the doc, The four wallets, has the formula and the two rounding directions. */
 function goMeter(meter: any): UsageWindow | undefined {
 	const used = Number(meter?.usedMicroCents)
 	const limit = Number(meter?.limitMicroCents)
@@ -136,10 +112,9 @@ function goMeter(meter: any): UsageWindow | undefined {
 	}
 }
 
-/** The fallback endpoint's window, clamped to the three fields the contract allows: an extra field
- *  fails the strict schema and takes the whole snapshot down with it, and its shape is documented
- *  nowhere. `status` is derived from the percent when the endpoint does not name it, because an
- *  exhausted window must still flip the paying wallet. */
+/** The fallback endpoint's window, clamped to the three fields the contract allows — one stray field fails
+ *  the strict schema and takes the whole snapshot down (the doc, The four wallets). A stopped window reads
+ *  as spent in either of the two ways the endpoint names it. */
 function goWindow(raw: any): UsageWindow | undefined {
 	const percent = typeof raw?.percent === "number" && Number.isFinite(raw.percent) ? raw.percent : undefined
 	if (percent === undefined) return undefined
@@ -152,10 +127,7 @@ function goWindow(raw: any): UsageWindow | undefined {
 }
 
 async function collectGo(ctx: any): Promise<BudgetSnapshot["go"]> {
-	// Two ways in, one answer. A console session is preferred: it reports the spend in micro-cents and
-	// it is the credential the provider actually bills, so the counters and the payer cannot disagree.
-	// A Go API key alone still works, through the public endpoint. Both are enough on their own, and
-	// neither is required if the other is there.
+	// Console first, key second — the doc, Two ways in, one answer.
 	const console = await resolveConsoleToken(ctx)
 	let consoleError: string | undefined
 	if (console.key) {
@@ -173,22 +145,15 @@ async function collectGo(ctx: any): Promise<BudgetSnapshot["go"]> {
 			}
 			return reading
 		} catch (error) {
-			// A session that cannot read the meters — a workspace without the subscription — must not
-			// hide a key that can. Fall through, and report both failures if it also fails.
+			// A session that cannot read the meters must not hide a key that can; both failures are kept.
 			consoleError = message(error)
 		}
 	}
-	// A Console connection that exists but cannot produce a token is a fault, not an absence, and it is
-	// carried so that a machine with no Go key does not lose the reason.
 	if (!console.missing && console.error) consoleError ??= console.error
 	const credential = await resolveKey(ctx, "opencode-go")
-	// No Go key at all: the Console session is the only witness, and a workspace without the
-	// subscription answers exactly like a broken read. So GO is left out of the snapshot rather than
-	// reported — a free account must not carry a permanent error line. With a key, a failed read is
-	// a fault and keeps its branch.
+	// No Go key and no plan read: GO is left out rather than reported, so a free account carries no permanent
+	// error line — the doc, The four wallets.
 	if (credential.missing) {
-		// No Go key: the Console was the only witness. Its own fault is reported; its absence — or a
-		// read that failed without a key — means there is no plan to show.
 		return consoleError && !console.missing ? { error: consoleError } : undefined
 	}
 	if (credential.error) return { error: consoleError ? `${consoleError}; ${credential.error}` : credential.error }
@@ -259,19 +224,13 @@ async function collectOpenRouter(ctx: any): Promise<BudgetSnapshot["or"]> {
 
 async function collectZen(ctx: any): Promise<BudgetSnapshot["zen"]> {
 	const token = await resolveConsoleToken(ctx)
-	// No Console connection at all is an absence, exactly like the other three: the account has no Zen
-	// wallet, and a line explaining a connection never made is the plugin teaching its own setup in
-	// someone else's sidebar. A Console that exists and cannot read keeps its error, because that is a
-	// fault and must be visible where the number would be.
+	// Absent Console is an absence, like the other three; one that exists and cannot read keeps its error.
 	if (token.missing) return undefined
 	if (token.error) return { error: token.error }
 	const headers = { Authorization: `Bearer ${token.key}` }
 	try {
-		// The Console session is bound to exactly one workspace — the one selected when the
-		// account was connected — and billing answers 403 for every other one (verified: a
-		// `go` login reads `go` and is refused `go-2` and `Personal`). So the workspace is
-		// read from the session, never guessed from a name: switching the Console account is
-		// the only way to switch which wallet the balance describes.
+		// The session is bound to one workspace, so the workspace is read from it and never guessed — the
+		// doc, The Console session is scoped to one workspace.
 		const current = await getJson(ZEN_CURRENT_URL, headers)
 		const org = current?.org
 		if (!org?.id) return { error: "the console session has no workspace" }
@@ -280,12 +239,8 @@ async function collectZen(ctx: any): Promise<BudgetSnapshot["zen"]> {
 			const n = typeof value === "string" ? Number(value) : value
 			return typeof n === "number" && Number.isFinite(n) ? n : undefined
 		}
-		// Two numbers, and the difference is the point. `balanceMicroCents` is the ledger: prepaid,
-		// so it goes a few cents under when the request that crosses the end costs more than what is
-		// left (measured 2026-10-26: -5076149, i.e. -$0.05). `availableMicroCents` is what the console
-		// prints as *available credit*: the balance clamped at 0, and raised by a credit limit when the
-		// account has one. Clamping the ledger in our code would lose the debt; reading this field
-		// keeps both, and stays right the day a limit is set.
+		// Two numbers: the ledger, which can go under, and the spendable credit the console prints — the
+		// doc, The four wallets.
 		const balance = microOf(body?.balanceMicroCents)
 		if (balance === undefined) return { error: "could not read the Zen balance", org: org.name }
 		const available = microOf(body?.availableMicroCents) ?? Math.max(0, balance)
@@ -300,12 +255,9 @@ async function collectZen(ctx: any): Promise<BudgetSnapshot["zen"]> {
 	}
 }
 
-/** A snapshot that says why the read failed, in every wallet. A rejected handler answered HTTP 500 and
- *  left the panel blank with nothing to read; this one is visible where the numbers would be. */
+/** A snapshot that says why the read failed, on every wallet: visible where the numbers would be, so an
+ *  account with one connection does not lose its only line. No collector reaches it today. */
 function failedSnapshot(error: unknown): BudgetSnapshot {
-	// A last resort for a rejection no collector explains: it names the fault on every wallet, so an
-	// account with one connection does not lose the only line it had. Nothing reaches it today — each
-	// collector swallows its own failure — and a new one must keep that true.
 	const text = message(error)
 	return {
 		at: Date.now(),
@@ -316,11 +268,9 @@ function failedSnapshot(error: unknown): BudgetSnapshot {
 	}
 }
 
-/** The shape that crosses the wire, which is JSON: `goMeter` and `goWindow` leave fields `undefined` when
- *  the endpoint omits them, and the output schema is strict — a present `undefined` is not a `string` and
- *  not a missing key, so the whole answer is rejected **after** the handler ran (a 500 with `http.span=1`,
- *  measured 2026-10-28: every poll failed from 07:00 to 12:26 and the pill vanished). `JSON.stringify`
- *  drops them, which is exactly what the transport would do, only before validation instead of after. */
+/** What crosses the wire is JSON: a field left `undefined` is not a string and not a missing key, so the
+ *  strict output schema rejects the whole answer after the handler ran. `JSON.stringify` drops them first —
+ *  the doc, Gotchas and the blank night. */
 const wire = (snapshot: BudgetSnapshot): BudgetSnapshot => JSON.parse(JSON.stringify(snapshot))
 
 export default {
@@ -328,8 +278,7 @@ export default {
 	async setup(ctx: any) {
 		let cache: BudgetSnapshot | null = null
 		let cacheAt = 0
-		/** One collection at a time: several TUIs, or a model switch racing the poll,
-		 *  join the same promise instead of issuing four redundant request sets. */
+		/** One collection at a time: several TUIs, or a model switch racing the poll, join one promise. */
 		let inFlight: Promise<BudgetSnapshot> | null = null
 
 		function collect(): Promise<BudgetSnapshot> {

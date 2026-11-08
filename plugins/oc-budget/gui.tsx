@@ -1,16 +1,6 @@
-// oc-budget — GUI half.
-//
-// One surface: the figure in the session header, beside the app's own context ring and session cost, where
-// a reader already looks for what the session is costing. Its popover carries the whole block — every
-// wallet, the Go bar, the resets, the workspace, the peak mark — the same lines the terminal draws.
-//
-// The mark is a ring only where a percentage exists: Go's month. ZEN, DS and OR are money, and a ring
-// around money would imitate a share of a cap that does not exist, so their figure carries the colour and
-// the name stays quiet. The app's catalog has no money glyph — `providers` says provider, not money — so the
-// card is drawn here; `ctx.ui.Icon` supplies the warning one.
-//
-// Colours come from the theme, never from hex: a GUI plugin has no theme API, but the app publishes its
-// tokens as CSS variables, and these are the three alert levels the terminal uses.
+// oc-budget — GUI half: the figure in the session header, beside the app's own context ring and cost, and
+// the block behind it. The shape, the ring-versus-card rule, why the figure keeps the month while the tone
+// follows the nearest wall, and the colours are the doc's — docs/oc-budget.md, Desktop half.
 import { Plugin, Slot, Style, createKeyed, type SlotMap } from "@opencode/plugin/gui"
 import { Show, createEffect, createMemo, createSignal, onCleanup, onMount } from "solid-js"
 
@@ -20,7 +10,9 @@ import {
 	OR_WARN_USD,
 	ZEN_WARN_USD,
 	WALLET_NAME,
+	WINDOW_LABEL,
 	ageText,
+	bindingWindow,
 	connected,
 	countdown,
 	payingWallet,
@@ -36,10 +28,8 @@ import { clock, doubles as peakDoubles, isPeak } from "./peak.ts"
 const PEAK_MARK = "↗"
 
 const REFRESH_MS = 5 * 60 * 1000
-/** A provider change never forces a read on a reading younger than this. Five seconds covers a bounce of the
- *  catalog at startup and nothing more: a person who switches a workspace and comes back takes longer, and that
- *  return is exactly when the reading behind them is the other account's. Measured at thirty on 2026-11-01,
- *  where the return arrived inside the guard and showed the expired workspace's error under the paying one. */
+/** A provider change never forces a read on a reading younger than this: five seconds covers a bounce of the
+ *  catalog at startup. Measured at thirty on 2026-11-01 — the doc, Desktop half. */
 const PROVIDER_SWITCH_MS = 5_000
 
 /** A failed poll is not a slow poll: ask again in half a minute, before the five-minute tick. */
@@ -49,8 +39,9 @@ const STALE_MS = 2 * REFRESH_MS
 const RPC_TIMEOUT_MS = 15_000
 
 const CSS = `
-/* The block that opens from the header figure wears that figure's own type: one size, 13px, weight 440, the
-   app's tight tracking. Hierarchy here is colour and weight, never a second size. */
+/* The block that opens from the header figure wears that figure's own type: 13px, weight 440, the app's
+   tight tracking, for every name and figure. Hierarchy is colour and weight, never a second size — with one
+   exception, the countdown: it is a hint, not a figure, so it takes 11px and recedes. */
 /* anywhere: an error carrying a URL or a token must not paint outside the box. This is our content; the
    overflow is ours too. */
 .ocb { display: flex; flex-direction: column; gap: 5px; width: 100%; font-size: 13px; font-weight: 440;
@@ -59,14 +50,21 @@ const CSS = `
 .ocb-name { font-weight: 600; letter-spacing: .02em; min-width: 2.6em; }
 .ocb-figure { margin-left: auto; min-width: 4.2em; text-align: right; }
 .ocb-peak { margin-left: 4px; }
-.ocb-windows { gap: 4px; }
+.ocb-windows { gap: 4px; line-height: 1; }
+/* The row hugs its bar (a full line-height leaves half its height empty below a 6px bar) and the reset is
+   pulled up against it, so a window reads as one group. */
+.ocb-window { display: flex; flex-direction: column; }
+/* Air between two windows and only there: the block's gap already separates a window from the heading and the
+   rule. */
+.ocb-window + .ocb-window { margin-top: 3px; }
+.ocb-window-label { min-width: 1.5em; }
+.ocb-window-pct { min-width: 2.6em; text-align: right; }
+.ocb-reset { text-align: right; margin-top: 2px; font-size: 11px; line-height: 1; }
 .ocb-ok { color: var(--v2-state-fg-success, inherit); }
 .ocb-warn { color: var(--v2-state-fg-warning, inherit); }
 .ocb-bad { color: var(--v2-state-fg-danger, inherit); }
 .ocb-dim { color: var(--v2-text-text-muted, inherit); }
-/* The empty state's two lines only: the words are short and the panel is 18em wide, so left-aligned they
-   leave a column of dead space under the figure they belong to. They sit against the same edge the figure
-   does, and nothing else in this plugin is right-aligned. */
+/* The empty state's two short lines sit against the figure's own edge, not a column of dead space. */
 .ocb-empty { text-align: right; }
 .ocb-accent { color: var(--v2-text-text-accent, inherit); }
 .ocb-bar { flex: 1 1 auto; min-width: 90px; height: 6px; border-radius: 3px; overflow: hidden;
@@ -96,9 +94,8 @@ const CSS = `
   border: 1px solid var(--v2-border-border-muted, rgba(255, 255, 255, .12));
   background: var(--v2-background-bg-layer-02, #1b1b1b);
   box-shadow: 0 8px 24px rgba(0, 0, 0, .35); color: var(--v2-text-text-base, inherit); font-size: 13px; }
-/* The hover hint is wider than this panel, so it would show beside it: while any figure's panel is open, no
-   tooltip is drawn anywhere. CSS cannot select only ours, and the panel is not modal, so the rest of the header
-   stays hoverable — a trade, recorded in docs/oc-budget.md. */
+/* The hint is wider than this panel and would show beside it: no tooltip draws anywhere while a figure's
+   panel is open. The trade is the doc's, The header popover. */
 body:has(.ocb-head[aria-expanded="true"]) [data-component="tooltip-v2"] { display: none; }
 `
 
@@ -171,9 +168,14 @@ type Figures = {
 		rolling: number | null
 		weekly: number | null
 		monthly: number | null
+		/** The highest of the three, which is the one that stops the subscription first. */
+		binding: number | null
 		resets: { rolling: string; weekly: string; monthly: string }
 		error?: string
 	}
+	/** The window that stops the subscription first, named only when it is not the month: the figure prints
+	 *  the month, so a red at 7% would otherwise explain nothing until the popover opened. */
+	alarm?: { label: string; percent: number; reset: string }
 	workspace?: string
 	/** A wallet the snapshot does not carry has no connection: it is left out, not drawn empty. */
 	ds?: Line
@@ -226,9 +228,8 @@ export default Plugin.define({
 						setFailure(undefined)
 					})
 					.catch((error: unknown) => {
-						// Keep the last good reading: a failed poll says nothing about the balance, and
-						// blanking the figure for five minutes cost a whole night (measured 2026-10-28, the
-						// pill gone from 07:00 to 12:26, every poll a fast 500). Ask again sooner instead.
+						// Keep the last good reading and retry sooner: the doc, The blank night, on what a blank
+						// figure costs.
 						if (ctx.sessions.current()?.server.id !== server) return
 						setFailure(error instanceof Error ? error.message : String(error))
 						if (retry) clearTimeout(retry)
@@ -254,8 +255,7 @@ export default Plugin.define({
 			const error = failure()
 			const model = input.screen.composer.model()
 			const now = clock()
-			// Two questions, two functions (`peak.ts`). `isPeak` is the tariff: GO and DS are marked whoever
-			// pays, because the mark is the reminder not to switch *to* them. `doubles` is your own spend.
+			// The tariff's window, whoever pays — the doc, Peak marker.
 			const atPeak = isPeak(now)
 
 			if (!current || current.server !== input.session.server.id) {
@@ -273,7 +273,7 @@ export default Plugin.define({
 			}
 
 			const value = current.value
-			const wallet = payingWallet(model, value)
+			const wallet = payingWallet(model)
 			const go = value.go
 			const rolling = windowPercent(go?.rolling)
 			const weekly = windowPercent(go?.weekly)
@@ -281,8 +281,7 @@ export default Plugin.define({
 			const zen = value.zen?.available ?? value.zen?.balance
 			const age = Date.now() - value.at
 
-			// A wallet absent from the snapshot has no connection, so the figure says nothing — a dash
-			// would still claim a reading. The popover leaves its line out for the same reason.
+			// Absent wallet: no figure, and no dash, which would claim a reading.
 			const label =
 				wallet === "go"
 					? go
@@ -302,17 +301,10 @@ export default Plugin.define({
 									: undefined
 								: undefined
 
-			// No figure at all is not "healthy": the colour is left out, as it is for a money wallet with
-			// nothing to read.
-			const goTone: Tone | undefined = [rolling, weekly, monthly].every((figure) => figure === null)
-				? undefined
-				: [rolling, weekly, monthly].some((figure) => figure !== null && figure >= 100)
-					? "danger"
-					: [rolling, weekly, monthly].some(
-								(figure) => figure !== null && figure >= GO_WARN_PERCENT,
-							)
-						? "warning"
-						: "success"
+			// The colour follows the nearest wall, the number stays the month — the doc, Desktop half. No
+			// reading at all is not "healthy": the tone is left out.
+			const binding = bindingWindow(go)
+			const goTone: Tone | undefined = windowTone(binding?.percent ?? null)
 			const walletTone: Tone | undefined =
 				wallet === "go"
 					? goTone
@@ -321,6 +313,17 @@ export default Plugin.define({
 						: wallet === "ds"
 							? tone(value.ds?.balance ?? null, DS_WARN_USD, 0)
 							: tone(value.or?.balance ?? null, OR_WARN_USD, 0)
+
+			// Red at 7% of the month needs a reason beside it: the hint names the window, and only when that
+			// window is not the month, which the figure already is.
+			const alarm =
+				binding && binding.key !== "monthly" && binding.percent >= GO_WARN_PERCENT
+					? {
+							label: WINDOW_LABEL[binding.key],
+							percent: binding.percent,
+							reset: countdown(go?.[binding.key]?.resetsAt),
+						}
+					: undefined
 
 			return {
 				ready: true,
@@ -333,13 +336,14 @@ export default Plugin.define({
 				age,
 				atPeak,
 				marked: peakDoubles(model, wallet, now),
+				alarm,
 				go: go
 					? {
 							rolling,
 							weekly,
 							monthly,
-							// One reset per window, as the block prints them: the monthly one alone said nothing
-							// about the two shorter windows that empty first.
+							binding: binding?.percent ?? null,
+							// One reset per window, as the block prints them.
 							resets: {
 								rolling: countdown(go.rolling?.resetsAt),
 								weekly: countdown(go.weekly?.resetsAt),
@@ -364,13 +368,29 @@ export default Plugin.define({
 			}
 		}
 
-		/** One window: its percent on its own colour, its reset on the right, as the block prints them. */
-		const WindowRow = (props: { label: string; percent: number | null; reset: string }) => (
-			<div class="ocb-line ocb-windows">
-				<span class="ocb-dim">{props.label}</span>
-				<span class={cls(windowTone(props.percent))}>{percent(props.percent)}</span>
+		/** One window: label, bar and percent on a row, the countdown under it behind a `↻`. The sidebar prints
+		 *  it with the reset on the left — the doc, Desktop half. */
+		const WindowBar = (props: { label: string; percent: number | null; reset: string }) => (
+			<div class="ocb-window">
+				<div class="ocb-line ocb-windows">
+					<span class="ocb-dim ocb-window-label">{props.label}</span>
+					<span
+						class={`ocb-bar ${cls(windowTone(props.percent))}`}
+						role="progressbar"
+						aria-valuenow={fill(props.percent)}
+						aria-valuemin={0}
+						aria-valuemax={100}
+					>
+						<span class="ocb-fill" style={{ width: `${fill(props.percent)}%` }} />
+					</span>
+					<span class={`ocb-window-pct ${cls(windowTone(props.percent))}`}>
+						{percent(props.percent)}
+					</span>
+				</div>
 				<Show when={props.reset}>
-					<span class="ocb-dim ocb-figure">reset {props.reset}</span>
+					<div class="ocb-reset ocb-dim">
+						{props.reset} {"\u21bb"}
+					</div>
 				</Show>
 			</div>
 		)
@@ -390,12 +410,10 @@ export default Plugin.define({
 			</>
 		)
 
-		/** The block, wherever it is shown: the popover under the header figure. The same lines, the same
-		 *  colours, the same order the terminal draws. */
+		/** The popover under the header figure: the block the terminal draws, in the same order. */
 		const Block = (props: { input: SurfaceInput }) => {
 			const figures = createMemo(() => view(props.input))
-			// The tick is five minutes, so open on a fresh read: one call, and the figure follows it, because
-			// both surfaces read this one signal.
+			// The tick is five minutes, so open on a fresh read: both surfaces read this one signal.
 			onMount(() => {
 				refreshNow?.()
 			})
@@ -422,22 +440,7 @@ export default Plugin.define({
 									{(g: () => NonNullable<Figures["go"]>) => (
 										<>
 											<div class="ocb-line">
-												<span class={`ocb-name ${cls(windowTone(g().monthly))}`}>GO</span>
-												<span
-													class={`ocb-bar ${cls(windowTone(g().monthly))}`}
-													role="progressbar"
-													aria-valuenow={fill(g().monthly)}
-													aria-valuemin={0}
-													aria-valuemax={100}
-												>
-													<span
-														class="ocb-fill"
-														style={{ width: `${fill(g().monthly)}%` }}
-													/>
-												</span>
-												<span class={`ocb-figure ${cls(windowTone(g().monthly))}`}>
-													{percent(g().monthly)}
-												</span>
+												<span class={`ocb-name ${cls(windowTone(g().binding))}`}>GO</span>
 												<Show when={f().atPeak}>
 													<span class="ocb-bad ocb-peak">{PEAK_MARK}</span>
 												</Show>
@@ -446,9 +449,9 @@ export default Plugin.define({
 												when={!g().error}
 												fallback={<div class="ocb-dim">{g().error}</div>}
 											>
-												<WindowRow label="5h" percent={g().rolling} reset={g().resets.rolling} />
-												<WindowRow label="wk" percent={g().weekly} reset={g().resets.weekly} />
-												<WindowRow label="mo" percent={g().monthly} reset={g().resets.monthly} />
+												<WindowBar label="5h" percent={g().rolling} reset={g().resets.rolling} />
+												<WindowBar label="wk" percent={g().weekly} reset={g().resets.weekly} />
+												<WindowBar label="mo" percent={g().monthly} reset={g().resets.monthly} />
 											</Show>
 										</>
 									)}
@@ -482,8 +485,8 @@ export default Plugin.define({
 			)
 		}
 
-		/** The month's consumption as a ring, at the app's own geometry: an indicator circle is 16 px wide with a
-		 *  2 px stroke and a radius of `8 - stroke/2`, so the two rings are the same circle and the same family. */
+		/** The month as a ring at the app's own geometry, so the two rings read as one family — the doc,
+		 *  Desktop half. */
 		const RING_STROKE = 2
 		const RING_R = 8 - RING_STROKE / 2
 		const RING_C = 2 * Math.PI * RING_R
@@ -510,8 +513,7 @@ export default Plugin.define({
 			</svg>
 		)
 
-		/** The mark for a wallet that is money: a card, at the ring's size so the row keeps one rhythm. It is not a
-		 *  share of anything, and a ring around money would read as a percentage that does not exist. */
+		/** A card for a wallet that is money, at the ring's size so the row keeps one rhythm. */
 		const WalletMark = () => (
 			<svg viewBox="0 0 16 16" width="16" height="16" fill="none" aria-hidden="true">
 				<rect x="2" y="4.5" width="12" height="8" rx="2" stroke="currentColor" stroke-width="1.6" />
@@ -523,29 +525,22 @@ export default Plugin.define({
 		/** Which figure draws, and what it says. */
 		type Mark = "ring" | "card" | "error"
 
-		/** The figure in the session header, beside the app's own context ring and cost. The mark carries the
-		 *  colour: a ring where a percentage exists, a card where the wallet is money, the warning icon when
-		 *  nothing could be read. The popover is the platform's — the top layer, the light dismiss and Escape
-		 *  come with it. */
+		/** The figure in the session header: the mark carries the colour, the popover is the platform's. */
 		const Tooltip = ctx.ui.Tooltip
 		const HeaderBudget = (props: { input: SlotMap["session.header"] }) => {
 			const figures = () => view(props.input)
 			const [open, setOpen] = createSignal(false)
 
-			/** The popover owns its dismissals — outside click, Escape — so this is the only place an open can
-			 *  start, and it starts on a fresh read: the tick is five minutes. */
+			/** The popover owns its dismissals, so an open starts here, on a fresh read. */
 			const change = (next: boolean) => {
 				if (next) refreshNow?.()
 				setOpen(next)
 			}
 
-			/** The **provider**, not the model: the snapshot holds all four wallets already, so picking another
-			 *  model of the same provider re-renders from what is here — a fifth model on DeepSeek changes which
-			 *  line is drawn, not what is read. What the client cannot see is the credential behind a provider:
-			 *  an account that expired, or a workspace switched. That shows up as the provider leaving the
-			 *  catalog, or as the selected model falling to another one — measured 2026-11-01, a Go workspace
-			 *  whose subscription ended mid-session. `createKeyed` is the SDK's, not a raw effect, so the re-run
-			 *  follows the plugin's lifetime. */
+			/** Keyed on the **provider**, not the model: the snapshot already holds all four wallets, so another
+			 *  model of the same provider re-renders from what is here. What changes underneath is the
+			 *  credential — an expired account, a switched workspace — which shows up as the provider leaving
+			 *  the catalog (measured 2026-11-01). `createKeyed` is the SDK's, so the re-run follows lifetime. */
 			createKeyed(
 				() => props.input.screen.composer.model()?.providerID ?? "none",
 				() => {
@@ -553,9 +548,8 @@ export default Plugin.define({
 				},
 			)
 
-			/** Nothing read yet is not an error; a failure with nothing behind it is one, and hiding it is what
-			 *  cost a whole night — `docs/gui-plugins.md`, *a pill never shows a stale value as fresh*. Stale wins
-			 *  over the figure: what is on screen is history, and the mark says so. */
+			/** Nothing read yet is not an error; a failure with nothing behind it is one, and stale wins over the
+			 *  figure because what is on screen is history — gui-plugins.md, a pill never shows a stale value. */
 			const shown = () => {
 				const f = figures()
 				if (f.ready && f.label) {
@@ -566,11 +560,9 @@ export default Plugin.define({
 				if (f.error) {
 					return { f, text: "budget", tone: "danger" as Tone, mark: "error" as Mark }
 				}
-				// No label means nothing to report for the model in front — either no wallet is connected,
-				// or wallets are and none of them pays this one (a subscription that just ended, a provider
-				// outside the four). The figure still exists either way: the plugin is installed and running,
-				// so vanishing would say it is not. The mark is the wallet's own and the tone absent, so it
-				// reads as switched off rather than as an alarm, and the popover carries the detail.
+				// Wallets exist and none of them pays this model: the figure stays, in the wallet's mark and with
+				// no tone, because a vanishing figure cannot be told from a plugin that is not installed — the
+				// doc, No provider connected.
 				if (f.ready && !f.label) {
 					return { f, text: "budget", tone: undefined as Tone | undefined, mark: "card" as Mark }
 				}
@@ -585,11 +577,12 @@ export default Plugin.define({
 						? "Budget · no wallet pays this model"
 						: f.stale
 							? `Budget · last read ${ageText(f.age)} ago`
-							: "Budget — what pays, and every wallet")
+							: f.alarm
+								? `Budget · ${f.alarm.label} ${Math.round(f.alarm.percent)}%${f.alarm.reset ? ` · reset ${f.alarm.reset}` : ""}`
+								: "Budget — what pays, and every wallet")
 
-			// `shown()` can go falsy and come back while the panel is open — the server switches and returns, a
-			// snapshot loses the paying wallet's label — and the menu would remount already open, with no gesture
-			// behind it. Closing with the menu that vanishes is the only state that cannot lie.
+			// The menu can lose its trigger while open (a server switch and return): closing with it is the only
+			// state that cannot lie about a gesture that no longer exists.
 			createKeyed(
 				() => (shown() ? true : undefined),
 				() => {},

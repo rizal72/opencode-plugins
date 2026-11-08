@@ -19,7 +19,7 @@ measurement are in `docs/sidebar.md`.
 | `plugins/oc-budget/tui.tsx` | **TUI**: two slots and `/budget`, nothing else |
 | `plugins/oc-budget/gui.tsx` | **GUI**: the figure in the session header and its popover, over the same contract |
 | `plugins/oc-budget/rpc.ts` | the contract all three halves import |
-| `plugins/oc-budget/budget.ts` | the thresholds, `payingWallet` and `windowPercent`, shared by both surfaces |
+| `plugins/oc-budget/budget.ts` | the thresholds, `payingWallet`, `bindingWindow` and `windowPercent`, shared by both surfaces |
 | `plugins/oc-budget/peak.ts` | DeepSeek's two tariffs, shared by both surfaces; `--self-check` |
 
 The loader does **not** read `package.json` for a directory target: it looks for files named
@@ -62,7 +62,7 @@ one account.
 
 | state | what it shows | source | thresholds |
 |---|---|---|---|
-| `GO nn%` | the subscription pays | console `go/status` meters (fallback `zen/go/v1/usage`) | green < 90, yellow from 90, red at 100 (exhausted) |
+| `GO nn%` | the subscription pays | console `go/status` meters (fallback `zen/go/v1/usage`) | the colour is the window that comes first: green < 90, yellow from 90, red at 100 (spent) |
 | `OC $x.xx` | the pay-per-use credit pays | console `billing/status`, `availableMicroCents` | green > $5, yellow ≤ $5 (the console's auto-recharge), red at 0 |
 | `DS $x.xx` | native DeepSeek wallet | `GET api.deepseek.com/user/balance` | green > $2, yellow ≤ $2, red at 0 |
 | `OR $x.xx` | OpenRouter credits | `GET openrouter.ai/api/v1/credits` (+ `/key`) | green > $5, yellow ≤ $5, red at 0 |
@@ -70,7 +70,7 @@ one account.
 The three money wallets carry **two forms, both in `WALLET_NAME` in `budget.ts`**: the sigla where a name *is*
 the row — `DS`, `OR`, `OC`, in the header figure and the footer — and the full name where there is a column to
 spare — `DeepSeek`, `OpenRouter`, `OC credits`, in the popover and the sidebar block. Go stays short
-everywhere, because it heads its own block and carries the bar. `OC` is not invented here:
+everywhere, because it heads its own block and carries the bars. `OC` is not invented here:
 `oc-models-pro/tags.ts` already reserves it for the `opencode` provider — the same account whose credits this
 wallet reads — and `GO` pairs with it. The sigla is defined once, so a rename lands in one place.
 
@@ -98,23 +98,32 @@ worth knowing:
 Which wallet *pays* is decided by each half from the model of its own surface — the composer's in the
 window, the session's in the terminal — because the two pickers disagree on purpose
 (`docs/gui-plugins.md`, *A model pick belongs to a surface, not to the session*): `deepseek` → DS,
-`openrouter` → OR, `opencode`/`opencode-zen` → OC, `opencode-go` → GO unless the monthly window is
-`rate-limited`, in which case the gateway falls back to OC.
+`openrouter` → OR, `opencode`/`opencode-zen` → OC, `opencode-go` → GO, always. **Reaching any of the three
+windows stops the subscription's requests**, and whether they continue on the prepaid balance depends on the
+Console's **Extra Usage** toggle — off by default on Go and Go Plus, on for Go Teams — which the snapshot
+cannot read. The earlier rule ("the gateway falls back to OC once the *month* is `rate-limited`") was wrong
+twice: the wrong window, and a fallback taken for granted. Naming the credits there would describe the wrong
+payer exactly when the reader most needs the truth, so a spent window is red under GO and OC keeps its own
+line.
 
-The sidebar prints one line per Go window, its reset on the same line — `5h 4%   reset 2h 10m`,
-`wk 31%  reset 3d 14h`, `mo 16%  reset 24d 3h`. The labels are muted, **each percent is coloured on its own
-value** by the same rule as the bar above it, and the percent is padded to five characters so the countdowns
-line up. Before 2026-10-29 the three figures shared one row and only the monthly reset was printed; three
-counters side by side plus three countdowns need about 45 columns, and this panel does not know the width
-of the sidebar, so the block grows down instead of across — one row more than the two lines it replaces.
+The sidebar prints a bar for each of Go's three windows — `5h ████████████████████ 2%` — with its reset on the
+row below, left-aligned directly under the bar, a blank row between one window and the next, and a `GO`
+heading whose colour is the window that stops the subscription first (`bindingWindow` in `budget.ts`). The
+month has no bar of its own any more: it had one at the top of the block and it is one of the three, so the
+heading that carried it carries the alarm instead. The labels are muted, **each bar and percent is coloured
+on its own value**, and the percent sits one space past the bar rather than in a padded column: it is read
+with the bar, not from the edge. The bar is twenty cells — the panel is wider than the block assumed, and ten
+left half of it empty. History: before 2026-10-29 the three figures shared one row and only the monthly reset
+was printed; until 2026-11-08 the reset sat on the same line as its percent. The block has grown to ten lines
+rather than five — the price of three bars, and the reason the row is as tight as it is.
 
 One name, in the Go block: `workspace: go-2`, a line of its own after the windows — the label dim, the name
 in the accent oc-git gives the branch, the only identity colour in a panel of state colours. A dim rule of
-fixed length follows it and closes the Go block, so the wallets below read as a separate group — 20 columns,
-fixed and not measured because the panel does not know how wide the sidebar is. It clears every line the
-block prints short of exhaustion: the widest is `mo 100%  reset 24d 3h`, 21 columns, and a window row at
-three digits with a day-scale reset is the only case that runs past it. The workspace is not a
-property of the balancing wallet: it is the console session, which governs the Go windows *and* the `OC`
+fixed length follows it and closes the Go block, so the wallets below read as a separate group — **28
+columns**, the width of a window row (`mo`, twenty cells, the space and `100%`), so the rule underlines the
+bars above it instead of stopping short of them. Fixed and not measured: the panel does not report the
+sidebar's width. The workspace is not a property of the balancing wallet: it is the console session, which
+governs the Go windows *and* the `OC`
 balance. The **sidebar** prints it only when more than one console connection is saved; with one there is
 nothing to distinguish. `/budget` prints it always, under its first line: there it is information, not a
 crowded row.
@@ -136,10 +145,16 @@ that page were read, the endpoint and the bundle, because the first answer was w
 
 - the console's own rule, from its bundle: `(used*200 + limit) / (limit*2)`, i.e. **round** the percent,
   and cap it at 99 until `used >= limit` — that is the `>99% used` the page shows, and the cap keeps the
-  paying wallet from falling back to OC before the limit is actually reached;
+  figure from reading 100, spent, before the limit is reached;
 - the public `zen/go/v1/usage` rounds **down**, so it answered `0 0 0` while the page read `1% 0% 1%`
   (measured 2026-10-26, same workspace, same minute: 1.04% / 0.42% / 0.99% of the three limits). It stays
   only as the fallback for a machine with no console session, where its integer is all there is.
+
+One consequence, decided 2026-11-08: **a window whose status is `rate-limited` reads 100, whatever number it
+carried** (`windowPercent` in `budget.ts`). The console path already sets 100 by itself; the public endpoint
+rounds down and could name a stopped window at 99 or below, and a stopped window painted green while the
+report called it exhausted is the kind of disagreement a reader cannot resolve. The state is the reading, and
+it is the same reading for the colours, the header figure, the hover hint and the report's `exhausted`.
 
 Both paths are clamped to the three fields the contract allows — `status`, `percent`, `resetsAt` — before
 they leave the server, and a missing `status` is derived from the percent (100 means exhausted). That is
@@ -212,12 +227,12 @@ doubling.
 The windows, `isPeak`, `doubles` and `nextChange` live in `peak.ts`, one definition for both surfaces
 (`--self-check`). What each surface does with the flag is its own business:
 
-- **terminal**: a red mdi trending-up glyph next to the amount and next to the Go bar. Since 2026-10-29 the
+- **terminal**: a red mdi trending-up glyph next to the amount and on the `GO` heading of the block. Since 2026-10-29 the
   block marks from `isPeak`, not from `doubles`: it appears on GO and DS whoever is paying, because the
   reminder not to switch *to* them is worth more than a report on the one in use. The footer keeps
   `doubles` — it shows one wallet, the one paying;
 - **desktop**: `↗` at the end of the figure's label when what you are paying doubles — the footer's rule.
-  In the popover, `↗` sits on the Go bar and on the `DS` line whenever the hour is peak, whether or not
+  In the popover, `↗` sits on the GO heading and on the `DS` line whenever the hour is peak, whether or not
   they are the ones paying: the same rule as the block. Zen and OpenRouter never carry it.
 
 ## Colours come from the theme
@@ -250,27 +265,42 @@ percent is a percent of — is its own plugin, drawn as a **block in the sidebar
 (`docs/oc-context.md`).
 
 In that footer widget the **glyph stays neutral** and only the body — `GO 71%` — carries the state
-colour, as pi does: a coloured mark beside a coloured word would be two signals for one fact.
+colour, as pi does: a coloured mark beside a coloured word would be two signals for one fact. The number is
+the month, unqualified, and the colour is the window that comes first (`bindingWindow`): a spent 5 hour
+window turns the footer red at 7% of the month, which is the moment the reader needs to know, and the
+sidebar beside it says which window.
 
 ## Desktop half
 
 The desktop has a figure where the TUI has the footer and a popover where it has the sidebar block, and
 the two now say the same thing: the **figure carries the paying wallet** (`GO · 7%`, with a ring filled to
-the month), and the **popover is the block** — the Go bar, one row per window with its reset, the workspace, a rule, then
-DeepSeek, OpenRouter and OC credits.
+the month and drawn at the app's own geometry — a 16 px circle, 2 px stroke, so the two rings read as one
+family), and the **popover is the block** — a `GO` heading, three rows of bar and percent with each
+reset under its own row, the workspace, a rule, then DeepSeek, OpenRouter and OC credits.
+
+The figure prints the **month** and keeps the month's own fill, because the three percentages are shares of
+three different limits and only the month is comparable from day to day: printing the highest would hide the
+month precisely while someone works hard. Its **tone**, however, is the window that comes first — the colour
+says "a wall is near", the number says "how much of the plan is left" — and the hover hint names the guilty
+window and its reset (`Budget · 5h 96% · reset 40m`) **when that window is not the month**: when the month is
+the one at 90 or more, the hint stays the generic line, because the figure already is the month and its colour
+says the rest. A spent 5 hour window therefore paints the figure red at
+7%, which is the honest reading: the subscription has stopped and the month has not.
 
 The block is the plugin's own popover, in the top layer and anchored to the figure: no host menu wraps it,
 so the width and the placement a `ComposerPill` `menu` imposed no longer apply (`docs/gui-plugins.md`,
 *The always-visible surfaces*, and the `menu` traps under *Traps*).
 
-- the **bar** is proportional to the monthly percent, clamped to its track, coloured by the terminal's own
-  rule — green, yellow from 90, red at 100 — and the figure beside it takes the same colour;
+- each of the **three bars** is proportional to its own window, clamped to its track, coloured by the
+  terminal's own rule — green, yellow from 90, red at 100 — and the heading takes the first of the three;
 - every figure is coloured **on its own value**: the three windows, each wallet's balance, the workspace in
   the accent. The colours are the app's CSS variables (`--v2-state-fg-*`, `--v2-text-text-muted`), never
   hex: a GUI plugin has no theme API, and those tokens are the theme's own three alert levels;
-- the **three windows are three rows**, each with its own countdown right-aligned, exactly as the block
-  prints them: the snapshot already carried a `resetsAt` per window, and the popover shows all three
-  instead of naming the monthly one alone;
+- the **three windows are three groups** — label, bar and percent on one row, the countdown alone under it
+  at 11px, right-aligned and followed by a `↻` so the arrow is the same edge for all three; the word `reset`
+  went, the arrow and the position say it. The **sidebar** prints the same three lines with the reset on the
+  left, under the bar's own edge: a popover has width to spare, a terminal panel has not. What the two share
+  is the shape and the `resetsAt` per window, not the sentence, and the divergence is deliberate;
 - **the peak `↗` marks GO and DS whoever is paying** (`isPeak`): its job is the reminder not to switch to
   them. The figure's `↗` marks only the paying model (`doubles`). Two questions, two functions — the rule
   `peak.ts` documents;
@@ -281,7 +311,11 @@ so the width and the placement a `ComposerPill` `menu` imposed no longer apply (
 - `order` is 11: after the app's own figures in that row — the context ring, the tokens, the cost, at 10 —
   and before its actions, at 20. At 10 it would land there only by a tie, decided by which plugin
   contributed first (`docs/gui-plugins.md`, *Where a contribution lands, by layout*);
-- the read goes through the **session's own server** client, like git's, and refreshes every 5 minutes;
+- the read goes through the **session's own server** client, like git's, and refreshes every 5 minutes. A
+  provider switch forces one only on a reading older than five seconds: five covers a bounce of the catalog
+  at startup, while a person who switches a workspace and comes back takes longer — measured 2026-11-01 at
+  thirty seconds, where the return arrived inside the guard and showed the expired workspace's error under
+  the paying one;
 - **three states, never two** (`docs/gui-plugins.md`, *a pill never shows a stale value as fresh*): fresh
   as above; **stale** when the last good reading is older than two polls (10 min) — the label takes a `~`,
   the tone `warning`, the host's own `ctx.ui.Tooltip` reads `Budget · last read 12m ago`, and the popover
@@ -335,8 +369,8 @@ What it still cannot prove is a real account that has never connected anything: 
 machine that is not this one.
 
 
-`budget.ts` holds what both halves must agree on — the four thresholds, `payingWallet` and
-`windowPercent` — and `peak.ts` the tariff; each half keeps its own formatting.
+`budget.ts` holds what both halves must agree on — the four thresholds, `payingWallet`,
+`bindingWindow` and `windowPercent` — and `peak.ts` the tariff; each half keeps its own formatting.
 
 ## The header popover
 
@@ -380,6 +414,9 @@ Three consequences, measured on the review of that commit:
 (`.github/workflows/publish.yml`). The first publish was **by hand**, because the workflow reads its trusted
 publisher from a page a package that does not exist yet does not have (`docs/publishing.md`, *A new
 package*); from the version after, the push is the publication.
+
+**`0.1.3`, 2026-11-09.** The three Go windows each carry a bar, and the alert follows the window that stops
+the subscription first. Before it, no version was recorded here.
 
 ## Open items
 

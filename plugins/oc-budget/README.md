@@ -49,15 +49,22 @@ count appears in a pill above the composer, with the update one click away.
 
 | wallet | what it is | connected with | colour |
 |---|---|---|---|
-| `GO nn%` | the Go subscription, and which of its windows pays | a Go key, or the Console account | green under 90, yellow from 90, red at 100 |
+| `GO nn%` | the Go subscription, with one bar per window | a Go key, or the Console account | green under 90 on all three, yellow when any is at 90, red when any is spent |
 | `OC $x.xx` | the Console's prepaid credits | the Console account | green above $5, yellow at or below, red at 0 |
 | `DS $x.xx` | the native DeepSeek balance | a DeepSeek key | green above $2, yellow at or below, red at 0 |
 | `OR $x.xx` | OpenRouter credits | an OpenRouter key | green above $5, yellow at or below, red at 0 |
 
-Go prints one line per window with its reset — `5h 4% reset 2h 10m`, `wk 31% reset 3d 14h`, `mo 16% reset
-24d 3h` — and, when more than one Console account is connected, the workspace it is reading, by name. When the
-monthly window is rate-limited the gateway falls back to the prepaid credits, so the widget shows OC: the
-figure answers "who is paying", not "what did I subscribe to".
+Go prints a bar for each of its three windows, with the reset on the next line under it — `5h ████████████████████ 2%`
+and its countdown below — and, when more than one Console account is connected, the workspace it is reading, by
+name. The colour is the window that stops the subscription first: green while all three are under 90, yellow
+once any is at 90, red once any is spent. The **figure** stays the month, because the three percentages are
+shares of three different limits (the 5 hour window is 20% of the monthly limit, the week 50%), so a 5 hour
+window at 62% is a month at 12%; the hover hint names the window that is sounding.
+
+Reaching any of the three limits stops the subscription's requests, unless the Console's **Extra Usage**
+toggle is on — off by default on Go and Go Plus — in which case they continue on the prepaid balance. The
+widget cannot see that toggle, so it never claims the credits are paying: a spent window is red, and the
+credits keep their own line.
 
 Each surface decides that from the model *it* is showing, because the terminal and the window have separate
 model pickers on purpose. They agree on everything else.

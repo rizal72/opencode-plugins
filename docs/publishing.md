@@ -229,8 +229,9 @@ scripts/release.sh patch oc-models-pro          # the level, then one or more pa
 before asking, and that it stops before the registry — it never commits and never publishes. The two lines
 it leaves are the commit and the push, both the owner's.
 
-The release commit's own message and the plugin's doc answer "which commit was 0.1.2" a year later: record
-the version and the date in the plugin's own doc.
+The commit that carries a version is the task's own commit: the bump joins it, so a task is one commit and
+one push, and the push is the publication. The message and the plugin's doc answer "which commit was 0.1.2" a
+year later: record the version and the date in the plugin's own doc.
 
 **On this machine the two paths stay local.** `opencode plugin add` is the user's command: run here it
 would install the package and load a second copy of the same id, so the unpacked tarball is tested by

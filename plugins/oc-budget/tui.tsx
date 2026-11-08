@@ -1,28 +1,11 @@
-// oc-budget — TUI half.
+// oc-budget — TUI half: slots and one command over the snapshot the server half publishes.
 //
-// Two slots and one command, all reading the same snapshot the server half publishes:
+//   sidebar.content       the block: every wallet, the bars, the resets, the peak
+//   prompt.footer.status  the paying wallet alone, appended — the doc, The footer
+//   /budget               the full report in a dialog
 //
-//   sidebar.content       the rich view: every wallet, the bars, the resets, the peak
-//   prompt.footer.status  the paying wallet alone — the context total is oc-context's
-//   /budget               the full report in a dialog (a bar for each Go window, the
-//                         reset times, the peak regime)
-//
-// The footer is only appended to, never taken over: that row also holds the project folder,
-// the working spinner and the esc hint, and giving them up for one string is a bad trade.
-//
-// The numbers come from the server plugin over RPC; nothing is fetched here and no
-// credential is ever handled here. Which wallet *pays* each half decides from the model of its
-// own surface: the session's here, the composer's in the window — the two pickers can disagree.
-//
-// Solid owns the reactivity, and a component body runs exactly once: every value that
-// depends on the snapshot or on the model is read inside a `createMemo` (or inside JSX),
-// never in the body. Reading it in the body is how the first version froze on
-// "reading…" for ever.
-//
-// Colours come from the theme, never from hard-coded hex: the theme has no
-// success/warning/error tokens for plugins, so the alert levels are taken from the
-// nearest semantic hues it does expose (`diff.added` / `diff.removed`) and fall back to
-// fixed values only if a theme does not define them.
+// Nothing is fetched and no credential is handled here; the shape of the contract is the doc's, Two
+// halves, one contract.
 import { Plugin } from "@opencode/plugin/tui"
 import { createEffect, createMemo, createRoot, createSignal, Show } from "solid-js"
 // The tariff is the same fact on both surfaces: `peak.ts` holds it, and these names are the ones the
@@ -36,11 +19,14 @@ import {
 	OR_WARN_USD,
 	ZEN_WARN_USD,
 	WALLET_NAME,
+	WINDOW_LABEL,
 	ageText,
+	bindingWindow,
 	connected,
 	countdown,
 	payingWallet,
 	windowPercent,
+	type GoWindowKey,
 	type ModelRef,
 	type Wallet,
 } from "./budget.ts"
@@ -87,6 +73,10 @@ function bar(percent: number, cells = 10): string {
 	return "█".repeat(filled) + "░".repeat(cells - filled)
 }
 
+/** The sidebar's bars: ten cells in a panel this wide leaves half of it empty, and twenty still clear the
+ *  percent — the widest row is `mo `, twenty cells, a space and `100%`. */
+const SIDEBAR_BARS = 20
+
 function usd(value: number | undefined): string {
 	if (typeof value !== "number" || !Number.isFinite(value)) return "—"
 	return `$${value.toFixed(2)}`
@@ -104,8 +94,8 @@ export default Plugin.define({
 		// Colours, resolved from the theme once, at setup
 		// ---------------------------------------------------------------------------
 
-		/** First candidate path the theme actually defines. The value is handed to `fg`
-		 *  as-is: theme colours are the renderer's own colour type, not always hex strings. */
+		/** First candidate path the theme defines; the value is handed to `fg` as-is, because a theme
+		 *  colour is the renderer's own type and not always a hex string. */
 		const themeColour = (...paths: string[][]): any => {
 			for (const path of paths) {
 				let node: any = context.theme
@@ -115,25 +105,21 @@ export default Plugin.define({
 			return undefined
 		}
 
-		// Colours come from the theme, never from a hex literal: each role takes the first token the
-		// theme defines. Green and red lean on the diff pair, the one hue every theme guarantees;
-		// yellow takes the theme's own warning semantics first, because no syntax hue is reliably
-		// warm. Hex only when a theme defines none of the candidates.
+		// Each role takes the first token the theme defines; the preference order and why it is that one are
+		// the doc's, Colours come from the theme.
 		const GREEN = themeColour(["syntax", "string"], ["diff", "text", "added"], ["text", "feedback", "success", "base"]) ?? FALLBACK_GREEN
 		const RED = themeColour(["diff", "text", "removed"], ["syntax", "keyword"], ["text", "feedback", "error", "base"]) ?? FALLBACK_RED
 		const YELLOW = themeColour(["text", "feedback", "warning", "base"], ["syntax", "type"], ["syntax", "number"]) ?? FALLBACK_YELLOW
 		const DIM = themeColour(["text", "muted"], ["text", "faint"]) ?? FALLBACK_DIM
-		/** The heading and the glyph read as ordinary text, not as a muted aside. */
+		/** The heading reads as ordinary text, not as a muted aside. */
 		const TEXT = themeColour(["text", "base"]) ?? FALLBACK_TEXT
-		/** The one accent for a *value* rather than a state — the workspace name, the same blue as the
-		 *  branch in oc-git: `syntax.function` is the identity hue in most themes. */
+		/** The one accent for a *value* rather than a state: the workspace name, the blue oc-git gives the branch. */
 		const ACCENT = themeColour(["syntax", "function"], ["syntax", "variable"], ["text", "base"]) ?? FALLBACK_ACCENT
 
 		const rpc = context.client.rpc(Budget)
 		const [snapshot, setSnapshot] = createRoot(() => createSignal<BudgetSnapshot | null>(null))
 		const [ready, setReady] = createRoot(() => createSignal(false))
-		/** Why the last read failed. Kept, because a failed read used to be indistinguishable from a
-		 *  fresh one: the panel showed the previous numbers and said nothing (eleven hours, 2026-10-27). */
+		/** Why the last read failed — what a silent failure looks like: the doc, The blank night. */
 		const [failure, setFailure] = createRoot(() => createSignal<string | null>(null))
 
 		const load = async (force: boolean) => {
@@ -152,10 +138,8 @@ export default Plugin.define({
 		void load(true)
 		const timer = setInterval(() => void load(false), REFRESH_MS)
 
-		// An account switch is a credential change on the server; picking it up from the
-		// event stream makes the widget follow the switch at once instead of waiting for
-		// the next poll. The exact event names are not relied on — anything mentioning a
-		// credential or an integration re-reads (the server caches, so a stray one is cheap).
+		// A credential switch re-reads at once instead of waiting for the poll; the event names are matched
+		// loosely, because a stray read is cheap behind the server's cache.
 		let unsubscribe: (() => void) | undefined
 		try {
 			unsubscribe = context.data.listen((event: any) => {
@@ -180,9 +164,7 @@ export default Plugin.define({
 
 		const model = () => context.ui.model.current() as ModelRef | undefined
 
-		/** Go window colour: green normally, yellow from the alert threshold, red once the window
-		 *  is exhausted — the quota is spent and the gateway has fallen back to the Zen balance,
-		 *  the same "nothing left" the other wallets report in red at zero. */
+		/** Green, yellow from the alert threshold, red at the wall — the rule is the doc's, The four wallets. */
 		const goColor = (percent: number | null): string => {
 			if (percent === null) return DIM
 			if (percent >= 100) return RED
@@ -203,64 +185,63 @@ export default Plugin.define({
 		// ---------------------------------------------------------------------------
 
 		const Sidebar = () => {
-			// A memo, not the body: the body runs once, the memo re-runs on every
-			// snapshot/model change and rebuilds the rows from the current values.
+			// A memo, not the body: the body runs once — the doc, Gotchas.
 			const rows = createMemo(() => {
 				const snap = snapshot()
-				// Two questions, two functions (`peak.ts`). This block answers "is the tariff in its doubled
-				// window": it marks GO and DS whatever is paying, because the mark is the reminder not to
-				// switch *to* them now. `doubles` answers "is the model in front of me paying double", and
-				// that is the footer's and the capsule's job.
+				// The tariff's own window: it marks GO and DS whoever is paying — the doc, Peak marker.
 				const atPeak = isDeepseekPeak(clock()) ? PEAK_GLYPH : ""
-				const goPercent = windowPercent(snap?.go?.monthly)
 				const out: any[] = []
 
 				if (!ready()) out.push(<text fg={DIM}>reading…</text>)
-				// A reading older than two polls is not fresh, and saying so is the difference between
-				// "the numbers" and "the numbers from an hour ago".
+				// Two missed polls and these numbers are history, so they say so.
 				const readAt = snap?.at
 				if (typeof readAt === "number" && Date.now() - readAt > 2 * REFRESH_MS) {
 					out.push(<text fg={YELLOW}>stale {ageText(Date.now() - readAt)}</text>)
 				}
 				if (ready() && !snap) out.push(<text fg={RED}>budget —</text>)
 				if (failure()) out.push(<text fg={DIM}>{failure()}</text>)
-				// No wallet at all. The title above is drawn either way, so without this line it would be a
-				// promise with nothing under it; one muted line says what the account is, and `/budget`
-				// carries the command that changes it.
+				// A title with nothing under it is a promise — the doc, No provider connected.
 				if (ready() && snap && !connected(snap)) {
 					out.push(<text fg={DIM}>no provider connected</text>)
 				}
 
 				if (snap?.go && !snap.go.error) {
+					// Three bars, one per window; the heading takes the colour of the first wall.
+					const binding = bindingWindow(snap.go)
 					out.push(
 						<box flexDirection="row">
-							<text fg={goColor(goPercent)}>GO</text>
-							<text> </text>
-							<text fg={goColor(goPercent)}>
-								{goPercent === null ? "—" : `${bar(goPercent)} ${percentText(goPercent)}`}
-							</text>
+							<text fg={goColor(binding?.percent ?? null)}>GO</text>
 							{atPeak ? <text fg={RED}> {PEAK_GLYPH}</text> : null}
 						</box>,
 					)
-					// One line per window, its reset on the same line: three counters side by side plus three
-					// countdowns would need ~45 columns and this panel does not know the sidebar's width, so
-					// the block grows down instead of across. The percent is padded to five so the resets line
-					// up; the widest row is `mo 100%  reset 24d 3h`, 21 columns.
-					const windowRow = (label: string, percent: number | null, resetsAt: string | undefined) => {
-						const reset = countdown(resetsAt)
-						return (
+					// Label, bar, percent, and the reset under the bar's own edge. The widths, the padding and
+					// why they are those numbers are the doc's, The sidebar.
+					const windowRow = (key: GoWindowKey, window: UsageWindow | undefined) => {
+						const percent = windowPercent(window)
+						const reset = countdown(window?.resetsAt)
+						out.push(
 							<box flexDirection="row">
-								<text fg={DIM}>{label} </text>
-								<text fg={goColor(percent)}>{percentText(percent).padEnd(5)}</text>
-								{reset ? <text fg={DIM}>reset {reset}</text> : null}
-							</box>
+								<text fg={DIM}>{WINDOW_LABEL[key]} </text>
+								<text fg={goColor(percent)}>
+									{percent === null ? "—" : `${bar(percent, SIDEBAR_BARS)} ${percentText(percent)}`}
+								</text>
+							</box>,
 						)
+						if (reset) {
+							out.push(
+								// Under its own bar, left-aligned: the label's two cells and its space.
+								<box flexDirection="row" paddingLeft={3}>
+									<text fg={DIM}>reset {reset}</text>
+								</box>,
+							)
+							// One empty row, so a reset sits closer to its own bar than to the next.
+							out.push(<box height={1} flexShrink={0} />)
+						}
 					}
-					out.push(windowRow("5h", windowPercent(snap.go.rolling), snap.go.rolling?.resetsAt))
-					out.push(windowRow("wk", windowPercent(snap.go.weekly), snap.go.weekly?.resetsAt))
-					out.push(windowRow("mo", goPercent, snap.go.monthly?.resetsAt))
-					// After the reset, as a line of its own: the label dim, the name in the accent oc-git uses
-					// for the branch.
+					windowRow("rolling", snap.go.rolling)
+					windowRow("weekly", snap.go.weekly)
+					windowRow("monthly", snap.go.monthly)
+					// The name only when the account has more than one connection — the doc, The sidebar.
 					if (snap.zen?.org && (snap.zen.peers ?? 0) > 1) {
 						out.push(
 							<box flexDirection="row">
@@ -269,18 +250,16 @@ export default Plugin.define({
 							</box>,
 						)
 					}
-					// A dim rule closes the Go block, so the wallets below read as a separate group. Fixed, not
-					// measured: the panel does not know how wide the sidebar is, and 20 columns is the width every
-					// line clears short of exhaustion — a window row at 100% with a day-scale reset reaches 21.
-					out.push(<text fg={DIM}>{"─".repeat(20)}</text>)
+					// The rule that closes the block: a window row's width, so it underlines the bars — the doc,
+					// The sidebar.
+					out.push(<text fg={DIM}>{"─".repeat(28)}</text>)
 				} else if (snap?.go?.error) {
 					out.push(<text fg={DIM}>GO —</text>)
 					out.push(<text fg={DIM}>{snap.go.error}</text>)
 				}
 
-				// The three money wallets in two columns: the name is padded to the longest one drawn, so the
-				// figures line up under each other. No width is assumed — the panel does not know the sidebar's
-				// width — and a name that grows later moves the column instead of breaking it.
+				// The name column is as wide as the longest name actually drawn, so figures line up without
+				// assuming the panel's width.
 				const money = [
 					{
 						name: WALLET_NAME.ds.long,
@@ -309,7 +288,7 @@ export default Plugin.define({
 				]
 				const column = Math.max(0, ...money.filter((w) => w.wallet).map((w) => w.name.length))
 				for (const w of money) {
-					// A wallet with no connection stays out, as before: a dash would claim a reading.
+					// Absent stays out: a dash would claim a reading.
 					if (!w.wallet) continue
 					if (w.error) {
 						out.push(<text fg={DIM}>{`${w.name.padEnd(column)} —`}</text>)
@@ -338,22 +317,20 @@ export default Plugin.define({
 			)
 		}
 
-		/** Appended to the footer, and the footer stays OpenCode's own: the folder (which is
-		 *  clickable), the working spinner, the esc hint, the usage, the cost and the
-		 *  shortcuts are all native. Taking that row over was tried and gave every one of
-		 *  them up for a single string, so what we add is the paying wallet alone. */
+		/** Appended to the footer: that row is OpenCode's own and keeps the folder, the spinner and the esc
+		 *  hint — the doc, The footer. */
 		const Footer = () => {
 			const budget = createMemo(() => {
 				const snap = snapshot()
-				const wallet = payingWallet(model(), snap)
+				const wallet = payingWallet(model())
 				if (wallet === "none") return undefined
-				// The wallet the model pays with has no connection: nothing to say, and a dash would
-				// claim a reading. A snapshot that has not arrived yet is not this case.
+				// Absent wallet: nothing to say; a dash would claim a reading. No snapshot yet is not this case.
 				if (snap && !snap[wallet]) return undefined
 				if (wallet === "go") {
+					// The month is the number; the colour is the wall that comes first — the doc, The footer.
 					const percent = windowPercent(snap?.go?.monthly)
 					return {
-						color: goColor(percent),
+						color: goColor(bindingWindow(snap?.go)?.percent ?? null),
 						body: percent === null ? "GO —" : `GO ${Math.round(percent)}%`,
 						marker: peakDoubles(model(), wallet, clock()) ? PEAK_GLYPH : "",
 					}
@@ -402,7 +379,7 @@ export default Plugin.define({
 
 		function report(): string {
 			const snap = snapshot()
-			const wallet = payingWallet(model(), snap)
+			const wallet = payingWallet(model())
 			const lines: string[] = []
 
 			const label: Record<Wallet, string> = {
@@ -412,10 +389,8 @@ export default Plugin.define({
 				or: "OpenRouter — paying: credit balance (pay-per-use, no quota windows)",
 				none: "No budget provider selected",
 			}
-			// Two silences that are not the same silence: no provider connected is a setup that has not
-			// happened, while "no budget provider selected" is a model whose provider the four wallets do
-			// not cover — a Go subscription and an Anthropic model, say. Answering the second for the
-			// first would name the wrong problem.
+			// Two silences that are not the same: absent providers versus no wallet covering this model — the
+			// doc, No provider connected.
 			const nothing = !!snap && !connected(snap)
 			lines.push(nothing ? "No provider connected" : label[wallet])
 			if (snap?.zen?.org) lines.push(`workspace: ${snap.zen.org}`)
@@ -425,20 +400,20 @@ export default Plugin.define({
 				return lines.join("\n")
 			}
 
-			// `pays` is true for the monthly window only: that is the window the paying wallet rule
-			// reads, so flagging an exhausted five-hour window would claim the credits pay when they do not.
-			const goWindow = (name: string, window: UsageWindow | undefined, pays: boolean) => {
+			// 100 is spent, by the same reading that colours the bars, and no payer is named: the doc, The four
+			// wallets.
+			const goWindow = (name: string, window: UsageWindow | undefined) => {
 				if (!window || typeof window.percent !== "number") return `  ${name.padEnd(8)} (no data)`
-				const percent = Math.round(window.percent)
+				const percent = Math.round(windowPercent(window) ?? 0)
 				const reset = countdown(window.resetsAt)
-				const flag = pays && window.status === "rate-limited" ? "  credits paying" : ""
+				const flag = percent >= 100 ? "  exhausted" : ""
 				return `  ${name.padEnd(8)} ${bar(percent)} ${String(percent).padStart(3)}%${reset ? `  reset in ${reset}` : ""}${flag}`
 			}
 
 			if (snap?.go && !snap.go.error) {
-				lines.push(goWindow("5h", snap.go.rolling, false))
-				lines.push(goWindow("weekly", snap.go.weekly, false))
-				lines.push(goWindow("monthly", snap.go.monthly, true))
+				lines.push(goWindow("5h", snap.go.rolling))
+				lines.push(goWindow("weekly", snap.go.weekly))
+				lines.push(goWindow("monthly", snap.go.monthly))
 			} else if (snap?.go?.error) {
 				lines.push(`  ${"go".padEnd(8)} ${snap.go.error}`)
 			}
@@ -461,8 +436,7 @@ export default Plugin.define({
 			}
 
 			if (snap?.zen && !snap.zen.error) {
-				// The console's figure, with the ledger beside it only when the account is under: the
-				// clamped credit would hide those cents, and they are spent money, not a rounding.
+				// The clamped credit, plus the ledger when the account is under — the doc, The four wallets.
 				const debt = snap.zen.balance !== undefined && snap.zen.balance < 0 ? `  (debt ${usd(-snap.zen.balance)})` : ""
 				lines.push(`  ${"zen".padEnd(8)} ${usd(zenCredit(snap.zen))}${debt}`)
 			} else if (snap?.zen?.error) {

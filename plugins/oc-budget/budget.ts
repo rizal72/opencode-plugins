@@ -1,6 +1,4 @@
-// One home for the two facts both halves must agree on: which wallet pays, and where a figure stops
-// being comfortable. How a line is drawn belongs to each surface — the TUI colours spans, the desktop
-// gives a row a tone — but the rule behind the colour is this.
+// The two facts both halves must agree on: which wallet pays, and where a figure stops being comfortable.
 import type { BudgetSnapshot, UsageWindow } from "./rpc.ts"
 
 export type Wallet = "go" | "zen" | "ds" | "or" | "none"
@@ -11,40 +9,32 @@ export interface ModelRef {
 	variant?: string
 }
 
-// Thresholds, unchanged from pi-budget: the point at which the colour turns is a decision about
-// consequence, not an estimate. Go alerts at 90% of the month; the Zen wallet at the console's own $5
-// auto-recharge threshold; DeepSeek at $2 and OpenRouter at $5 (its credits are bought in blocks and
-// expire, so the useful warning is "time to top up" and $2 would fire too late to act on).
+// The alert thresholds, one set for both halves. Why each figure is that figure: the doc, The four wallets.
 export const GO_WARN_PERCENT = 90
 export const DS_WARN_USD = 2
 export const OR_WARN_USD = 5
 export const ZEN_WARN_USD = 5
 
-/** The three money wallets, in two forms: the sigla where a name *is* the row — the header figure and the
- *  footer — and the full name where there is a column to spare, the popover and the sidebar block. Go is left
- *  out: it heads its own block and carries the bar. `OC` is not invented here — `oc-models-pro/tags.ts`
- *  already reserves it for the `opencode` provider, which is the same account that opens this balance. */
+/** The three money wallets in two forms: the sigla where a name *is* the row, the full name where there is a
+ *  column to spare. */
 export const WALLET_NAME: Record<Exclude<Wallet, "go" | "none">, { short: string; long: string }> = {
 	ds: { short: "DS", long: "DeepSeek" },
 	or: { short: "OR", long: "OpenRouter" },
 	zen: { short: "OC", long: "OC credits" },
 }
 
-/** Which wallet pays, read from the model first: a Zen selection never uses the Go subscription however
- *  much of the quota is left, and a Go model falls back to the Zen balance once the month is exhausted. */
-export function payingWallet(model: ModelRef | undefined, snapshot: BudgetSnapshot | null): Wallet {
+/** The model decides who pays. A Go model stays Go once a window is spent: the fallback to the credits is a
+ *  Console toggle the snapshot cannot see — the doc, The four wallets. */
+export function payingWallet(model: ModelRef | undefined): Wallet {
 	const provider = model?.providerID ?? ""
 	if (provider === "deepseek") return "ds"
 	if (provider === "openrouter") return "or"
 	if (provider === "opencode" || provider === "opencode-zen") return "zen"
-	if (provider === "opencode-go") return snapshot?.go?.monthly?.status === "rate-limited" ? "zen" : "go"
+	if (provider === "opencode-go") return "go"
 	return "none"
 }
 
-/** Whether any wallet exists at all. A snapshot carrying nothing is not an empty reading: it is an
- *  account with no provider connected, a state of its own and not a fault, and every surface says so
- *  instead of drawing a figure or a title with nothing under it. A wallet that exists and whose read
- *  failed still counts: the fault is what must be seen, not an absence. */
+/** Any wallet at all: absent is a state, an error is still a wallet — the doc, No provider connected. */
 export function connected(snapshot: BudgetSnapshot | null | undefined): boolean {
 	return !!(snapshot?.go || snapshot?.zen || snapshot?.ds || snapshot?.or)
 }
@@ -57,7 +47,31 @@ export function ageText(ms: number): string {
 }
 
 export function windowPercent(window: UsageWindow | undefined): number | null {
-	return typeof window?.percent === "number" ? window.percent : null
+	if (typeof window?.percent !== "number") return null
+	// A stopped window reads 100 whatever number came with it — the doc, The four wallets, on the endpoint
+	// that rounds down and can name rate-limited below 100.
+	return window.status === "rate-limited" ? 100 : window.percent
+}
+
+export const WINDOW_ORDER = ["rolling", "weekly", "monthly"] as const
+export type GoWindowKey = (typeof WINDOW_ORDER)[number]
+
+/** The sidebar's and the alarm hint's short labels; the report spells them out. */
+export const WINDOW_LABEL: Record<GoWindowKey, string> = { rolling: "5h", weekly: "wk", monthly: "mo" }
+
+/** Which window stops the subscription first: the highest, and on a tie the longest, which blocks for longer.
+ *  The three are not comparable and the printed figure stays the month — the doc, The four wallets. */
+export function bindingWindow(
+	go: NonNullable<BudgetSnapshot["go"]> | undefined,
+): { key: GoWindowKey; percent: number } | null {
+	let best: { key: GoWindowKey; percent: number } | null = null
+	for (const key of WINDOW_ORDER) {
+		const percent = windowPercent(go?.[key])
+		if (percent === null) continue
+		// `>=`, and the order runs shortest to longest: on a tie the later key wins.
+		if (!best || percent >= best.percent) best = { key, percent }
+	}
+	return best
 }
 
 /** How long until a quota window resets, in the shortest form that still says something. */
