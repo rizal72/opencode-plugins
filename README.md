@@ -6,7 +6,7 @@ The sources are here to be read and forked.
 Each one says what it does in **the terminal**, in **the desktop app**, or in neither (a tool that only the
 agent calls). One plugin, one state, two surfaces, GUI and TUI:
 
-![The same plugins in the terminal and in the desktop app](screenshots/demo.gif)
+![The same plugins in the terminal and in the desktop app](screenshots/demo.webp)
 
 | plugin | what it does | TUI | GUI | npm |
 |---|---|---|---|---|
