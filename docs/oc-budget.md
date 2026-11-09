@@ -107,8 +107,10 @@ payer exactly when the reader most needs the truth, so a spent window is red und
 line.
 
 The sidebar prints a bar for each of Go's three windows — `5h ████████████████████ 2%` — with `↻ 2h 30m` on the
-row below, left-aligned directly under the bar, a blank row between one window and the next, and a `GO`
-heading whose colour is the window that stops the subscription first (`bindingWindow` in `budget.ts`). The
+row below, left-aligned directly under the bar, and a `GO` heading whose colour is the window that stops the
+subscription first (`bindingWindow` in `budget.ts`). Each reset follows its own bar with no blank row, and
+only the last window keeps one, which separates the block from the workspace: until 2026-11-10 there was a
+row between every pair, three rows of air in a panel that had none to spare. The
 month has no bar of its own any more: it had one at the top of the block and it is one of the three, so the
 heading that carried it carries the alarm instead. The labels are muted, **each bar and percent is coloured
 on its own value**, and the percent sits one space past the bar rather than in a padded column: it is read
@@ -307,9 +309,11 @@ so the width and the placement a `ComposerPill` `menu` imposed no longer apply (
   the accent. The colours are the app's CSS variables (`--v2-state-fg-*`, `--v2-text-text-muted`), never
   hex: a GUI plugin has no theme API, and those tokens are the theme's own three alert levels;
 - the **three windows are three groups** — label, bar and percent on one row, the countdown alone under it
-  at 11px. The arrow sits on the side the text is aligned to: **last** in the popover, `2h 30m ↻`, because a
-  right-aligned column closes on it; **first** in the sidebar and in `/budget`, `↻ 2h 30m`, because there the
-  column starts on it. The words are the same, the alignment is the only difference;
+  at 11px. In the **popover** the countdown is right-aligned so its end meets the bar's end, the point on
+  the bar where the reset would happen, and the arrow closes it, `2h 30m ↻`; the margin that puts it there
+  is 37.8px — the percent's 2.6em at 13px plus the row's 4px gap, written in pixels because this line is
+  11px and its own em is a different unit. In the **sidebar and `/budget`** the arrow leads, `↻ 2h 30m`,
+  left-aligned under the bar's start. Same words; each arrow sits on the edge the column is aligned to;
 - **the peak `↗` marks GO and DS whoever is paying** (`isPeak`): its job is the reminder not to switch to
   them. The figure's `↗` marks only the paying model (`doubles`). Two questions, two functions — the rule
   `peak.ts` documents;
@@ -488,6 +492,11 @@ recurs, the panel will name the failure instead of hiding it.
   "reading…" for ever while still rendering its heading.
 - Calling a registered RPC over HTTP needs the input wrapped: `POST /api/rpc/budget/snapshot` with
   `{"input":{"force":true}}`.
+- **A read taken at a window's turn can arrive without `resetsAt`**, and that answer stays cached for five
+  minutes. The surfaces then print `↻ now`, which is true where it appears: the window has just restarted,
+  and the next read names the real reset. A computed estimate was rejected — the calendar makes the monthly
+  one a special case, and forty lines of arithmetic to shorten a five-minute gap is more than the gap is
+  worth (2026-11-10, the 5h turn).
 
 ## Measured 2026-10-16
 

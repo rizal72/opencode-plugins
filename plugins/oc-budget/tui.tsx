@@ -216,9 +216,10 @@ export default Plugin.define({
 					)
 					// Label, bar, percent, and the reset under the bar's own edge. The widths, the padding and
 					// why they are those numbers are the doc's, The sidebar.
-					const windowRow = (key: GoWindowKey, window: UsageWindow | undefined) => {
+					const windowRow = (key: GoWindowKey, window: UsageWindow | undefined, gap: boolean) => {
 						const percent = windowPercent(window)
-						const reset = countdown(window?.resetsAt)
+						// No date is not no answer: the window just turned, which is what `now` says.
+						const reset = countdown(window?.resetsAt) || (window ? "now" : "")
 						out.push(
 							<box flexDirection="row">
 								<text fg={DIM}>{WINDOW_LABEL[key]} </text>
@@ -235,13 +236,14 @@ export default Plugin.define({
 									<text fg={DIM}>↻ {reset}</text>
 								</box>,
 							)
-							// One empty row, so a reset sits closer to its own bar than to the next.
-							out.push(<box height={1} flexShrink={0} />)
+							// A blank row only after the last window: it is what separates the block from the
+							// workspace, while the other two resets sit against the window that follows.
+							if (gap) out.push(<box height={1} flexShrink={0} />)
 						}
 					}
-					windowRow("rolling", snap.go.rolling)
-					windowRow("weekly", snap.go.weekly)
-					windowRow("monthly", snap.go.monthly)
+					windowRow("rolling", snap.go.rolling, false)
+					windowRow("weekly", snap.go.weekly, false)
+					windowRow("monthly", snap.go.monthly, true)
 					// The name only when the account has more than one connection — the doc, The sidebar.
 					if (snap.zen?.org && (snap.zen.peers ?? 0) > 1) {
 						out.push(
@@ -422,9 +424,10 @@ export default Plugin.define({
 							{atPeak ? <text fg={RED}> {PEAK_GLYPH}</text> : null}
 						</box>,
 					)
-					const windowRow = (key: GoWindowKey, window: UsageWindow | undefined) => {
+					const windowRow = (key: GoWindowKey, window: UsageWindow | undefined, gap: boolean) => {
 						const percent = windowPercent(window)
-						const reset = countdown(window?.resetsAt)
+						// No date is not no answer: the window just turned, which is what `now` says.
+						const reset = countdown(window?.resetsAt) || (window ? "now" : "")
 						out.push(
 							<box flexDirection="row">
 								<text fg={DIM}>{WINDOW_LABEL[key]} </text>
@@ -440,12 +443,13 @@ export default Plugin.define({
 									<text fg={DIM}>↻ {reset}</text>
 								</box>,
 							)
-							out.push(<box height={1} flexShrink={0} />)
+							// Only the last window keeps the row that separates it from the workspace.
+							if (gap) out.push(<box height={1} flexShrink={0} />)
 						}
 					}
-					windowRow("rolling", snap.go.rolling)
-					windowRow("weekly", snap.go.weekly)
-					windowRow("monthly", snap.go.monthly)
+					windowRow("rolling", snap.go.rolling, false)
+					windowRow("weekly", snap.go.weekly, false)
+					windowRow("monthly", snap.go.monthly, true)
 					out.push(<text fg={DIM}>{"─".repeat(28)}</text>)
 					out.push(<box height={1} flexShrink={0} />)
 				} else if (snap?.go?.error) {

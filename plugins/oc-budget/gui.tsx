@@ -59,7 +59,9 @@ const CSS = `
 .ocb-window + .ocb-window { margin-top: 3px; }
 .ocb-window-label { min-width: 1.5em; }
 .ocb-window-pct { min-width: 2.6em; text-align: right; }
-.ocb-reset { text-align: right; margin-top: 2px; font-size: 11px; line-height: 1; }
+/* The reset ends where the bar ends: right-aligned, with the percent's 2.6em at 13px plus the row's 4px gap
+   held back on the right. This element is 11px, so the measure is in pixels. */
+.ocb-reset { text-align: right; margin-right: 37.8px; margin-top: 2px; font-size: 11px; line-height: 1; }
 .ocb-ok { color: var(--v2-state-fg-success, inherit); }
 .ocb-warn { color: var(--v2-state-fg-warning, inherit); }
 .ocb-bad { color: var(--v2-state-fg-danger, inherit); }
@@ -345,9 +347,9 @@ export default Plugin.define({
 							binding: binding?.percent ?? null,
 							// One reset per window, as the block prints them.
 							resets: {
-								rolling: countdown(go.rolling?.resetsAt),
-								weekly: countdown(go.weekly?.resetsAt),
-								monthly: countdown(go.monthly?.resetsAt),
+								rolling: countdown(go.rolling?.resetsAt) || (go.rolling ? "now" : ""),
+								weekly: countdown(go.weekly?.resetsAt) || (go.weekly ? "now" : ""),
+								monthly: countdown(go.monthly?.resetsAt) || (go.monthly ? "now" : ""),
 							},
 							error: go.error,
 						}
@@ -369,7 +371,7 @@ export default Plugin.define({
 		}
 
 		/** One window: label, bar and percent on a row, `3h 33m ↻` under it, right-aligned so the arrow closes
-		 *  the row. The sidebar leads with it — the doc, Desktop half. */
+		 *  the run at the bar's own end — the doc, Desktop half. */
 		const WindowBar = (props: { label: string; percent: number | null; reset: string }) => (
 			<div class="ocb-window">
 				<div class="ocb-line ocb-windows">
