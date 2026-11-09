@@ -56,7 +56,7 @@ export function windowPercent(window: UsageWindow | undefined): number | null {
 export const WINDOW_ORDER = ["rolling", "weekly", "monthly"] as const
 export type GoWindowKey = (typeof WINDOW_ORDER)[number]
 
-/** The sidebar's and the alarm hint's short labels; the report spells them out. */
+/** The short labels both surfaces print. */
 export const WINDOW_LABEL: Record<GoWindowKey, string> = { rolling: "5h", weekly: "wk", monthly: "mo" }
 
 /** Which window stops the subscription first: the highest, and on a tie the longest, which blocks for longer.

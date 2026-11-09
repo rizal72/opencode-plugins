@@ -368,8 +368,8 @@ export default Plugin.define({
 			}
 		}
 
-		/** One window: label, bar and percent on a row, the countdown under it behind a `↻`. The sidebar prints
-		 *  it with the reset on the left — the doc, Desktop half. */
+		/** One window: label, bar and percent on a row, `3h 33m ↻` under it, right-aligned so the arrow closes
+		 *  the row. The sidebar leads with it — the doc, Desktop half. */
 		const WindowBar = (props: { label: string; percent: number | null; reset: string }) => (
 			<div class="ocb-window">
 				<div class="ocb-line ocb-windows">

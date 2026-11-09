@@ -106,7 +106,7 @@ twice: the wrong window, and a fallback taken for granted. Naming the credits th
 payer exactly when the reader most needs the truth, so a spent window is red under GO and OC keeps its own
 line.
 
-The sidebar prints a bar for each of Go's three windows — `5h ████████████████████ 2%` — with its reset on the
+The sidebar prints a bar for each of Go's three windows — `5h ████████████████████ 2%` — with `↻ 2h 30m` on the
 row below, left-aligned directly under the bar, a blank row between one window and the next, and a `GO`
 heading whose colour is the window that stops the subscription first (`bindingWindow` in `budget.ts`). The
 month has no bar of its own any more: it had one at the top of the block and it is one of the three, so the
@@ -154,7 +154,7 @@ One consequence, decided 2026-11-08: **a window whose status is `rate-limited` r
 carried** (`windowPercent` in `budget.ts`). The console path already sets 100 by itself; the public endpoint
 rounds down and could name a stopped window at 99 or below, and a stopped window painted green while the
 report called it exhausted is the kind of disagreement a reader cannot resolve. The state is the reading, and
-it is the same reading for the colours, the header figure, the hover hint and the report's `exhausted`.
+it is the same reading for the colours, the header figure, the hover hint and the report's own bars.
 
 Both paths are clamped to the three fields the contract allows — `status`, `percent`, `resetsAt` — before
 they leave the server, and a missing `status` is derived from the percent (100 means exhausted). That is
@@ -270,6 +270,16 @@ the month, unqualified, and the colour is the window that comes first (`bindingW
 window turns the footer red at 7% of the month, which is the moment the reader needs to know, and the
 sidebar beside it says which window.
 
+## The report
+
+`/budget` draws the sidebar's block as a JSX dialog — bordered, medium, centred — because the command exists
+for the case the panel is hidden or not mounted. It carries what the panel drops and nothing the panel
+computes differently: the payer line and the workspace always, the three windows with the same 20-cell bars
+and `↻ 2h 30m` under each, the rule, the wallets with their colours, then the peak lines and the clock. Two
+wallet details are the report's alone: OpenRouter's ceiling (`$3.15 of $10.00 (used $6.85)`) and Zen's
+`(debt …)`; the panel shows the balance. A spent window is red with a full bar — the word `exhausted` went
+when the string dialog did.
+
 ## Desktop half
 
 The desktop has a figure where the TUI has the footer and a popover where it has the sidebar block, and
@@ -297,10 +307,9 @@ so the width and the placement a `ComposerPill` `menu` imposed no longer apply (
   the accent. The colours are the app's CSS variables (`--v2-state-fg-*`, `--v2-text-text-muted`), never
   hex: a GUI plugin has no theme API, and those tokens are the theme's own three alert levels;
 - the **three windows are three groups** — label, bar and percent on one row, the countdown alone under it
-  at 11px, right-aligned and followed by a `↻` so the arrow is the same edge for all three; the word `reset`
-  went, the arrow and the position say it. The **sidebar** prints the same three lines with the reset on the
-  left, under the bar's own edge: a popover has width to spare, a terminal panel has not. What the two share
-  is the shape and the `resetsAt` per window, not the sentence, and the divergence is deliberate;
+  at 11px. The arrow sits on the side the text is aligned to: **last** in the popover, `2h 30m ↻`, because a
+  right-aligned column closes on it; **first** in the sidebar and in `/budget`, `↻ 2h 30m`, because there the
+  column starts on it. The words are the same, the alignment is the only difference;
 - **the peak `↗` marks GO and DS whoever is paying** (`isPeak`): its job is the reminder not to switch to
   them. The figure's `↗` marks only the paying model (`doubles`). Two questions, two functions — the rule
   `peak.ts` documents;
@@ -417,12 +426,6 @@ package*); from the version after, the push is the publication.
 
 **`0.1.3`, 2026-11-09.** The three Go windows each carry a bar, and the alert follows the window that stops
 the subscription first. Before it, no version was recorded here.
-
-## Open items
-
-- `/budget`: the report is plain text and its numbers carry no colour — the dialog takes a
-  string, so colouring them would mean drawing the report as a custom JSX dialog. The sidebar's
-  window line is coloured; the report is not.
 
 ## Not ported from pi-budget
 

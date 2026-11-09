@@ -22,7 +22,6 @@ const GO_USAGE_URL = "https://opencode.ai/zen/go/v1/usage"
 const GO_STATUS_URL = "https://opencode.ai/console/api/go/status"
 const DS_BALANCE_URL = "https://api.deepseek.com/user/balance"
 const OR_CREDITS_URL = "https://openrouter.ai/api/v1/credits"
-const OR_KEY_URL = "https://openrouter.ai/api/v1/key"
 const ZEN_CURRENT_URL = "https://opencode.ai/console/api/orgs/current"
 const ZEN_STATUS_URL = "https://opencode.ai/console/api/billing/status"
 
@@ -206,15 +205,6 @@ async function collectOpenRouter(ctx: any): Promise<BudgetSnapshot["or"]> {
 			totalCredits,
 			totalUsage,
 			balance: totalCredits - totalUsage,
-		}
-		// Best effort: /key enriches the report (month spend) and
-		// must never blank a balance already read.
-		try {
-			const keyBody = await getJson(OR_KEY_URL, headers)
-			const monthly = keyBody?.data?.usage_monthly
-			if (typeof monthly === "number") result.usageMonthly = monthly
-		} catch {
-			// keep the balance
 		}
 		return result
 	} catch (error) {

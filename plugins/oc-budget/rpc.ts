@@ -52,7 +52,6 @@ export const Budget = Rpc.define({
 							balance: { type: "number" },
 							totalCredits: { type: "number" },
 							totalUsage: { type: "number" },
-							usageMonthly: { type: "number" },
 							error: { type: "string" },
 						},
 						additionalProperties: false,
@@ -102,7 +101,6 @@ export interface BudgetSnapshot {
 		balance?: number
 		totalCredits?: number
 		totalUsage?: number
-		usageMonthly?: number
 		error?: string
 	}
 	zen?: { balance?: number; available?: number; org?: string; peers?: number; error?: string }

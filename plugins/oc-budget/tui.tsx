@@ -68,7 +68,7 @@ const FALLBACK_ACCENT = "#79c0ff"
 const BUDGET_GLYPH = "\u{f04c5}"
 const PEAK_GLYPH = "\u{f0535}"
 
-function bar(percent: number, cells = 10): string {
+function bar(percent: number, cells: number): string {
 	const filled = Math.max(0, Math.min(cells, Math.round((percent / 100) * cells)))
 	return "█".repeat(filled) + "░".repeat(cells - filled)
 }
@@ -229,9 +229,10 @@ export default Plugin.define({
 						)
 						if (reset) {
 							out.push(
-								// Under its own bar, left-aligned: the label's two cells and its space.
+								// Under its own bar, left-aligned: the label's two cells and its space. The arrow
+								// leads, because everything here is left-aligned — the doc, Desktop half.
 								<box flexDirection="row" paddingLeft={3}>
-									<text fg={DIM}>reset {reset}</text>
+									<text fg={DIM}>↻ {reset}</text>
 								</box>,
 							)
 							// One empty row, so a reset sits closer to its own bar than to the next.
@@ -377,87 +378,183 @@ export default Plugin.define({
 		// Report
 		// ---------------------------------------------------------------------------
 
-		function report(): string {
-			const snap = snapshot()
-			const wallet = payingWallet(model())
-			const lines: string[] = []
+		/** The report, in the sidebar's own shapes: `/budget` is what answers when the panel is hidden, so it
+		 *  carries the block and the detail the panel drops — the payer, the workspace, the credit ceiling,
+		 *  Zen's debt, the clock (the doc, The report). */
+		const Report = () => {
+			const rows = createMemo(() => {
+				const snap = snapshot()
+				const wallet = payingWallet(model())
+				const atPeak = isDeepseekPeak(clock())
+				const out: any[] = []
 
-			const label: Record<Wallet, string> = {
-				go: "OpenCode — paying: GO (subscription)",
-				zen: "OpenCode — paying: credits (prepaid, workspace-wide)",
-				ds: "DeepSeek — paying: balance (pay-per-use, no quota windows)",
-				or: "OpenRouter — paying: credit balance (pay-per-use, no quota windows)",
-				none: "No budget provider selected",
-			}
-			// Two silences that are not the same: absent providers versus no wallet covering this model — the
-			// doc, No provider connected.
-			const nothing = !!snap && !connected(snap)
-			lines.push(nothing ? "No provider connected" : label[wallet])
-			if (snap?.zen?.org) lines.push(`workspace: ${snap.zen.org}`)
-			lines.push("")
-			if (nothing) {
-				lines.push("  connect one with:  opencode auth login")
-				return lines.join("\n")
-			}
-
-			// 100 is spent, by the same reading that colours the bars, and no payer is named: the doc, The four
-			// wallets.
-			const goWindow = (name: string, window: UsageWindow | undefined) => {
-				if (!window || typeof window.percent !== "number") return `  ${name.padEnd(8)} (no data)`
-				const percent = Math.round(windowPercent(window) ?? 0)
-				const reset = countdown(window.resetsAt)
-				const flag = percent >= 100 ? "  exhausted" : ""
-				return `  ${name.padEnd(8)} ${bar(percent)} ${String(percent).padStart(3)}%${reset ? `  reset in ${reset}` : ""}${flag}`
-			}
-
-			if (snap?.go && !snap.go.error) {
-				lines.push(goWindow("5h", snap.go.rolling))
-				lines.push(goWindow("weekly", snap.go.weekly))
-				lines.push(goWindow("monthly", snap.go.monthly))
-			} else if (snap?.go?.error) {
-				lines.push(`  ${"go".padEnd(8)} ${snap.go.error}`)
-			}
-
-			if (snap?.ds && !snap.ds.error) {
-				lines.push(`  ${"deepseek".padEnd(8)} ${usd(snap.ds.balance)}`)
-			} else if (snap?.ds?.error) {
-				lines.push(`  ${"deepseek".padEnd(8)} ${snap.ds.error}`)
-			}
-
-			if (snap?.or && !snap.or.error) {
-				const of = typeof snap.or.totalCredits === "number" ? ` of ${usd(snap.or.totalCredits)}` : ""
-				const used = typeof snap.or.totalUsage === "number" ? `   (used ${usd(snap.or.totalUsage)})` : ""
-				lines.push(`  ${"openrouter".padEnd(8)} ${usd(snap.or.balance)}${of}${used}`)
-				if (typeof snap.or.usageMonthly === "number") {
-					lines.push(`  ${"".padEnd(8)} month ${usd(snap.or.usageMonthly)}`)
+				const label: Record<Wallet, string> = {
+					go: "OpenCode — paying: GO (subscription)",
+					zen: "OpenCode — paying: credits (prepaid, workspace-wide)",
+					ds: "DeepSeek — paying: balance (pay-per-use, no quota windows)",
+					or: "OpenRouter — paying: credit balance (pay-per-use, no quota windows)",
+					none: "No budget provider selected",
 				}
-			} else if (snap?.or?.error) {
-				lines.push(`  ${"openrouter".padEnd(8)} ${snap.or.error}`)
-			}
+				// Two silences that are not the same: absent providers versus no wallet covering this model — the
+				// doc, No provider connected.
+				const nothing = !!snap && !connected(snap)
+				out.push(<text fg={TEXT}>{nothing ? "No provider connected" : label[wallet]}</text>)
+				if (snap?.zen?.org) {
+					out.push(
+						<box flexDirection="row">
+							<text fg={DIM}>workspace: </text>
+							<text fg={ACCENT}>{snap.zen.org}</text>
+						</box>,
+					)
+				}
+				out.push(<box height={1} flexShrink={0} />)
+				if (nothing) {
+					out.push(<text fg={DIM}>connect one with:  opencode auth login</text>)
+					return out
+				}
 
-			if (snap?.zen && !snap.zen.error) {
-				// The clamped credit, plus the ledger when the account is under — the doc, The four wallets.
-				const debt = snap.zen.balance !== undefined && snap.zen.balance < 0 ? `  (debt ${usd(-snap.zen.balance)})` : ""
-				lines.push(`  ${"zen".padEnd(8)} ${usd(zenCredit(snap.zen))}${debt}`)
-			} else if (snap?.zen?.error) {
-				lines.push(`  ${"zen".padEnd(8)} ${snap.zen.error}`)
-			}
+				if (snap?.go && !snap.go.error) {
+					// The heading takes the colour of the first wall, as in the panel.
+					const binding = bindingWindow(snap.go)
+					out.push(
+						<box flexDirection="row">
+							<text fg={goColor(binding?.percent ?? null)}>GO</text>
+							{atPeak ? <text fg={RED}> {PEAK_GLYPH}</text> : null}
+						</box>,
+					)
+					const windowRow = (key: GoWindowKey, window: UsageWindow | undefined) => {
+						const percent = windowPercent(window)
+						const reset = countdown(window?.resetsAt)
+						out.push(
+							<box flexDirection="row">
+								<text fg={DIM}>{WINDOW_LABEL[key]} </text>
+								<text fg={goColor(percent)}>
+									{percent === null ? "—" : `${bar(percent, SIDEBAR_BARS)} ${percentText(percent)}`}
+								</text>
+							</box>,
+						)
+						if (reset) {
+							// The same line as the panel's: the arrow leads, because this column is left-aligned.
+							out.push(
+								<box flexDirection="row" paddingLeft={3}>
+									<text fg={DIM}>↻ {reset}</text>
+								</box>,
+							)
+							out.push(<box height={1} flexShrink={0} />)
+						}
+					}
+					windowRow("rolling", snap.go.rolling)
+					windowRow("weekly", snap.go.weekly)
+					windowRow("monthly", snap.go.monthly)
+					out.push(<text fg={DIM}>{"─".repeat(28)}</text>)
+					out.push(<box height={1} flexShrink={0} />)
+				} else if (snap?.go?.error) {
+					out.push(<text fg={DIM}>GO —</text>)
+					out.push(<text fg={DIM}>{snap.go.error}</text>)
+					out.push(<text fg={DIM}>{"─".repeat(28)}</text>)
+					out.push(<box height={1} flexShrink={0} />)
+				}
 
-			// The price regime only means something where the tariff moves.
-			if (wallet === "ds" || (wallet === "go" && /^deepseek/.test(model()?.modelID ?? ""))) {
-				const next = nextRegimeChange(clock())
-				lines.push("")
-				lines.push(`  ${"peak".padEnd(8)} ${isDeepseekPeak(clock()) ? "PEAK — paying double" : "off-peak (half price)"}`)
-				lines.push(
-					`  ${"next".padEnd(8)} ${next.peak ? "peak" : "off-peak"} in ${countdown(new Date(next.at).toISOString())}`,
-				)
-			}
+				// The name column is as wide as the longest name actually drawn, as in the panel.
+				const money = [
+					{
+						name: WALLET_NAME.ds.long,
+						wallet: snap?.ds,
+						error: snap?.ds?.error,
+						body: usd(snap?.ds?.balance),
+						color: balanceColor(snap?.ds?.balance, DS_WARN_USD),
+						mark: atPeak ? PEAK_GLYPH : "",
+						extra: [] as string[],
+					},
+					{
+						name: WALLET_NAME.or.long,
+						wallet: snap?.or,
+						error: snap?.or?.error,
+						body:
+							snap?.or && !snap.or.error
+								? `${usd(snap.or.balance)}${typeof snap.or.totalCredits === "number" ? ` of ${usd(snap.or.totalCredits)}` : ""}${typeof snap.or.totalUsage === "number" ? ` (used ${usd(snap.or.totalUsage)})` : ""}`
+								: usd(snap?.or?.balance),
+						color: balanceColor(snap?.or?.balance, OR_WARN_USD),
+						mark: "",
+						extra: [] as string[],
+					},
+					{
+						name: WALLET_NAME.zen.long,
+						wallet: snap?.zen,
+						error: snap?.zen?.error,
+						body: usd(zenCredit(snap?.zen)),
+						color: balanceColor(zenCredit(snap?.zen), ZEN_WARN_USD),
+						mark: "",
+						// The clamped credit plus the ledger when the account is under — the doc, The four wallets.
+						extra:
+							typeof snap?.zen?.balance === "number" && snap.zen.balance < 0
+								? [`(debt ${usd(-snap.zen.balance)})`]
+								: ([] as string[]),
+					},
+				]
+				const column = Math.max(0, ...money.filter((w) => w.wallet).map((w) => w.name.length))
+				for (const w of money) {
+					// Absent stays out: a dash would claim a reading.
+					if (!w.wallet) continue
+					if (w.error) {
+						out.push(<text fg={DIM}>{`${w.name.padEnd(column)} —`}</text>)
+						out.push(<text fg={DIM}>{w.error}</text>)
+						continue
+					}
+					out.push(
+						<box flexDirection="row">
+							<text fg={w.color}>{`${w.name.padEnd(column)} ${w.body}`}</text>
+							{w.mark ? <text fg={RED}> {w.mark}</text> : null}
+						</box>,
+					)
+					for (const line of w.extra) {
+						out.push(<text fg={DIM}>{" ".repeat(column + 1) + line}</text>)
+					}
+				}
 
-			if (snap?.at) {
-				lines.push("")
-				lines.push(`  updated ${new Date(snap.at).toLocaleTimeString()}`)
-			}
-			return lines.join("\n")
+				// The price regime only means something where the tariff moves.
+				if (wallet === "ds" || (wallet === "go" && /^deepseek/.test(model()?.modelID ?? ""))) {
+					const next = nextRegimeChange(clock())
+					out.push(<box height={1} flexShrink={0} />)
+					out.push(
+						<box flexDirection="row">
+							<text fg={DIM}>{"peak".padEnd(column + 1)}</text>
+							<text fg={atPeak ? RED : GREEN}>{atPeak ? "PEAK — paying double" : "off-peak (half price)"}</text>
+						</box>,
+					)
+					out.push(
+						<box flexDirection="row">
+							<text fg={DIM}>{"next".padEnd(column + 1)}</text>
+							<text fg={DIM}>{`${next.peak ? "peak" : "off-peak"} in ${countdown(new Date(next.at).toISOString())}`}</text>
+						</box>,
+					)
+				}
+
+				if (snap?.at) {
+					out.push(<box height={1} flexShrink={0} />)
+					out.push(<text fg={DIM}>{`updated ${new Date(snap.at).toLocaleTimeString()}`}</text>)
+				}
+				return out
+			})
+
+			return (
+				<box
+					flexDirection="column"
+					border={["top", "bottom", "left", "right"]}
+					borderColor={DIM}
+					paddingLeft={1}
+					paddingRight={1}
+				>
+					<text wrapMode="none"> </text>
+					<text fg={TEXT} wrapMode="none">
+						<span style={{ fg: DIM }}>{BUDGET_GLYPH} </span>
+						<b>Budget</b>
+					</text>
+					<text wrapMode="none"> </text>
+					{rows()}
+					<text wrapMode="none"> </text>
+				</box>
+			)
 		}
 
 		// ---------------------------------------------------------------------------
@@ -478,7 +575,10 @@ export default Plugin.define({
 					slash: { name: "budget", arguments: true },
 					run: async (input?: string) => {
 						await load((input ?? "").trim().toLowerCase() === "refresh")
-						await context.ui.dialog.alert({ title: `${BUDGET_GLYPH} Budget`, message: report() })
+						// `set` talks to the *active* dialog, so it follows `show` — the same pair
+						// `oc-plugin-updates` uses.
+						context.ui.dialog.show(() => <Report />)
+						context.ui.dialog.set({ size: "medium", centered: true })
 					},
 				},
 			],
