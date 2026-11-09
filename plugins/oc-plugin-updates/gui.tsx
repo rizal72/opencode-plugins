@@ -1,29 +1,17 @@
-// oc-plugin-updates — GUI half.
+// oc-plugin-updates — GUI half: the pill, and the rows behind it that do the act.
 //
-// The pill says which installed plugins have a newer version, and the rows behind it are
-// the act: one row per plugin updates that one, the last row updates them all. The click closes the
-// popover, so nothing here draws an outcome — the server reloads the locations, this plugin restarts, and
-// the pill that comes back is the fresh reading.
-//
-// Which is why a failure has to live on the capsule: the popover is already gone when we know. `rows` also
-// has no line to put an error in, so the error is the pill's `title` — the popover's heading — and the
-// first row says `update failed` without a `run`, for the user who reopens it.
-//
-// `rows` and not a `menu`: the list is fixed, nothing in it is ours to draw, and the host owns the width —
-// the opposite of the popover a `menu` gives us, whose width we cannot change either (`docs/gui-plugins.md`).
+// The states, the reasons for `rows` over `menu`, and where a failure lives are in
+// `docs/oc-plugin-updates.md`.
 import { Command, ComposerPill, Plugin, type ComposerPillRow } from "@opencode/plugin/gui"
 import { createSignal, onCleanup } from "solid-js"
 
 import { Updates, withTimeout, type CheckResult, type UpdateResult, type UpdateRow } from "./rpc.ts"
 
-/** One CLI round trip, with a cold cache paying for a version lookup. */
 const CHECK_TIMEOUT_MS = 60_000
-/** N packages, one install each: the guard outlasts an update, not a prompt. */
 const UPDATE_TIMEOUT_MS = 180_000
 /**
- * A read every five minutes, and the server answers it from a six-hour cache: the pill appears on its own
- * when a package is published, and the two clients are never more than one tick apart. Five minutes is
- * `oc-budget`'s clock for the same kind of value — a figure that moves when the user acts, not on the hour.
+ * Five minutes is `oc-budget`'s clock for the same kind of value — a figure that moves when the user acts,
+ * not on the hour.
  */
 const REFRESH_MS = 5 * 60 * 1000
 
@@ -52,8 +40,8 @@ export default Plugin.define({
 		const timer = setInterval(() => void check(false), REFRESH_MS)
 		onCleanup(() => clearInterval(timer))
 
-		// A window can open on Home, where no session is routed and there is no client to ask: the first
-		// read is retried every few seconds instead of waiting a quarter of an hour for the clock.
+		// A window can open on Home, where no session is routed and there is no client to ask: retry the
+		// first read every few seconds instead of waiting out the clock.
 		let attempts = 0
 		const boot = setInterval(() => {
 			if (started || attempts++ >= 20) {
@@ -184,8 +172,6 @@ export default Plugin.define({
 						icon: "download" as const,
 						tone: "warning" as const,
 						...(row.version ? { detail: row.version } : {}),
-						// No `run` while ours is in flight: a row without one is not clickable, which is the
-						// whole guard — the server never sees a second update for the same machine.
 						...(busy ? {} : { run: () => void update([row.target], row.id ?? row.target) }),
 					})),
 					...(busy || !list.length
@@ -200,7 +186,7 @@ export default Plugin.define({
 							]),
 				]
 
-				// A true zero: nothing to say. Unless the last attempt failed, and then silence is the lie.
+				// A true zero: nothing to say, unless the last attempt failed.
 				if (!list.length) {
 					if (!checkError && !updateError) return undefined
 					return {
@@ -218,12 +204,9 @@ export default Plugin.define({
 				// the reason is on the capsule, and the next click is the retry.
 				return {
 					// The circled arrow: `refresh`, the one glyph of this kind already drawn in this app
-					// (`plugins/oc-models-pro/gui.tsx`). `tone` colours the icon, never the label.
+					// (`plugins/oc-models-pro/gui.tsx`).
 					icon: "refresh" as const,
-					// The count alone: the arrow already says what it is, and the click says the rest. The
-					// word lives in `title`, which is the capsule's accessible name and the popover's heading.
 					label: busy ? "updating…" : `${checkError ? "~" : ""}${list.length}`,
-					// A held reading is a warning, a failed act a danger: one says "old", the other "broken".
 					tone: updateError ? ("danger" as const) : ("warning" as const),
 					title: caption,
 					rows: menu(),
@@ -238,8 +221,6 @@ export default Plugin.define({
 			keywords: "plugin update version upgrade install",
 			section: "general",
 			slash: { name: "plugin-updates" },
-			// The pill is absent when there is nothing to show, so this is the only way to ask again after
-			// an update, or on the machine where the list has been empty for a week.
 			run: () => {
 				void check(true)
 			},

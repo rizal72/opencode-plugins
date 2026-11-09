@@ -20,10 +20,15 @@ An unknown target answers `400` with the server's own sentence (`Plugin packages
 server inventory: …`), which is what the pill shows when an update fails. Measured warm: a check is ~0.7 s,
 a no-op update ~0.1 s; a real one is one package install per target, hence the 180 s guard.
 
+A row omits a key rather than carrying it as `undefined`: the output validator checks that a key is present,
+not what it holds, so an absent `id` or `version` is the only shape that passes (`docs/oc-git.md`, *The RPC
+contract*, learned it the same way).
+
 **Why the CLI and not an in-process call.** The plugin context carries `plugin: Pick<PluginApi, "list">` —
 `list` alone. The routes exist on the server, but nothing in the SDK reaches them, so the server half spawns
 `process.execPath api post …` (falling back to `opencode` on PATH), which is a separate client process and
-therefore cannot deadlock against the server it calls.
+therefore cannot deadlock against the server it calls — and the one client that knows how the local server
+authenticates.
 
 **Unpinned only.** An exact version and a range are both reported `current`: the app treats a pin as
 deliberate, which is the documented behaviour and was measured on 2026-10-30 (`@0.1.0` and `@~0.1.0` both
@@ -55,15 +60,21 @@ one rule every terminal half here shares: `docs/tui-plugins.md`, *A command is i
 `mode: "global"`*.
 
 The line opens on `onMouseUp`, one of the documented OpenTUI handlers (`Interaction`, 0.8.0: a click is a
-`down` and an `up`, and the framework synthesises no click event) — not a guess, though the release is the
-moment the modal can survive the release that opened it, which is why a press handler closed it again.
+`down` and an `up`, and the framework synthesises no click event) — not a guess: opening on the press put the
+dialog under the pointer and the release closed it again, one click in three. The release is the moment a
+modal can survive the click that opened it.
 
 The block was the first shape and it was the wrong one: a sidebar row is a click target with no affordance —
 no focus, no selection, and no pointer to change — while a modal is the host's own surface for exactly those
 three. The busy guard survives either way: a row without a click handler is not clickable, and the server
 refuses a second update of its own. Two things the terminal still forces: the failure has no popover to hide
 in, so it is a red line with the reason, and the version is padded to a fixed column because a dialog's
-width is not ours to know either.
+width is not ours to know either. No background highlight on a dialog row: a themed pair of colours can
+resolve to the same value and the row goes blank, which is what the first version did.
+
+**Every signal is read inside JSX.** A Solid component body runs once, so reading a signal there and
+deciding in it froze the first version of this half at null, before the first check — `docs/oc-budget.md`
+measured the same shape on its popover.
 
 ## The states
 
@@ -104,6 +115,14 @@ installed. The
 inventory carries no `outdated` flag, so it confirms a reading and never replaces the check: one that fails
 the comparison is dropped and the check runs again, and one whose inventory cannot be read stands.
 
+A stored reading is dropped, not repaired: a row that fails the contract would turn every check into a 500
+until the TTL expired, and blames the read for a bad cache byte. A reading taken under a test switch carries
+the switch's value and dies with it, because the cache outlives the server and the fake rows would otherwise
+be served for six hours after the variable is gone.
+
+A window can open on Home, where no session is routed and there is no client to ask: the first read is then
+retried every three seconds, twenty times, rather than waiting out the five-minute clock.
+
 ## What it does not do
 
 The version the plugin would become: `Plugin.Info` carries the installed `version` and `outdated: true`,
@@ -112,8 +131,9 @@ not the target, and `opencode plugin check` does not know it either. One lookup 
 ## Testing
 
 `OC_PLUGIN_UPDATES_DEV=outdated|fail|slow` fakes what a healthy machine cannot reach: two rows to install,
-an install that fails, an install that takes fifteen seconds. The variable has to reach the service — the
-whole of `docs/plugin-surfaces.md`, *One server, many clients*:
+an install that fails, an install that takes fifteen seconds. Those rows are decorative — nothing in them is
+read from the registry, so their versions fall behind with every release and that is fine. The variable has
+to reach the service — the whole of `docs/plugin-surfaces.md`, *One server, many clients*:
 
 ```sh
 scripts/oc-dev-env.sh on OC_PLUGIN_UPDATES_DEV=outdated

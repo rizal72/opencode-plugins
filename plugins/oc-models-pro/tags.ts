@@ -1,10 +1,5 @@
 // Two letters per provider, so a row says where its model comes from without spending a column.
 //
-// The host's own two providers keep a tag chosen by hand, and those two are reserved: they exist in
-// every installation, so nobody else may take their letters. Everything else is derived from the
-// provider's display name — the only place where a merged name still keeps its seams ("DeepSeek" is
-// Deep·Seek; the id `deepseek` no longer says so).
-//
 // Runnable standalone for its self-check: node plugins/oc-models-pro/tags.ts --self-check
 
 /** Tags that belong to the host's own providers, present or not. */
@@ -14,8 +9,7 @@ const RESERVED: Record<string, string> = {
 }
 
 /**
- * The words of a display name: `OpenCode Go` is two, `OpenRouter` is two as well — but a camelCase
- * split only when the name has no separator, so a brand like `GitHub Copilot` keeps `GitHub` whole.
+ * The words of a display name.
  */
 export function words(name: string): string[] {
 	const split = name.split(/[^A-Za-z0-9]+/).filter(Boolean)
@@ -32,8 +26,7 @@ function preferred(name: string): string {
 }
 
 /**
- * A tag per provider id, unique and order-independent. Derived in alphabetical order of id, so the
- * same catalogue always yields the same tags whatever order the providers arrive in.
+ * A tag per provider id, unique and order-independent.
  */
 export function tagsFor(providers: Array<{ id: string; name: string }>): Map<string, string> {
 	const taken = new Set(Object.values(RESERVED))
@@ -51,10 +44,8 @@ export function tagsFor(providers: Array<{ id: string; name: string }>): Map<str
 		const first = letters[0] ?? "?"
 		let tag = preferred(provider.name)
 		if (taken.has(tag)) {
-			// Walk the name for a free pair, so `Google` steps aside from the reserved GO.
 			tag = ""
 			for (const letter of letters.slice(1)) {
-				// A doubled letter reads as a typo ("GG"): prefer anything else.
 				if (letter === first) continue
 				const candidate = first + letter
 				if (!taken.has(candidate)) {

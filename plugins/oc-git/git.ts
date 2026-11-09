@@ -1,7 +1,4 @@
 // One parser and one read, shared by the TUI half and the server half.
-//
-// The read is a shell call, so only the server and the terminal can make it: a GUI plugin window has
-// no Node built-ins, which is why it goes through the RPC in `rpc.ts` instead.
 import { execFile } from "node:child_process"
 
 export type Status = {

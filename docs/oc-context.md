@@ -26,7 +26,8 @@ and the plugin path in `~/.config/opencode/opencode.jsonc`. It reaches the top o
 
 The whole of `opencode.sidebar.context` is **one render** — a box of four lines with no slot inside it —
 so a line cannot be added to it from outside: it can only be replaced or switched off, and switching it
-off costs nothing we do not redraw. The two mechanisms that must not be used here, and the measurement
+off costs nothing we do not redraw: its contribution to `sidebar.content` is that block and nothing
+else, because its `setup` registers exactly one slot. The two mechanisms that must not be used here, and the measurement
 behind them, are in `docs/sidebar.md`.
 
 **The prompt footer is the opposite case, and it is the lesson worth keeping.** There, switching off the
@@ -47,6 +48,9 @@ to nothing of ours.
 
 The whole block is **hidden while there is no usage and no cost**, which is the built-in's own
 behaviour: on a session with nothing measured, that block does not exist and neither does ours.
+
+The mark before the heading is the **md-counter glyph** (`U+F0199`), muted: every sidebar block carries
+one.
 
 Every row is one `text` in a column `box`; the colour boundary inside a row is a `span` with
 `style={{ fg }}` — the shape the built-ins use — not a `fg` prop on nested elements.

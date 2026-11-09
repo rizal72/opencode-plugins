@@ -1,17 +1,7 @@
 // oc-notify — server half.
 //
-// When a turn ends and you are not at the Mac, the phone should buzz. That is the whole plugin. The
-// trigger is `experimental.idle`, which runs only when a Session really finishes model work — not after
-// an interruption, a failure or a control-only compaction (`session.d.ts:155-170`) — so a stopped turn is
-// silent by construction rather than by a filter of ours.
-//
-// The channel is ntfy, not web push: iOS has no `Notification` outside a web app installed in the home
-// screen, and the desktop app's browser pane cannot push at all (`docs/oc-notify.md`). The topic is a
-// password, so it lives in a config file outside this repository — never here, never in a log.
-//
-// "Only while I am on the phone" cannot be detected: no client identity exists anywhere in
-// `@opencode/{client,schema,protocol}`. `mode: "away"` measures the complement instead — whether the Mac
-// has had no input for N minutes, at the start of the turn or at its end.
+// When a turn ends and you are not at the Mac, the phone should buzz. Every fact behind that — which hook,
+// which channel, how absence is measured, why the topic is a password — is stated in `docs/oc-notify.md`.
 import { execFileSync } from "node:child_process"
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
@@ -28,9 +18,8 @@ const TIMEOUT_MS = 5_000
 /** One push per session per window: the idle hook runs again right after a background job ends. */
 const QUIET_MS = 30_000
 
-/** The process-wide state, behind a symbol so no other plugin's key can collide with ours. It spans every
- *  loaded location on purpose: the loader instantiates a plugin once per open project, and two instances
- *  pushing for the same session would be two notifications. */
+/** The process-wide state, behind a symbol so no other plugin's key can collide with ours, and shared by
+ *  every loaded instance on purpose. */
 const MACHINE = Symbol.for("oc-notify.machine")
 
 interface Machine {
@@ -38,7 +27,7 @@ interface Machine {
 	readonly sent: Map<string, number>
 	/** sessionID -> idle seconds when its last prompt was admitted. */
 	readonly idleAtStart: Map<string, number>
-	/** The last config that parsed. A half-edited file falls back to it instead of going silent. */
+	/** The last config that parsed, so a half-edited file falls back instead of going silent. */
 	last?: Config
 }
 
@@ -52,8 +41,7 @@ interface Config {
 	broken?: boolean
 }
 
-/** Read on every event, never cached: editing the file changes the behaviour at the next turn with no
- *  restart, and that is the switch until the settings page exists. */
+/** Read fresh on every call: the file is the only state. */
 async function settings(machine: Machine): Promise<Config | undefined> {
 	let raw: string
 	try {
@@ -67,8 +55,8 @@ async function settings(machine: Machine): Promise<Config | undefined> {
 		if (!parsed || typeof parsed !== "object") throw new Error("not an object")
 		return (machine.last = parsed as Config)
 	} catch {
-		// A broken file is the one failure that would otherwise look exactly like "the agent is still
-		// working": keep notifying from the last good settings, and say what happened in the body.
+		// A broken file is the one failure that would otherwise look like "the agent is still working": keep
+		// the last good settings and mark the body, rather than go silent.
 		return machine.last ? { ...machine.last, broken: true } : undefined
 	}
 }
@@ -86,9 +74,8 @@ function shown(config: Config | undefined): Snapshot {
 	}
 }
 
-/** The one write path. Validated here because any client of the rpc can call it, and written whole so the
- *  key the page does not show — `server` — survives. Atomic, so an interrupted write cannot leave the very
- *  half-written file the read path has to forgive. */
+/** The one write path: validated here, because any client of the rpc can call it, and written whole and
+ *  atomically so the key the page never sees — `server` — survives and no half-written file can appear. */
 async function save(machine: Machine, input: any): Promise<Snapshot> {
 	if (!isMode(input?.mode)) throw new Error(`unknown mode: ${String(input?.mode)}`)
 	const awayAfter = Number(input?.awayAfter)
@@ -112,8 +99,8 @@ async function save(machine: Machine, input: any): Promise<Snapshot> {
 	return shown((machine.last = next))
 }
 
-/** Seconds since the last user input on this Mac. `undefined` where `ioreg` does not exist, which the away
- *  mode reads as "away": one push too many beats a plugin that never speaks. */
+/** Seconds since the last user input on this Mac, or `undefined` where `ioreg` is missing — which the away
+ *  mode reads as "away". */
 function idleSeconds(): number | undefined {
 	if (process.platform !== "darwin") return undefined
 	try {
@@ -125,9 +112,8 @@ function idleSeconds(): number | undefined {
 	}
 }
 
-/** One notification. The title says which session, the body which agent and when; nothing the turn had
- *  not already put on screen. JSON rather than headers: HTTP headers do not carry UTF-8 reliably, and the
- *  topic stays out of the URL, so it stays out of the server's access log too. */
+/** One notification: the title names the session, the body names the agent and the time, and nothing the
+ *  turn had not already put on screen leaves. */
 async function send(config: Config, session: any): Promise<void> {
 	const title = (config.includeTitle ? String(session?.title ?? "") : "") || "OpenCode"
 	const at = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
@@ -150,8 +136,8 @@ export default Plugin.define({
 	async setup(context: any) {
 		const machine: Machine = ((globalThis as any)[MACHINE] ??= { sent: new Map(), idleAtStart: new Map() })
 
-		// The settings page and, later, the terminal command read and write through here, so neither of them
-		// ever knows the file's path or its shape.
+		// The page, and later the terminal command, read and write through here, so neither knows the file's
+		// path or its shape.
 		await context.rpc.register(Notify, {
 			get: async (): Promise<Snapshot> => shown(await settings(machine)),
 			set: async (input: any): Promise<Snapshot> => save(machine, input),
@@ -174,8 +160,7 @@ export default Plugin.define({
 				if (!config || config.mode === "off" || !config.topic || !TOPIC.test(config.topic)) return
 
 				// Work still owned by this session: the hook runs again when it ends, so a push now would
-				// announce a turn that has not finished. A descendant's work is listed for information only
-				// (`session.d.ts:161-164`) and must not silence the push.
+				// announce a turn that has not finished.
 				const background = Array.isArray(input?.background) ? input.background : []
 				if (background.some((job: any) => String(job?.sessionID ?? "") === sessionID)) return
 
@@ -189,13 +174,13 @@ export default Plugin.define({
 				}
 
 				// The check and the claim are contiguous — no `await` between them: every open location loads
-				// this plugin, so several instances see the same event, and a gap there would let two through.
+				// this plugin, and a gap would let two instances through.
 				const now = Date.now()
 				if (now - (machine.sent.get(sessionID) ?? 0) < QUIET_MS) return
 				machine.sent.set(sessionID, now)
 
 				const session = await context.session.get({ sessionID }).catch(() => undefined)
-				// A child session is not a turn you are waiting for: its parent's hook reports the work.
+				// A child session's work is reported by its parent's hook, not by a push of its own.
 				if (!session || session.parentID) return
 
 				try {

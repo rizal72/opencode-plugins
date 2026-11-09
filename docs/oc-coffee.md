@@ -80,7 +80,9 @@ catalogue all along, which is where to look first next time.
 built by the code that first loaded, so a plugin reload leaves the old object in place: new `setup`, old
 machine, and any member the old one did not have is `undefined`. Measured 2026-11-03, adding `setBackground`
 threw exactly that. The hook checks for the member and returns instead of failing; making the change take
-effect is what a server restart is for.
+effect is what a server restart is for. It warns once, next to the check, because silence would leave a fix
+live and quietly off — but that warning is best effort: a plugin's `console` output has not been seen in
+`opencode.log` (`docs/oc-notify.md`).
 
 The counter is over **all** sessions, subagents included: the assertion is machine-wide, so one session
 finishing must not put the Mac back to sleep while another works.
@@ -109,13 +111,16 @@ old half fell back to `monitor` — while a slot draws its own markup. It is lit
 
 The four levels live in the popover, which is `header-menu.tsx`, lifted as it stands from `oc-budget`: the
 open state is ours, so a second click on the cup closes what the first opened, which the platform's
-`popover="auto"` cannot do. The row in force carries a tick in the same success colour — drawn here rather
-than taken from `ctx.ui.Icon`, because the SDK's icon union is wider than the set the app draws and an
-absent name shows a `plus` with no error — and each row's detail is the `caffeinate` command it means.
-Picking closes the panel and writes the level.
+`popover="auto"` cannot do — it dismisses on any click outside, and the trigger is outside, so the click that
+should close arrives at a button whose panel is already gone and reopens it. The pattern is the app's own,
+`packages/gui-plugins/src/details/popover.tsx`. The row in force carries a tick in the same success colour —
+drawn here rather than taken from `ctx.ui.Icon`, because the SDK's icon union is wider than the set the app
+draws and an absent name shows a `plus` with no error — and each row's detail is the `caffeinate` command it
+means. Picking closes the panel and writes the level.
 
 Both halves read the same `coffee.snapshot` and write the same `coffee.set`, over `rpc.ts`; neither
-decides whether the Mac is awake. One trap, about this plugin already existing: its new
+decides whether the Mac is awake. The RPC definition carries an `events: {}` present and empty on purpose:
+a missing events map fails the whole plugin. One trap, about this plugin already existing: its new
 `./gui-experimental` is resolved only after `opencode service restart` (`docs/gui-plugins.md`, *Traps* —
 a rebuilt bundle, once the half is known, reaches the open windows on its own).
 
@@ -142,7 +147,9 @@ context, it reads as if it belonged to either; last would land it after the key 
   `status` command. Each row is a one-word title and a sentence about the Mac, because a row is one line and
   a narrow terminal cuts it (`docs/tui-plugins.md`); the `caffeinate` flags are not here. A `Status` row sits
   below a `category` of its own and carries the live sentence — `nothing to keep awake right now`, `the Mac
-  is being kept awake now`, or `the Mac sleeps as usual` — and picking it only closes the menu.
+  is being kept awake now`, or `the Mac sleeps as usual` — and picking it only closes the menu. It is a
+  reading and not a setting, and it is not a disabled option either: this app drops disabled options from
+  the list instead of greying them out, which would delete the row.
 - `/coffee <level>` — the same change without the menu; the toast that follows says what it is doing to the
   Mac: `Coffee: display — the Mac is being kept awake now`, or `nothing to keep awake right now`, or
   `Coffee: off — the Mac sleeps as usual`. No flag text and no count there: a toast does not update, so

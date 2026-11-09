@@ -1,13 +1,6 @@
-// oc-plugin-updates — server half.
+// oc-plugin-updates — server half: the check, its cache, and the click that applies an update.
 //
-// V2 checks unpinned package plugins at startup and never applies an update: `opencode plugin check`
-// reports, `opencode plugin update` is a gesture the user has to know exists. Nothing in the window says a
-// plugin is behind, which is how a machine runs one three versions old without a hint.
-//
-// The two routes exist on the server — `POST /api/plugin/check`, `POST /api/plugin/update` — and `update`
-// answers once it has told the active locations to reload, so applying one needs no restart. What a plugin
-// is not given is a client for the server's own routes (`ctx.plugin` carries `list` alone), so the call
-// goes out through the CLI, which is the one client that knows how the local server authenticates.
+// The routes, the CLI they go through and the cache's rules are in `docs/oc-plugin-updates.md`.
 import { Plugin } from "@opencode/plugin"
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
@@ -16,7 +9,7 @@ import { Updates, type CheckResult, type UpdateResult, type UpdateRow } from "./
 
 const exec = promisify(execFile)
 
-/** The list changes when a package is published, not on a clock: six hours, and one read per session. */
+/** The list changes when a package is published, not on a clock. */
 const TTL_MS = 6 * 60 * 60 * 1000
 /** A check is one CLI round trip: generous, because a cold cache pays for a version lookup. */
 const CHECK_TIMEOUT_MS = 60_000
@@ -31,8 +24,7 @@ const KEY = "check"
  */
 const DEV = process.env.OC_PLUGIN_UPDATES_DEV ?? ""
 
-// Demo rows for the dev switch: two of our own packages, one version behind. Decorative — nothing here is
-// read from the registry, so the numbers fall behind with every release and that is fine.
+// Demo rows for the dev switch: two of our own packages, one version behind.
 const FAKE: UpdateRow[] = [
 	{ id: "oc-coffee", target: "@rizal72/oc-coffee", version: "0.2.1" },
 	{ id: "oc-budget", target: "@rizal72/oc-budget", version: "0.1.1" },
@@ -90,7 +82,6 @@ async function api(path: string, body: unknown, timeout: number): Promise<unknow
 	throw new Error(failure || "no opencode binary")
 }
 
-/** The cache travels as JSON text: `ctx.storage` holds `Schema.Json`, and a list of objects is not one. */
 type Held = { at: number; rows: UpdateRow[]; dev?: string }
 
 function held(raw: unknown): Held | undefined {
@@ -100,8 +91,8 @@ function held(raw: unknown): Held | undefined {
 		if (typeof value?.at !== "number" || !Number.isFinite(value.at) || !Array.isArray(value.rows)) return undefined
 		const rows: UpdateRow[] = []
 		for (const row of value.rows) {
-			// A row that does not pass the contract turns every check into a 500 until the TTL expires, and
-			// blames the read for a bad cache byte: a cache we cannot read is a cache we drop.
+			// A row that does not pass the contract would turn every check into a 500 until the TTL
+			// expires, and blames the read for a bad cache byte: a cache we cannot read is a cache we drop.
 			if (typeof row?.target !== "string" || !row.target) return undefined
 			rows.push({
 				target: row.target,
@@ -127,8 +118,7 @@ async function read(): Promise<CheckResult> {
 		const source = plugin?.source
 		if (source?.type !== "package" || source.outdated !== true) continue
 		if (typeof source.target !== "string") continue
-		// `undefined` is not a string for the output validator: a key that is absent is the only way to say
-		// "not there" (`plugins/oc-git/index.ts` learned this the same way).
+		// An absent key, never `undefined`: the output validator checks presence, not value.
 		rows.push({
 			target: source.target,
 			...(plugin.id ? { id: plugin.id } : {}),
@@ -138,12 +128,6 @@ async function read(): Promise<CheckResult> {
 	return { ok: true, at: Date.now(), rows }
 }
 
-/**
- * A reading is true only while the inventory still shows the versions it was taken from. An update run
- * anywhere else — the terminal, another window's CLI, our own click in a second window — leaves
- * `ctx.storage` alone, and without this the pill would keep offering a package that is already there for the
- * rest of the six hours. An inventory that cannot be read is not a changed inventory: the reading stands.
- */
 export function stillTrue(rows: UpdateRow[], data: unknown): boolean {
 	if (!Array.isArray(data)) return true
 	const versions = new Map<string, unknown>()
@@ -154,7 +138,7 @@ export function stillTrue(rows: UpdateRow[], data: unknown): boolean {
 	return rows.every((row) => versions.has(row.target) && versions.get(row.target) === row.version)
 }
 
-/** The live inventory, in-process and free: it carries no `outdated` flag, so it can confirm a reading, never replace the check. */
+/** The live inventory, in-process and free. */
 async function inventory(ctx: any): Promise<unknown> {
 	try {
 		return (await ctx.plugin.list())?.data
@@ -169,8 +153,6 @@ export default Plugin.define({
 		await ctx.rpc.register(Updates, {
 			check: async (input: any): Promise<CheckResult> => {
 				const cached = input?.force === true ? undefined : held(await ctx.storage.get(KEY))
-				// A reading taken under a test switch dies with the switch: the cache outlives the server, so
-				// otherwise the fake rows would be served for six hours after the variable is gone.
 				if (cached && cached.dev === DEV && Date.now() - cached.at < TTL_MS && stillTrue(cached.rows, await inventory(ctx)))
 					return { ok: true, at: cached.at, rows: cached.rows }
 				try {
@@ -181,9 +163,6 @@ export default Plugin.define({
 						.catch(() => {})
 					return result
 				} catch (error) {
-					// The last good reading is still worth showing: the pill marks it as held instead of
-					// hiding, because a hidden pill is the refusal to say anything at all. A reading taken
-					// under a test switch is not "good" once the switch is gone.
 					const last = held(await ctx.storage.get(KEY))
 					return { ok: false, error: message(error), ...(last && last.dev === DEV ? { at: last.at, rows: last.rows } : {}) }
 				}
@@ -191,9 +170,8 @@ export default Plugin.define({
 			update: async (input: any): Promise<UpdateResult> => {
 				const targets = Array.isArray(input?.targets) ? input.targets.map(String).filter(Boolean) : []
 				if (!targets.length) return { ok: true }
-				// One update at a time for the whole server. The halves guard their own rows, and that guard
-				// covers one window: a second window, the terminal, or a client whose 180 s expired would
-				// still reach us, and two installs of the same packages race.
+				// One update at a time for the whole server: a row guard covers one window, and a second
+				// window, the terminal or a client past its timeout still reaches us.
 				if (running) return { ok: false, busy: true, error: "an update is already running" }
 				running = true
 				try {

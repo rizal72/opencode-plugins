@@ -1,20 +1,5 @@
 // oc-models-pro: what the Go plan gives per model, read from the live Go docs page.
 //
-// The table is server-rendered — no JS, no auth — so a plain fetch and a row regex are enough. The
-// mirror that would have been cleaner, the `.mdx` on GitHub, is stale by design: it carries the old
-// limits (a model at $60 where the deployed page says $80), so the page is the source and the cache
-// carries the date it was read.
-//
-// Two different figures live on that page, and confusing them was the first bug here:
-//   - the **credit multiplier**: monthly limit ÷ plan price (DeepSeek V4.1 Flash: $80 on a $10 plan =
-//     8x). Every model has one, and it is what orders the list by effective price;
-//   - the **promotion note** (`4x · Limited time`): limit ÷ the struck-through base, i.e. this model's
-//     allowance is 4x its normal one. Only a few rows carry it.
-//
-// The page has no model ids, rows match by display name; a model with two tariffs appears twice
-// (`… (Off-Peak)` / `… (Peak)`), and the table repeats per plan (`go`, `go-plus`) — the first
-// occurrence wins, so the values are the standard plan's.
-//
 // Runnable standalone for its self-check: node plugins/oc-models-pro/multipliers.ts --self-check
 
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
@@ -54,11 +39,8 @@ export interface Credits {
 	peak?: number
 }
 
-/** The native DeepSeek tariff doubles at peak, and the catalogue lists the **off-peak** figure: measured
- *  2026-10-28 against DeepSeek's own pricing page — `deepseek-flash` $0.15 off-peak / $0.30 peak, and the
- *  catalogue carries 0.15. Duplicated from `oc-budget/peak.ts` on purpose: the two packages are published
- *  apart and neither may import the other, so each carries the one fact it needs. That copy also owns the
- *  clock and the wallet; this one only knows which *list* price doubles, so the note stays static. */
+/** The native DeepSeek tariff doubles at peak, and the catalogue lists the **off-peak** figure, so the
+ *  note is static: this function only knows which *list* price doubles. */
 export function nativePeak(providerID: string): number | undefined {
 	return providerID === "deepseek" ? 2 : undefined
 }
@@ -123,7 +105,7 @@ export function parseGoTable(html: string): GoLimit[] {
 	return limits
 }
 
-/** The plan price, `$10/month` in the `Go` heading; the first such figure on the page is Go's. */
+/** The plan price: the first `$/month` figure on the page is Go's. */
 export function parsePlanPrice(html: string): number | undefined {
 	const found = text(html).match(/\$\s?([\d.]+)\s*\/\s*month/i)
 	return found ? Number(found[1]) : undefined

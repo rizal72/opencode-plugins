@@ -1,13 +1,9 @@
 // oc-notify — GUI half.
 //
 // One page in the app's settings: the configuration the file holds, drawn with the app's own controls so it
-// looks like the rest of the window. Every read and every write goes through `rpc.ts` — the configuration is
-// a file on the server, and a window has no filesystem.
-//
-// The rows are ours, and only the controls are the host's: a settings page is a section of the app's list,
-// and nothing there hands a plugin a row component (`docs/gui-plugins.md`). Every row is built the same way —
-// a title, its control, a muted note — because mixing a host `Switch`, which draws its own label inline,
-// with hand-made rows is what made the first draft uneven.
+// looks like the rest of the window. Every read and every write goes through `rpc.ts`, because a window has
+// no filesystem. The rows are ours and only the controls are the host's; why both, and why `Switch` takes
+// `hideLabel`, is in `docs/oc-notify.md`.
 import { Plugin, SettingsPage, createKeyed } from "@opencode/plugin/gui"
 import { For, Show, createSignal, type Accessor } from "solid-js"
 
@@ -39,8 +35,7 @@ const message = (error: unknown): string => (error instanceof Error ? error.mess
 
 export default Plugin.define({
 	setup(ctx) {
-		// A page of its own rather than a section of General, as the CRT plugin does: the app lists it at the
-		// bottom of the settings nav, and no host page has to grow a section for us.
+		// A page of its own rather than a section of General, so no host page grows a section for us.
 		ctx.add(SettingsPage, {
 			id: "notify",
 			icon: "cloud-upload",
@@ -77,7 +72,7 @@ function Page(props: { ctx: any }) {
 		setProblem(undefined)
 	}
 
-	/** The file's truth, through the server: a window keeps no copy of its own. */
+	/** The file's truth, through the server: no copy of its own. */
 	const read = async () => {
 		const rpc = call()
 		if (!rpc) return

@@ -66,6 +66,18 @@ is still running** so a very large repository cannot stack reads:
 counts, and not ahead/behind. The parser was checked on a scratch repository (2026-10-17) with the three
 cases present at once — `1 A.` → added, `1 .M` → modified, `?` → untracked — result `1 / 1 / 1`.
 
+## The RPC contract
+
+`Git.status` answers `{ ok: false }` outside a repository — a valid answer, not a failed call — and a
+repository with no upstream omits `ahead` and `behind` rather than sending them as `undefined`, which the
+output validator does not accept as a number: the key's presence is what it checks, so an absent pair is
+the only shape that passes. The events map is declared empty on purpose: a missing one fails the whole
+plugin.
+
+A read that cannot answer — outside a repository, a machine without git, a failed call — hides the block
+and the pill instead of drawing them empty. An empty block is worse than no block, and a capsule has no
+room to say an error.
+
 ## The footer line
 
 The same figures also sit in `prompt.footer.status`, before the budget and after the coffee and ponytail

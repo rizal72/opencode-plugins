@@ -65,6 +65,10 @@ with that variable set the prompt runs at its level while both surfaces show the
 Three lines to add if it ever comes back into use. Step 4 is **shown**, not hidden: `full` is what the
 package would run, so reporting it is the truth this widget exists for.
 
+The four levels are `off`, `lite`, `full`, `ultra`; `review` exists only inside a session and is never
+persisted, so it can never come out of these files. Both paths sit under `$XDG_CONFIG_HOME` when that is
+set, resolved exactly as the package resolves them.
+
 The state file is ours to write as well, from the desktop pill: `~/.config/opencode/.ponytail-active`,
 plain text, the word alone, no trailing newline (the format `/ponytail` writes — measured 2026-10-27).
 The shared config is **read only** now: it is the package's default, and editing it would have moved pi's
@@ -108,6 +112,16 @@ would additionally offer four rows that write a file no package reads.
 the level is a file and a window has no filesystem, and it is the **only** reader of the level, of the
 shared config and of the registry: the badge goes through it too. `set` writes the state file with a
 tmp-and-rename; the shared config is never written.
+
+Every call over `rpc.ts` is guarded by a **15 s timeout**, cleared with the answer, so a poll every 2 s
+leaves no timer behind. A call that never answers must not freeze a badge, and a failed read keeps the last
+good reading rather than hiding a level that is in force.
+
+## The TUI half
+
+The badge's signal is read **inside the JSX**, as the cup does: the renderer tracks the expressions in the
+markup, and a value pulled into a local before the return is read once — measured 2026-10-28, the badge
+never moved again. Until the first answer nothing is drawn, which beats naming a level nobody confirmed.
 
 ## Desktop half
 

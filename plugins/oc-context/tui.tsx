@@ -1,41 +1,10 @@
-// oc-context — TUI half.
-//
-// The **context block in the sidebar**: the lines OpenCode's own `opencode.sidebar.context` prints
-// there —
-//
-//   Context
-//   409,907 tokens
-//   41% used
-//   $2.18 spent
-//
-// — with the one thing that block leaves out: **the window the percent is a percent of**
-// (`41% used of 1.0M`). Colour follows the rule the other widgets use: **green normally, yellow from
-// 60% of the window, red from 80%** — only the numbers take it, the labels stay muted, and the window
-// itself wears the theme's accent, the same blue as the branch name in `oc-git`.
-//
-// Why the built-in is taken over rather than complemented: the block is one render with no slot
-// inside it, so a line cannot be inserted into it from outside — and its contribution to
-// `sidebar.content` is that block and nothing else (`setup` registers exactly one slot), so switching
-// it off costs nothing we do not redraw here.
-//
-// The **prompt footer is not ours**. `opencode.prompt.footer` stays enabled: it draws the context
-// figure (`409.9K (41%)` — without the total, which is why the total lives in this block), the
-// child-session chip (`^↓ 2 subagents · 1 shell`, clickable), the `agents` and `commands` hints and
-// `esc exit shell mode`. Switching that one off to replace its figure once **cost us the chip with
-// it**; the record keeps the lesson and the full composition of both footer rows
-// (`docs/oc-context.md`).
-//
-// Config: `-opencode.sidebar.context` in `~/.config/opencode/cli.json`; the block reaches the top of
-// the sidebar by **prepending** to `sidebar.content` (`docs/sidebar.md`).
+// oc-context — TUI half: the sidebar's context block, its figure and its colours. Record: docs/oc-context.md.
 import { Plugin } from "@opencode/plugin/tui"
 import { createMemo, Show } from "solid-js"
 
-/** Where the figure starts warning, and where it says act now — in **percent of the model's window**,
- *  so every window warns on its own scale, the way the budget widget warns on the wallet's. */
 const CONTEXT_YELLOW_PERCENT = 60
 const CONTEXT_RED_PERCENT = 80
 
-/** md-counter (U+F0199), the block's mark — every sidebar block carries one. */
 const CONTEXT_GLYPH = "\u{f0199}"
 
 const FALLBACK_GREEN = "#3fb950"
@@ -53,9 +22,6 @@ function compactTokens(value: number): string {
 	return `${(value / 1_000_000).toFixed(1)}M`
 }
 
-/** The context figure, a port of the TUI's own `xr` + `b$`: the last assistant message that
- *  carries tokens, skipping anything before the last completed compaction and anything after a
- *  revert point. Same rule as the built-in, so the two can never disagree. */
 function contextUsage(
 	messages: any[] | undefined,
 	revertMessageID: string | undefined,
@@ -99,21 +65,15 @@ export default Plugin.define({
 		}
 		const BASE = themeColour(["text", "base"])
 		const DIM = themeColour(["text", "muted"], ["text", "faint"]) ?? FALLBACK_DIM
-		// Chosen by eye across several themes, hunting for tokens that keep the same *kind* of colour
-		// everywhere: `text.feedback.warning` is the yellow, `diff.text.removed` the red, the rest are
-		// fallbacks. (A first pass used `syntax.type` for yellow — too pale — and `text.feedback.error`
-		// for red: each one theme away from reading wrong.)
 		const YELLOW =
 			themeColour(["text", "feedback", "warning", "base"], ["syntax", "type"], ["syntax", "number"]) ??
 			FALLBACK_YELLOW
 		const RED =
 			themeColour(["diff", "text", "removed"], ["syntax", "keyword"], ["text", "feedback", "error", "base"]) ??
 			FALLBACK_RED
-		// Green is the normal state, the same green the budget widget uses for a healthy wallet.
 		const GREEN =
 			themeColour(["syntax", "string"], ["diff", "text", "added"], ["text", "feedback", "success", "base"]) ??
 			FALLBACK_GREEN
-		// The window is a value, not a state: the theme's accent, the same blue as `oc-git`'s branch.
 		const ACCENT =
 			themeColour(["syntax", "function"], ["syntax", "variable"], ["text", "base"]) ?? FALLBACK_ACCENT
 
@@ -129,7 +89,6 @@ export default Plugin.define({
 				const usage = contextUsage(context.data.session.message.list(sessionID), session.revert?.messageID)
 				const cost = context.data.session.cost(sessionID)
 				const spent = typeof cost === "number" && cost > 0 ? USD.format(cost) : undefined
-				// The built-in block appears only once there is something to report; so does this one.
 				if (!usage && !spent) return undefined
 				const ref = usage?.ref ?? session.model
 				const model = models?.find(
@@ -138,7 +97,6 @@ export default Plugin.define({
 				const limit = model?.limit?.context
 				const positive = typeof limit === "number" && limit > 0
 				const used = usage?.used ?? 0
-				// The level of the **window**, not of the count: a smaller window warns on its own scale.
 				const percent = usage && positive ? (used / limit) * 100 : undefined
 				return {
 					tokens: used.toLocaleString(),

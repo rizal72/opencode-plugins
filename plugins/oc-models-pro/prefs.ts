@@ -1,11 +1,7 @@
 // oc-models-pro/prefs.ts — the picker's own state file, `~/.local/state/opencode/model.json`.
 //
-// Both halves need it: the terminal draws the list and toggles a favourite from the panel, the desktop
-// writes the same file through its server half. It lives here so the recipe exists once — a second copy
-// is a second way to lose `recent[]` or `variant{}`.
-//
-// The host watches this path and `model.json.*`. The write is `.model.json.tmp` then rename: the leading
-// dot keeps the temp name outside that glob, so the host never sees half a file.
+// Both halves write it, so the recipe exists once: a second copy is a second way to lose `recent[]`
+// or `variant{}`.
 import { readFileSync, renameSync, writeFileSync } from "node:fs"
 import { homedir } from "node:os"
 import { join } from "node:path"

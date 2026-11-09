@@ -1,12 +1,4 @@
 // oc-models-pro — server half, for the desktop.
-//
-// The terminal reads the catalogue and the four sources in-process. A plugin window cannot: `bun:sqlite`,
-// `node:fs` and the three fetches are all outside its reach — and the AA key lives in this process's
-// environment, which is where the server has it and the window does not. So the whole table is assembled
-// here and the window asks for it over `models.snapshot`.
-//
-// The rows are the terminal's, field for field, so the two views can be compared: same catalogue, same
-// credits, same speeds. Only the rendering differs.
 import { Plugin } from "@opencode/plugin"
 
 import { aaIndex } from "./aa.ts"
@@ -19,8 +11,8 @@ import { Models, type ModelsSnapshot } from "./rpc.ts"
 import type { Row } from "./rows.ts"
 
 /**
- * The fetch-backed sources refresh on their own TTLs (6 h, 1 day, 6 h); the measured speeds cost about a
- * second here and are worth keeping for a minute, which is also what keeps a poll cheap.
+ * The fetch-backed sources keep their own TTLs; the measured speeds are worth a minute, which is also
+ * what keeps a poll cheap.
  */
 const CACHE_MS = 60_000
 
@@ -39,7 +31,7 @@ export default Plugin.define({
 	async setup(ctx) {
 		let cache: { at: number; value: ModelsSnapshot } | undefined
 
-		/** The four sources, each failure named instead of swallowed: a thin column must look thin. */
+		/** The four sources, each failure named instead of swallowed. */
 		async function sources(problems: string[]): Promise<Sources> {
 			const [plan, bench, estimates, speeds] = await Promise.allSettled([
 				goPlan(),
@@ -86,16 +78,14 @@ export default Plugin.define({
 				const cost = (model.cost ?? []).find((entry: any) => !entry.tier) ?? model.cost?.[0]
 				const limit = model.limit ?? {}
 				const score = benchFor(src.bench ?? new Map(), model.name, model.modelID)
-				// Three sources, one order: what this machine measured, then Artificial Analysis, then the
-				// catalogue. A measured figure is never displaced by an estimate.
+				// Three sources, one order: measured, then Artificial Analysis, then the catalogue.
 				const mine = src.measured?.get(model.providerID + "/" + model.modelID)
 				const theirs =
 					mine === undefined
 						? (src.estimated?.get(benchKey(model.name)) ?? src.estimated?.get(benchKey(model.modelID)) ?? score?.tps)
 						: undefined
 				if (mine !== undefined || theirs !== undefined) withSpeed += 1
-				// The measured ratio from the Go plan page first, the native rule second: one is data, the
-				// other is the fact no table reports (the catalogue lists a single DeepSeek price).
+				// The plan page's measured ratio first, the native rule second.
 				const planPeak = isGo(model.providerID) ? src.credits?.get(creditKey(model.modelID))?.peak : undefined
 				const peak = planPeak ?? nativePeak(model.providerID)
 				rows.push({

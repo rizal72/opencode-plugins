@@ -1,6 +1,6 @@
 {
 	"name": "@rizal72/oc-notify",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"type": "module",
 	"description": "A notification on your phone when a turn ends, through ntfy: no account, no cloud of its own, and a settings page in the desktop app",
 	"repository": {

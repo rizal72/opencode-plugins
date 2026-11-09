@@ -1,5 +1,4 @@
-// The contract both surfaces will read: the configuration is a file on the server, so the server owns it and
-// neither the desktop page nor a terminal command keeps a copy of its own.
+// The contract both surfaces read: the server owns the configuration file, so no client keeps a copy.
 import { Rpc } from "@opencode/plugin/rpc"
 
 export const MODES = ["always", "away", "off"] as const
@@ -8,7 +7,7 @@ export type Mode = (typeof MODES)[number]
 
 export const isMode = (value: unknown): value is Mode => MODES.includes(value as Mode)
 
-/** The topic is a password, and these are the only characters ntfy accepts. */
+/** The only characters ntfy accepts in a topic. */
 export const TOPIC = /^[-_A-Za-z0-9]{1,64}$/
 
 export interface Snapshot {
@@ -45,7 +44,7 @@ export const Notify = Rpc.define({
 			input: { type: "object", properties: {}, additionalProperties: false },
 			output: Snapshot,
 		},
-		// The answer is the state after the write, so a page repaints from one reply and never keeps a copy.
+		// The answer is the state after the write, so the page repaints from one reply.
 		set: {
 			input: {
 				type: "object",
@@ -61,7 +60,7 @@ export const Notify = Rpc.define({
 			output: Snapshot,
 		},
 	},
-	// Present (empty) on purpose: a missing events map fails the whole plugin.
+	// Empty, never removed — the doc, Traps.
 	events: {},
 })
 

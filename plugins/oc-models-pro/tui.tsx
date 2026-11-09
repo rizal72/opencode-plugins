@@ -1,12 +1,4 @@
 // oc-models-pro — the model list with prices, ported from Pi's `pi-model-pro`.
-//
-// We render it ourselves, in a `session.panel`: the native dialog caps an option line at 60 columns,
-// measured, which cannot hold prices, context, intelligence and the Go credit side by side. The host
-// owns the panel's placement and focus; the list owns its columns.
-//
-// Prices are native, never adjusted: the multiplier gets its own column and the effective price only
-// decides the order, so a promoted model sorts first while the figures stay honest. The model in use
-// is the first row whatever it costs: the free/paying split never buries it.
 import { Plugin } from "@opencode/plugin/tui"
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 import { appendFileSync, readFileSync, watch, writeFileSync } from "node:fs"
@@ -45,8 +37,7 @@ function tokens(value: number | undefined): string {
 }
 
 /**
- * Every cell is exactly `width` characters: text that does not fit is cut, never shifted right. The
- * columns are hand-padded monospace, so one `padStart` short of its width slides the whole row.
+ * Every cell is exactly `width` characters: one `padStart` short of its width slides the whole row.
  */
 function cell(text: string, width: number, align: "start" | "end" = "end"): string {
 	const cut = text.length > width ? text.slice(0, width) : text
@@ -58,16 +49,11 @@ function padTag(letters: string): string {
 	return (letters.padEnd(2) + "  ").slice(0, 4)
 }
 
-/**
- * Column widths live in `fit.ts`: they are no longer fixed. The table is 85 characters at its widest
- * and the name gives way first (down to 24), then whole columns go. `panel.width` reads as pixels
- * on the first render, so `fit` clamps anything implausible back to the wide layout.
- */
 function label(name: string, width: number): string {
 	return name.length > width ? name.slice(0, width - 1) + "…" : name.padEnd(width)
 }
 
-/** A price cell; blank when the catalogue has no figure, "free" when the figure is zero. */
+/** A price cell: blank for no figure, "free" for zero. */
 function price(value: number | undefined, width: number): string {
 	if (value === undefined) return cell("", width)
 	const shown = value === 0 ? "free" : String(Math.round(value * 1000) / 1000)
@@ -123,7 +109,6 @@ function rowParts(
 		...(f.int ? [cell(row.int !== undefined ? row.int.toFixed(1) : "", 5)] : []),
 	]
 	const tail = [
-		// Any credit other than 1 changes the effective price, so any of them is shown.
 		cell(row.credit !== 1 ? "×" + row.credit : "", 4),
 		...(f.note ? [cell(notes.join(" "), 6)] : []),
 	]
@@ -172,8 +157,7 @@ export default Plugin.define({
 		const BASE = themeColour(["text", "base"])
 		const DIM = themeColour(["text", "muted"], ["text", "faint"]) ?? FALLBACK_DIM
 		const ACCENT = themeColour(["syntax", "function"], ["syntax", "variable"]) ?? FALLBACK_ACCENT
-		// Theme colours reach us as RGBA objects; `fg` takes them, a box background does not — it wants
-		// a string, so the two surfaces are converted to hex.
+		// Theme colours reach us as RGBA objects, which a box background cannot take: convert to hex.
 		const hex = (node: any): string | undefined => {
 			if (typeof node === "string") return node
 			const buffer = node?.buffer
@@ -186,7 +170,7 @@ export default Plugin.define({
 			return "#" + channels.join("")
 		}
 		const SURFACE = hex(themeColour(["surface", "base"], ["background", "raised", "base"]))
-		// The cyan the native controls use when focused; the row text flips to the page colour on top.
+		// The cyan the native controls use when focused.
 		const SELECTED = hex(
 			themeColour(["background", "action", "primary", "focused"], ["surface", "high"]),
 		)
@@ -199,14 +183,12 @@ export default Plugin.define({
 
 		let creditIndex = new Map<string, Credits>()
 		let bench = new Map<string, Bench>()
-		/** Measured on this machine, keyed `providerID/modelID`: it wins over any catalogue figure. */
+		/** Measured on this machine, keyed `providerID/modelID`. */
 		let measured = new Map<string, number>()
-		/** From Artificial Analysis, for the models this machine never ran. */
+		/** From Artificial Analysis. */
 		let estimated = new Map<string, number>()
-		/** False when the Go page could not be read and no cache was there: the credits are all 1. */
+		/** False when the Go page could not be read and no cache was there. */
 		let creditsKnown = false
-		// Signals, not plain variables: the header shows them, and a plain variable left the title
-		// saying "effective price" whatever the list was actually sorted by.
 		const [sort, setSort] = createSignal<SortKey>("effective")
 		const [grouped, setGrouped] = createSignal(true)
 		const [scope, setScope] = createSignal<Scope>("all")
@@ -254,8 +236,6 @@ export default Plugin.define({
 				const cost = (model.cost ?? []).find((entry: any) => !entry.tier) ?? model.cost?.[0]
 				const limit = model.limit ?? {}
 				const score = benchFor(bench, model.name, model.modelID)
-				// Three sources, one order: what this machine measured, then Artificial Analysis, then
-				// the catalogue. A measured figure is never displaced by an estimate.
 				const mine = measured.get(model.providerID + "/" + model.modelID)
 				const theirs =
 					mine === undefined
@@ -271,18 +251,11 @@ export default Plugin.define({
 					// header reads as if the account were the thing: provider first, account in brackets.
 					provider: (providers.get(model.providerID) ?? model.providerID).replace(/^(.+?) \/ (.+)$/, "$2 ($1)"),
 					tag: tags.get(model.providerID) ?? model.providerID.slice(0, 2).toUpperCase(),
-					// A missing figure stays missing: a 0 here would put an unknown model at the top of the
-					// cheapest list and claim a context window it never declared.
 					input: typeof cost?.input === "number" ? cost.input : undefined,
 					output: typeof cost?.output === "number" ? cost.output : undefined,
 					context: typeof limit.context === "number" ? limit.context : undefined,
-					// The page describes the Go plan only, and its names are not the catalogue's: match the
-					// model id, and only on the provider the plan applies to. By name alone, OpenRouter's
-					// "DeepSeek V4.1 Flash" inherited the Go credit.
 					credit: isGo(model.providerID) ? (creditIndex.get(key(model.modelID))?.credit ?? 1) : 1,
 					promo: isGo(model.providerID) ? creditIndex.get(key(model.modelID))?.promo : undefined,
-					// Measured on the Go plan first, then the native rule: the catalogue lists one
-					// DeepSeek price, so only the second can say it doubles.
 					peak:
 						(isGo(model.providerID) ? creditIndex.get(key(model.modelID))?.peak : undefined) ??
 						nativePeak(model.providerID),
@@ -292,8 +265,7 @@ export default Plugin.define({
 					enabled: model.enabled !== false,
 				})
 			}
-			// Every provider keeps its row: the same model on `deepseek` and on `opencode-go` is two
-			// different offers, and hiding one hid `deepseek-v4-pro` from the provider that hosts it.
+			// Every provider keeps its row.
 			return result
 		}
 
@@ -314,15 +286,12 @@ export default Plugin.define({
 			// One fetch a day at most; a failure only costs the credit column and the effective ordering.
 			const plan = await goPlan()
 			creditIndex = plan ? credits(plan) : new Map()
-			// The three reads run together: the panel waits for the slowest, not for their sum. Measured
-			// comes first in the ordering below — the only figure that is this provider's own behaviour.
+			// The three reads run together: the panel waits for the slowest, not for their sum.
 			const started = Date.now()
 			const [benchmarks, speeds, estimates] = await Promise.all([benchIndex(), speedIndex(), aaIndex()])
 			bench = benchmarks
 			measured = new Map([...speeds.speeds].map(([key, speed]) => [key, speed.tps]))
 			estimated = estimates
-			// How many of the models on offer actually come out with a figure: the one number that says
-			// whether a thin column is a thin source or a broken key.
 			const offer = listModels()
 			const withSpeed = offer.filter((model: any) => {
 				if (measured.has(model.providerID + "/" + model.modelID)) return true
@@ -369,8 +338,7 @@ export default Plugin.define({
 		}
 
 		const Panel = (props: { panel: any }) => {
-			// Who had the focus before the panel took it: the prompt itself. The renderer can hand it back,
-			// and nothing else in the API can — no host command focuses the prompt from a plugin.
+			// Who had the focus before the panel took it: the prompt itself.
 			const previousFocus = context.renderer?.currentFocusedRenderable
 			trace(
 				"panel: previous focus=" +
@@ -379,7 +347,6 @@ export default Plugin.define({
 			const [selected, setSelected] = createSignal<string | undefined>(undefined)
 			/** The panel's width, in columns, and the layout it buys — reactive: the host resizes it. */
 			const width = createMemo(() => Math.floor(Number(props.panel.width) || 0), undefined, { equals: Object.is })
-			// The scrollbox draws its scrollbar in the last column, so the table gets one less.
 			// Both layouts carry an equality check: the width settles from pixels to columns on open,
 			// and a memo that fires on that tick re-renders the panel for no visual change — which is
 			// what took the focus off the search field.
@@ -413,9 +380,8 @@ export default Plugin.define({
 			 */
 			const holdsField = (): boolean => Boolean(field) && context.renderer?.currentFocusedRenderable === field
 			/**
-			 * Hands the focus back to whoever held it before the panel opened — the prompt. The host does not
-			 * do it for a panel closed by a click, and there is no command that focuses the prompt: this is
-			 * the renderer's own method, and it is what makes a click on a row behave like `esc`.
+			 * Hands the focus back to whoever held it before the panel opened, which is what makes a click on
+			 * a row behave like `esc`: the renderer's own method, since no command focuses the prompt.
 			 */
 			const focusPrompt = (): void => {
 				try {
@@ -437,9 +403,7 @@ export default Plugin.define({
 				if (field && !field.isDestroyed) field.value = ""
 			}
 			
-			// The host activates a panel's keyboard layers only while it owns input, and it disposes them
-			// when the panel unmounts: measured three openings in a row, every one reading 10 reachable
-			// `models-pro.*` commands and never 20 — a leaked layer would show up here first.
+			// The trace line is the alarm for a leaked layer: it prints on every mount.
 			try {
 				trace(
 					"panel: " +
@@ -451,9 +415,8 @@ export default Plugin.define({
 				fail("panel commands", error)
 			}
 
-			// The state file is shared: the native picker and `model.cycle_favorite` write it while this
-			// panel is open. Watching the directory (not the file) survives the rename, and every event
-			// re-reads the file so the star and the `favorites` scope stay true.
+			// The state file is shared and written under us: watch the directory, which survives the
+			// rename, and re-read on every event.
 			try {
 				const watcher = watch(join(homedir(), ".local/state/opencode"), (_event, name) => {
 					if (String(name) !== "model.json") return
@@ -493,10 +456,6 @@ export default Plugin.define({
 					return compare(sort(), a, b, { recent: prefs.recent })
 				})
 
-				// Free models never enter the price order: they are not cheap, they are unmetered, and at
-				// the top they hide everything that costs something. Grouped, each one still sits under
-				// its own provider, after that provider's paying rows — the group answers "who serves
-				// this", and a global "Free" bucket would answer it wrong. Flat, they keep one bucket.
 				// What is drawn, and in which order, is `arrange`'s business — the same function the
 				// desktop panel calls. This half only turns sections into the headers and rows a
 				// terminal list wants.
@@ -531,7 +490,6 @@ export default Plugin.define({
 				reveal(key)
 			}
 
-			/** The list is taller than the panel: the selection has to drag the viewport with it. */
 			let scroller: any
 			function reveal(key: string): void {
 				const box = scroller
@@ -575,15 +533,7 @@ export default Plugin.define({
 				})()
 			}
 
-			/**
-			 * The host owns the model selection: the native picker writes it with the host's own
-			 * `model.set`, per session and agent, and the prompt sends it to the server. The plugin API
-			 * has no setter for it — `ui.model` reads it and changes its variant, nothing more — so the
-			 * host makes the change: `model.cycle_favorite` ends on the first favourite, the same
-			 * internal call the picker makes. The list is prepared for that call and put back right
-			 * after. One entry is what makes the call safe to repeat: whatever is selected, it lands on
-			 * that entry.
-			 */
+			/** Switches the model through the host's own command, with the favourite list as transport. */
 			async function selectModel(row: Row): Promise<boolean> {
 				// The upstream fix, when it lands: the host's setter, and no list at all.
 				const native = ui.model.set
@@ -617,11 +567,7 @@ export default Plugin.define({
 				return landed
 			}
 
-			/**
-			 * A model whose variant was never chosen has none applied, and the native picker asks once for
-			 * it. Same rule here: a saved entry — `default` included — means silence; no entry opens the
-			 * question, and the host's own `variant.set` is what persists the answer.
-			 */
+			/** The native picker asks once for a variant a model has none of: same rule here. */
 			async function settleVariant(row: Row): Promise<void> {
 				// The file is the source, not the copy read at open: a variant saved meanwhile (native
 				// picker, prompt) has to count as an answer.
@@ -650,8 +596,6 @@ export default Plugin.define({
 				})) as string | undefined
 				// A dialog takes the focus and does not hand it back either: the same command, once it closed.
 				setTimeout(focusPrompt, 40)
-				// Cancelling leaves the model without a variant, and the question will come back, as in
-				// the native picker.
 				if (chosen === undefined) return
 				const applied = ui.model.variant.set(chosen === "default" ? undefined : chosen)
 				trace("variant set: " + chosen + " -> " + applied)
@@ -705,8 +649,6 @@ export default Plugin.define({
 					{ id: "models-pro.recent", title: "Recently used", bind: "ctrl+r", run: () => recentSort() },
 					{ id: "models-pro.favorite", title: "Toggle favourite", bind: "ctrl+f", run: () => favourite() },
 					{ id: "models-pro.close", title: "Clear the search, or close the list", bind: "esc", run: () => (query() ? clear() : props.panel.close()) },
-					// `ctrl+y`: `f11` never reached the panel in the terminal. `ctrl+f` marks a favourite,
-					// as in the native dialog. `f` alone stays unusable: it would be typed into the search.
 					{ id: "models-pro.fullscreen", title: "Full screen", bind: "ctrl+y", run: () => props.panel.toggleFullscreen() },
 				],
 			}))
@@ -760,8 +702,6 @@ export default Plugin.define({
 							{"  "}
 							{"sort: " + ORDERS[sort()].short} ·
 						</text>
-						{/* The scope is the only filter that changes the list, so it is the only thing in
-						    bold: the sort and the grouping are information, the scope is the lens. */}
 						<text fg={BASE} wrapMode="none">
 							<b>{scope()}</b>
 						</text>
@@ -832,7 +772,6 @@ export default Plugin.define({
 								const key = prefKey(row.providerID, row.modelID)
 								const mine = () => key === mineKey()
 								const active = () => key === selectedKey()
-								// A favourite is marked everywhere but in the favourites scope, where every row is one.
 								const favourite = () => {
 									revision()
 									return scope() !== "favorites" && prefs.favorite.has(key)
@@ -920,8 +859,7 @@ export default Plugin.define({
 				}
 			},
 		}
-		// The types publish the keymap twice — `context.keymap` and `ui.keymap` — and this build answers
-		// for one of them only. Try both, record which one took it, never fail silently.
+		// The command goes on whichever keymap the build publishes; the trace records which took it.
 		const keymaps: Array<[string, any]> = [
 			["context.keymap", context.keymap],
 			["ui.keymap", context.ui?.keymap],

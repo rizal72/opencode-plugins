@@ -60,6 +60,10 @@ screen.
 | `ctrl+y` | full screen |
 | `esc` | clear the search, else close |
 
+`ctrl+y` is full screen because `f11` never reached the panel in the terminal, and `ctrl+f` marks a
+favourite exactly where the native dialog does it; `f` alone cannot be a key, it would be typed into the
+search.
+
 A line of its own under the title carries the legend, in parentheses — `×N = Go credit`, `peak*2 = the tariff doubles at peak`,
 `+Nx = promotion` — because a column of `×8` and `peak*2` means nothing on its own.
 | `<leader>p` (`Ctrl+X` then `p`) | open the panel from anywhere |
@@ -85,7 +89,8 @@ separators. The note cell holds a peak (`peak*2`) or a promotion note (`+4x`), a
 `●` for the model in use and `*` for a favourite (a row can carry both). The star is not drawn inside
 the `favorites` scope, where nearly every row is one — the exception is the model in use, which the
 scope keeps even when it is not a favourite, and that row stays unstarred. Every cell is cut to its
-width, so nothing can shift a row's columns to the right. The sort and the scope are signals: as plain
+width, so nothing can shift a row's columns to the right. Almost no row carries a note, so the note cell
+keeps the width of its own name and the legend line underneath spells the marks out. The sort and the scope are signals: as plain
 variables they left the title saying "effective price" whatever the list was sorted by.
 
 ## How the switch reaches the client
@@ -229,6 +234,11 @@ untouched by the rule.
   survives the rename), so a favourite changed from the native picker lights the star here too.
 - **The list follows the selection**: every row carries an id and the `scrollbox` is asked for
   `scrollChildIntoView`, so the arrows walk the whole list, not just the visible page.
+- **Nothing else gives the prompt its focus back**: no host command does it from a plugin, so the panel
+  keeps the renderer's focused renderable from when it mounted and calls `focusRenderable` on it once
+  closed — what makes a click on a row behave like `esc`.
+- **The keymap is published twice** — `context.keymap` and `ui.keymap` — and a build answers for one of
+  them only: the command is registered on whichever accepts it, and the trace records which one took it.
 
 ## Data
 
@@ -254,7 +264,9 @@ untouched by the rule.
   The credit is the monthly limit ÷ the $10 plan, matched **by model id and only on
   `opencode-go`** — the ids there are bare (`opencode-go/deepseek-v4.1-flash`), so
   the page's display name and the id meet after `key()` normalisation; by name alone, OpenRouter's
-  "DeepSeek V4.1 Flash" inherited the Go credit. The `.mdx` on GitHub is stale by design — never cache from it. Self-check:
+  "DeepSeek V4.1 Flash" inherited the Go credit. The page repeats its table per plan (`go`,
+  `go-plus`) and the first occurrence wins, so every figure is the standard plan's. The `.mdx` on
+  GitHub is stale by design — never cache from it. Self-check:
   `node plugins/oc-models-pro/multipliers.ts --self-check`.
 - **Intelligence** — `plugins/oc-models-pro/bench.ts`, from `https://catalog.stencil.so/models.json`,
   cached 6 h at `$XDG_CACHE_HOME/oc-models-pro/bench.json` (else `~/.cache`). 4612 of 9050 entries
@@ -263,7 +275,8 @@ untouched by the rule.
   Stencil's ids are qualified (`alibaba/deepseek-v4.1-flash`), so the key is built from **our model's
   display name** with labels (`latest`, `contributor`, `free`, `preview`, `exp`, `thinking`) and snapshot
   stamps (`1017`) stripped, falling back to the id: that is what makes "DeepSeek V4.1 Flash 1017" meet
-  `deepseek-v4.1-flash`. Coverage over the 469 models of this install: **248 matched**, seven misses on
+  `deepseek-v4.1-flash`. Its own `tps` stays the last fallback in the speed column, after `tps.ts` and
+  `aa.ts`. Coverage over the 469 models of this install: **248 matched**, seven misses on
   `opencode-go`, all genuinely absent upstream. Self-check:
   `node plugins/oc-models-pro/bench.ts --self-check`.
 - **Speed, measured** — `plugins/oc-models-pro/tps.ts`, from this machine's own sessions. Per assistant
@@ -271,7 +284,9 @@ untouched by the rule.
   the industry publishes — Artificial Analysis' "output speed", and `completion_tokens` as OpenAI,
   Anthropic and OpenRouter bill it, where reasoning is part of the output. Turns under 200 ms or under 20
   tokens are dropped; the figure is the **median** per `providerID/modelID`, over the **last 7 days** when
-  that window holds at least three turns, over all of history when it does not. Cheap enough to recompute at every panel
+  that window holds at least three turns, over all of history when it does not. The median is taken
+  twice — within each session, then across sessions — so one long-running session cannot elect the
+  figure on its own. Cheap enough to recompute at every panel
   open: measured 2026-10-27, a few thousand turns cost about a tenth of a second in the host and about a
   third under node, where `bun:sqlite` is missing and the `sqlite3` CLI carries the read. Why it is not a
   catalogue number: the **same model differs by route**, and the two routes for one model are rows in the

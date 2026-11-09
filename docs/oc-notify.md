@@ -97,13 +97,16 @@ once, at the end of the turn that followed it. A subagent finishing on its own s
   of a send is the topic's own cache: `curl "https://ntfy.sh/<topic>/json?poll=1"`.
 - HTTP headers do not carry UTF-8 reliably, so the message is published as JSON to `https://ntfy.sh/`: the
   title survives accents, and the topic stays out of the URL and out of the relay's access log.
+- `Rpc.define` rejects a definition with no `events` key: the empty map is present on purpose, because a
+  missing one fails the whole plugin.
 
 ## What leaves the machine
 
 The topic, the session title (only with `includeTitle`), the agent and the time. Nothing from the transcript
 and nothing from a tool call. It is clear text through ntfy.sh on its way to APNs, and the relay caches it
 for twelve hours; anyone who knows the topic can subscribe and read it. The topic is chosen accordingly, and
-it is the only protection: the free tier allows 250 messages a day per address.
+it is the only protection: the free tier allows 250 messages a day per address. It lives in the config file
+and nowhere else — never in this repository, never in a log.
 
 ## Limits
 
@@ -116,7 +119,8 @@ it is the only protection: the free tier allows 250 messages a day per address.
 
 ## The page, and what is still missing
 
-The file is the state; the page is the way in. `rpc.ts` carries one `get` and one `set`, the page draws what
+The file is the state; the page is the way in. It is a page of its own rather than a section of `General`,
+so no host page grows a section for us. `rpc.ts` carries one `get` and one `set`, the page draws what
 `get` returns and writes through `set`, so neither the page nor the command that comes later knows the file's
 path or its shape. The server validates the input, because any client of the rpc can call it, and writes
 atomically (`.tmp`, then `rename`), so an interrupted write cannot produce the half-written file the read path

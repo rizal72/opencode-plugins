@@ -1,33 +1,21 @@
-// oc-ponytail-widget — GUI half.
-//
-// The terminal puts the badge in the prompt footer; the desktop has the pills row instead, so the level
-// becomes the capsule and the four levels the rows behind it — the selector the terminal never had.
-//
-// Read and write go through the server half (`rpc.ts`): the level is a file in the ponytail package's own
-// config, and a window has no filesystem.
-//
-// `glasses` stands in for the horse: the icon set has neither a horse nor a ponytail, and the horse was a
-// Nerd Font stand-in in the terminal. The label carries the level; the icon only says which pill this is.
+// oc-ponytail-widget — GUI half: the level as a composer capsule, the four levels as its rows — the
+// selector the terminal never had. Icon, tones and the read/write split: `docs/oc-ponytail-widget.md`.
 import { ComposerPill, Plugin } from "@opencode/plugin/gui"
 import { createEffect, createSignal, onCleanup } from "solid-js"
 
 import { LEVELS, Ponytail, withTimeout, type Level, type State } from "./rpc.ts"
 
 const ICON = "glasses" as const
-/** The cup's cadence, on both surfaces: same kind of fact, so the same clock. */
 const REFRESH_MS = 2_000
-/** A call that never answers must not freeze the pill: the cup's guard, and the same 15 s. */
 const RPC_TIMEOUT_MS = 15_000
 
-/** The level's colour, the same table the terminal badge uses: one fact, two renderers. `off` takes no
- *  tone at all — it is not a warning, it is nothing — so the capsule keeps its normal colour. */
 const tone = (level: Level): "warning" | "success" | "danger" | undefined =>
 	level === "off" ? undefined : level === "lite" ? "warning" : level === "ultra" ? "danger" : "success"
 
 export default Plugin.define({
 	setup(ctx) {
 		const [state, setState] = createSignal<State | undefined>(undefined)
-		/** One read at a time, and a click outranks a poll that was already in flight. */
+		/** One read at a time; `writes` tells a stale answer from a newer click. */
 		let reading = false
 		let writes = 0
 
@@ -63,9 +51,6 @@ export default Plugin.define({
 			order: 6,
 			show: () => {
 				const value = state()
-				// No ponytail, nothing to offer: the rows would write a file no package reads, and the
-				// write would sit there to surprise whoever installs ponytail next. A control that cannot
-				// act is not drawn — the same rule the terminal badge follows by drawing nothing.
 				if (!value?.installed) return undefined
 				const current = value.level
 				return {
@@ -76,8 +61,6 @@ export default Plugin.define({
 					rows: LEVELS.map((entry) => ({
 						id: entry,
 						label: entry,
-						// The check marks the level in force, and it is green because that is a state, not a
-						// label: the row doing something says so in colour, like coffee's does.
 						...(entry === current ? { icon: "check" as const, tone: "success" as const } : {}),
 						run: () => {
 							const call = rpc()

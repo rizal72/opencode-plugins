@@ -1,15 +1,5 @@
 // oc-models-pro/tps.ts — tokens per second, measured on this machine.
 //
-// Not an estimate from a catalogue: it is what this provider actually did, for the models this
-// person actually ran. The number is the one the industry publishes, so it can be read next to
-// anything online: (output + reasoning tokens) over the window from the first streamed token to the
-// last, time-to-first-token excluded — Artificial Analysis' "output speed", and `completion_tokens`
-// as OpenAI, Anthropic and OpenRouter bill it, where reasoning is part of the output.
-//
-// The window is the last seven days when it holds at least three turns, and all of history when it
-// does not: a number from a provider's good week is worth less than the provider's behaviour now,
-// but an empty cell for a model used once last month is worth less still.
-//
 // Runnable standalone for its self-check: node plugins/oc-models-pro/tps.ts --self-check
 
 import { execFile } from "node:child_process"
@@ -45,7 +35,7 @@ export function databasePath(): string {
 	return process.env.OPENCODE_DB || join(data, "opencode", "opencode.db")
 }
 
-/** The host's own SQLite. Absent outside Bun, where the CLI carries the self-check. */
+/** The host's own SQLite; absent outside Bun. */
 async function sqlite(): Promise<typeof import("bun:sqlite") | undefined> {
 	try {
 		return await import("bun:sqlite")
@@ -141,8 +131,7 @@ export async function speedIndex(database = databasePath()): Promise<{
 		const recent = all.filter((t) => t.at >= since)
 		const use = recent.length >= MIN_SAMPLES ? recent : all
 		if (use.length === 0) continue
-		// One voice per session, then the median of those voices: without it a single long-running
-		// session elects the number on its own, and this person's sessions run for days.
+		// One voice per session, then the median of those voices.
 		const perSession = new Map<string, number[]>()
 		for (const t of use) {
 			const list = perSession.get(t.sid) ?? []

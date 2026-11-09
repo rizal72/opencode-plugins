@@ -1,15 +1,4 @@
 // oc-models-pro — GUI half.
-//
-// The native picker already searches, keeps favourites and picks variants; a copy of it would be worse
-// than the original. This is the other thing: a table, wide enough to compare, sorted by clicking.
-//
-// The data is the terminal's, assembled in the server half (`index.ts`) because a window has no Node and
-// no environment. The switch is the app's own path — `composer.setModel` — so nothing here writes the
-// session or the prefs file to change a model.
-//
-// Three rules came over from the terminal unchanged, because they are what makes the list readable:
-// the model in use is never buried, free models never head a price order, and a provider is a group
-// rather than a column.
 import { Command, MenuItem, Panel, Plugin, Style, type PanelTab } from "@opencode/plugin/gui"
 import { For, Show, createEffect, createMemo, createSignal, onCleanup } from "solid-js"
 
@@ -74,9 +63,7 @@ const CSS = `
 .omp-warn { padding: 4px 8px; opacity: .7; }
 .omp-fine { padding: 4px 8px; opacity: .55; font-size: 11px;
   border-top: 1px solid color-mix(in srgb, currentColor 8%, transparent); }
-/* The terminal's cascade, in pixels: the name shrinks first (the track is elastic), then whole columns
-   go in the order fit.ts uses — tok/s, then context, then intelligence. The three price figures never
-   go: they are what the list is for. Below the last rung the name truncates instead of scrolling. */
+/* The terminal's cascade, in pixels: the name shrinks first, then whole columns go in fit.ts's order. */
 @container (max-width: 560px) {
   .omp-tps, .omp-note { display: none; }
   .omp-head, .omp-row { grid-template-columns: minmax(9rem, 1fr) 2.8rem 3.4rem 3.4rem 2.4rem 2.6rem; }
@@ -113,9 +100,7 @@ const tokens = (value: number | undefined) => {
 }
 
 /**
- * The terminal's two notes in four characters: `*2` is the tariff at peak, `+1.5` a promotion. 434 of
- * 436 rows have nothing to say, so the column stays the width of its own name and a line underneath
- * spells the marks out.
+ * The terminal's two notes in four characters, with a line underneath spelling the marks out.
  * shortcut: one mark per row, peak first — a model carrying both shows only the peak, the one that
  * changes what it costs today. Widen the cell when a second mark appears.
  */
@@ -172,12 +157,7 @@ export default Plugin.define({
 			const inUse = mine()
 			const searched = query().trim().toLowerCase()
 			const list = value.rows.filter((row) => {
-				// The snapshot carries `enabled`, so this half does not depend on the host's promise that
-				// `model.list()` returns only the models the app has switched on: a disabled model is
-				// filtered here, as the terminal filters it.
 				if (!row.enabled) return false
-				// The model in use survives every scope: it is the state of the session, not a preference
-				// and not a price. Without it the favourites lens would hide the row and nothing could lead.
 				if (scope() === "favorites" && !favourites.has(id(row)) && id(row) !== inUse) return false
 				if (scope() === "paying" && isFree(row) && id(row) !== inUse) return false
 				if (!searched) return true
@@ -284,10 +264,8 @@ export default Plugin.define({
 		const View = () => {
 			const value = () => snapshot()
 			let root: HTMLDivElement | undefined
-			// The list scrolls inside itself and the header sits outside it, so every row is narrower than
-			// the header by the scrollbar. That width is the app's, not ours: measure it and give it to the
-			// header's right padding, or each column drifts right by that many pixels. Zero when the
-			// scrollbars are overlays, which is why it is measured and not written down.
+			// Rows are narrower than the header by the scrollbar, whose width is the app's, not ours: measure
+			// it — zero when the scrollbars are overlays — instead of writing it down.
 			const syncGutter = () => {
 				const body = root?.querySelector<HTMLElement>(".omp-body")
 				if (root && body) root.style.setProperty("--omp-gutter", body.offsetWidth - body.clientWidth + "px")

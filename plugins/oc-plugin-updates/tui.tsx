@@ -1,19 +1,7 @@
-// oc-plugin-updates — TUI half.
+// oc-plugin-updates — TUI half: the sidebar carries the signal, a dialog carries the act.
 //
-// The terminal gets the same act as the pill, in two pieces. The sidebar carries the **signal**: one line,
-// `↻ 2 updates`. The **act** happens in a centred dialog — a row per plugin, `Update all` underneath —
-// because a modal is where the host gives us focus, selection and buttons, and the sidebar is a line of
-// text that has none of the three.
-//
-// `/plugin-updates` opens the same dialog, so the affordance survives the line being absent, which it is
-// whenever everything is current.
-//
-// **Every signal is read inside JSX.** A Solid component body runs once — reading a signal there and
-// deciding in it froze the first version of `oc-budget`'s popover on "reading…" for ever
-// (`docs/oc-budget.md`), and it froze the first version of this half at null, before the first check.
-//
-// **A row without a handler is not clickable**, and the server refuses a second update of its own: a second
-// window, the other client, or a client past its timeout would otherwise still ask.
+// The shapes and their reasons are in `docs/oc-plugin-updates.md`; the terminal rules both halves share
+// are in `docs/tui-plugins.md`.
 import { Plugin } from "@opencode/plugin/tui"
 import { For, Show, createSignal } from "solid-js"
 
@@ -22,10 +10,9 @@ import { Updates, withTimeout, type CheckResult, type UpdateResult, type UpdateR
 /** The circled arrow of the pill, md-update (U+F06B0) — the same idea, the same shape. */
 const GLYPH = "\u{f06b0}"
 
-/** The pill's cadence and the pill's caches: the server answers from six hours of its own. */
+/** The pill's cadence; the server answers from its own cache. */
 const REFRESH_MS = 5 * 60 * 1000
 const CHECK_TIMEOUT_MS = 60_000
-/** N packages, one install each: the guard outlasts an update, not a render. */
 const UPDATE_TIMEOUT_MS = 180_000
 
 const FALLBACK_YELLOW = "#d29922"
@@ -50,8 +37,7 @@ export default Plugin.define({
 			themeColour(["text", "feedback", "warning", "base"], ["syntax", "type"], ["syntax", "number"]) ??
 			FALLBACK_YELLOW
 		const RED = themeColour(["text", "feedback", "error", "base"], ["syntax", "error"]) ?? FALLBACK_RED
-		/** The panel's own furniture. No background highlight: a themed pair of colours can resolve to the
-		 *  same value and the row goes blank, which is what the first version did. */
+		/** The panel's own furniture. No background highlight — the doc, The TUI. */
 		const BORDER = themeColour(["border", "base"], ["text", "faint"]) ?? FALLBACK_DIM
 		const ACCENT = themeColour(["syntax", "function"], ["syntax", "variable"], ["text", "base"]) ?? BASE
 
@@ -147,8 +133,7 @@ export default Plugin.define({
 			<box height={1} flexDirection="row" paddingLeft={1} paddingRight={1}>
 				<text fg={YELLOW} wrapMode="none">{(props.row.id ?? props.row.target).padEnd(24)}</text>
 				<text fg={DIM} wrapMode="none">{props.row.version ?? ""}</text>
-				{/* The button goes to the right edge: the dialog's width is the host's, so the room is used
-				    rather than fought. */}
+				{/* The button goes to the right edge: the dialog's width is the host's, not ours. */}
 				<box flexGrow={1} />
 				<Button label="Update" run={() => void update([props.row.target], props.row.id ?? props.row.target)} />
 			</box>
@@ -210,19 +195,15 @@ export default Plugin.define({
 		)
 
 		const open = (force: boolean): void => {
-			// `set` talks to the *active* dialog, so it has to follow `show`: before it applies to nothing,
-			// and the "centred" of the record was never true.
+			// `set` talks to the *active* dialog, so it has to follow `show`.
 			context.ui.dialog.show(() => <Panel />)
 			context.ui.dialog.set({ size: "medium", centered: true })
-			// Opening is the moment the list matters. From the command it is a fresh ask; from the line it
-			// is the cached one, because a click is cheap and a registry read is not.
+			// From the command this is a fresh ask; from the line, the cached list.
 			void check(force)
 		}
 
 		const Line = () => (
 			<Show when={visible()}>
-				{/* The dialog opens under the pointer, so opening on the press made the release land outside it
-				    and close it again — one click in three. The release is the moment the modal can survive. */}
 				<box height={1} onMouseUp={() => open(false)}>
 					<text fg={YELLOW} wrapMode="none">
 						{GLYPH} {text()} — /plugin-updates
@@ -235,8 +216,6 @@ export default Plugin.define({
 		context.ui.slot({ prepend: "sidebar.content", render: () => <Line /> })
 
 		// The other door, and the one that works when the line is absent because everything is current.
-		// `mode` defaults to `base`, a layer limited to one input mode: without `global` the command
-		// registers and never reaches the palette or the slash completion (measured 2026-10-30).
 		context.keymap.layer(() => ({
 			mode: "global",
 			commands: [

@@ -22,7 +22,8 @@ the scan; here SQL does it. Overrides: `OPENCODE_DB`, else `$XDG_DATA_HOME/openc
 One scan, no index, ranked in three steps.
 
 1. **The query becomes words.** Up to six, longest first — a longer word is usually the more selective
-   one. A query that carries regex syntax (`.*+?^$()[]{}|\`) is run as that expression instead, unchanged.
+   one, and each term is a test over every message, so a seventh would buy nothing for another full pass.
+   A query that carries regex syntax (`.*+?^$()[]{}|\`) is run as that expression instead, unchanged.
    For a plural, the singular is searched too; substring matching already covers the other direction.
 2. **SQL keeps the rows, the JS ranks them.** SQL scores by *presence* of each word, one column per
    word, and filters nothing else: it is deliberately loose (a superset), because `instr` finds "git"
@@ -32,6 +33,16 @@ One scan, no index, ranked in three steps.
    `log(1 + candidates / df)`: a word present in most messages counts almost nothing, a word present in a
    handful carries the ranking. Then: score, then date, then one hit per session before the cut, then the
    rest by rank with no per-session cap (a long session holding every mention may take the tail).
+
+**The shortlist keeps the weight the scan computed.** It is sorted by prose first, then the
+rarity-weighted score, then date. Re-sorting by how many query words each message holds was the
+tempting alternative and is wrong: it throws away the weighting that already separates "the" from the
+rare word.
+
+**Bodies are read a page at a time.** The prefilter is deliberately loose, so one page of candidates can
+be almost all substring noise and hide the real matches: 120 bodies per round, at most 5 rounds, and the
+reading stops as soon as the list is full. Reading the whole top of the candidate set to discard all but
+a handful is the waste this avoids.
 
 Prose comes before payload: a message is searched in its own text (`text`, or the `text`/`reasoning`
 parts, never the `tool` parts); a match found only inside a tool call is kept as filler, after every
@@ -116,6 +127,11 @@ empty, and a bounded past period must be empty.
   has no term at all and is refused with a message.
 - **The project filter is case-insensitive on both sides**, because `instr` is not: the directory is
   lowered in SQL. Before 0.2.1 it was not, and `project: "OpenCode"` silently selected only sandbox paths.
+- **The prefilter is case-sensitive, the judge is not.** `instr` compares the stored JSON as written, so
+  both sides are lowered before they meet: the query's terms and literals, and `m.data` itself. SQLite's
+  `lower()` is ASCII-only, which is exactly the alphabet `terms()` accepts, so a word written only as
+  `GitHub` is found by a search for `github`, while a script outside ASCII is still refused before SQL (the
+  bullet above).
 - The `role` field is the message type as the host stores it (`assistant`, `user`, `synthetic`, `shell`,
   `idle`, ...), not a normalised pair.
 

@@ -1,22 +1,15 @@
 // oc-coffee — GUI half.
 //
-// The header, not the composer: keeping a machine awake is a fact about the system, and the app's own row is
-// where its system facts live, beside the context ring and the cost. It also buys the cup — a pill can only
-// pick from the host's icon set, which has none, while a slot draws its own markup.
-//
-// The cup is Material Design Icons' `coffee-outline` (U+F06CA), the glyph the terminal's badge draws, so the
-// two surfaces show one artwork instead of two imitations. Apache-2.0; the path is quoted whole.
-//
-// The state is not read from the system: the server holds it, having spawned the child itself, and this
-// window asks over `rpc.ts`. That is what makes the cup and the badge agree — they are two views of one
-// answer, not two answers.
+// The header cup and its popover of the four levels; the cup is the glyph the terminal's badge draws, so
+// the two surfaces show one artwork. The state comes from the server over `rpc.ts`. Record:
+// `docs/oc-coffee.md`.
 import { Plugin, Slot, Style, type SlotMap } from "@opencode/plugin/gui"
 import { Show, createEffect, createSignal, onCleanup } from "solid-js"
 
 import { HeaderMenu } from "./header-menu.tsx"
 import { Coffee, LEVELS, flagsText, withTimeout, type CoffeeSnapshot, type Level } from "./rpc.ts"
 
-/** Short: the cup has to light while the agent is still working. */
+/** The poll: short, so the cup lights while the agent is still working. */
 const REFRESH_MS = 2_000
 const RPC_TIMEOUT_MS = 15_000
 
@@ -166,8 +159,8 @@ export default Plugin.define({
 								>
 									<span class="occ-check">
 										<Show when={level === v().level}>
-											{/* Drawn here, not `ctx.ui.Icon`: the SDK's icon union is wider than the set the
-											    app draws, so an absent name shows a `plus` with no error. */}
+											{/* Drawn, not `ctx.ui.Icon`: the SDK's icon union has no cup and an absent name
+											    draws a `plus` with no error. */}
 											<svg viewBox="0 0 16 16" width="14" height="14" fill="none" aria-hidden="true">
 												<path
 													d="M3 8.5l3 3 7-7.5"
@@ -196,7 +189,6 @@ export default Plugin.define({
 
 		ctx.add(Style, CSS)
 
-		// Order 12 puts it after the budget's figure (11) and before the app's actions (20).
 		ctx.add(Slot, { at: "session.header", order: 12, render: (input) => <HeaderCoffee input={input} /> })
 	},
 })

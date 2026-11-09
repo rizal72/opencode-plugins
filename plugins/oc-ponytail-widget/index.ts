@@ -1,30 +1,18 @@
-// oc-ponytail-widget — server half.
-//
-// The level is not ours: it is the ponytail package's, and it lives in `~/.config/ponytail/config.json`
-// (`defaultMode`), the one file pi and OpenCode both read. The terminal's badge and the desktop's pill
-// both read through here, so the two surfaces cannot disagree.
-//
-// Sources, in the order the package reads them: the state file `/ponytail <level>` writes, then the
-// shared config, then nothing — where `full` is the level the package itself would apply.
-//
-// "Would apply" needs one more fact: is the package there at all? A level set on a machine without
-// ponytail installed describes nothing, so the host's own plugin registry is asked, and with no
-// ponytail the surfaces draw nothing (`docs/oc-ponytail-widget.md`).
+// oc-ponytail-widget — server half. The level chain, the installed check and the state file:
+// `docs/oc-ponytail-widget.md`. Both surfaces read through here, so they cannot disagree.
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
 
 import { Ponytail, isLevel, type Level, type State } from "./rpc.ts"
 
-/** Where the package looks for its own files, `$XDG_CONFIG_HOME` first — the same rule it uses. */
+/** Where the package looks for its own files: `$XDG_CONFIG_HOME` first, as it resolves them. */
 const CONFIG_DIR = process.env.XDG_CONFIG_HOME || join(homedir(), ".config")
 const STATE = join(CONFIG_DIR, "opencode", ".ponytail-active")
 const CONFIG = join(CONFIG_DIR, "ponytail", "config.json")
 
-/** The package as npm names it, and the folder name a `local` install would have. */
 const PACKAGE = "@dietrichgebert/ponytail"
 const NAME = "ponytail"
-/** The registry is asked at most this often: it changes on a config save, not on a clock tick. */
 const ALIVE_MS = 60_000
 
 const read = async (path: string): Promise<string | undefined> => {
@@ -51,7 +39,6 @@ async function configured(): Promise<Level | undefined> {
 	}
 }
 
-/** A package entry, or a `local` folder named after it: both mean the same thing here. */
 const isPonytail = (entry: any): boolean => {
 	const source = entry?.source
 	if (entry?.id === NAME) return true
@@ -63,7 +50,6 @@ const isPonytail = (entry: any): boolean => {
 export default {
 	id: "oc-ponytail-widget",
 	async setup(ctx: any) {
-		/** True until the registry says otherwise: a failed call must not hide a level that is in force. */
 		let installed = true
 		let asked = 0
 
@@ -75,7 +61,7 @@ export default {
 				const { data } = await ctx.plugin.list()
 				installed = data.some((entry: any) => isPonytail(entry) && entry?.state?.status === "active")
 			} catch {
-				// A registry that cannot answer says nothing about the package: the last answer stands.
+				// The last definite answer stands.
 			}
 			return installed
 		}
@@ -89,11 +75,7 @@ export default {
 			return { level: "full", source: "none", installed: observed }
 		}
 
-		/**
-		 * Writes the OpenCode state file the package's plugin writes on `/ponytail <level>`: plain text, the
-		 * word alone, no trailing newline. That file is read before the shared config, so the pill outranks
-		 * the default without editing a file pi also reads.
-		 */
+		/** Writes the first source of the chain, so a click outranks the default without editing it. */
 		async function set(level: Level): Promise<State> {
 			await mkdir(dirname(STATE), { recursive: true })
 			// A scratch name per process: two `set`s at once must not rename each other's half-written bytes.

@@ -1,5 +1,4 @@
-// What the desktop's panel reads: a plugin window has no Node built-ins, so every file and every fetch
-// stays in the server half and the window asks for the finished table.
+// The two calls across the split, and the one row shape both surfaces sort.
 import { Rpc } from "@opencode/plugin/rpc"
 
 import type { Row } from "./rows.ts"
@@ -12,22 +11,22 @@ const Row = {
 		providerID: { type: "string" },
 		modelID: { type: "string" },
 		name: { type: "string" },
-		/** The provider's display name, account first as the host writes it. */
+		/** The provider's display name, as the host writes it. */
 		provider: { type: "string" },
 		/** Two letters from `tags.ts`. */
 		tag: { type: "string" },
-		/** Prices per million tokens; absent when the catalogue has none — an unknown figure, not a free one. */
+		/** Prices per million tokens; absent when the catalogue has none. */
 		input: Count,
 		output: Count,
 		context: Count,
-		/** Monthly limit ÷ the $10 plan. 1 when the plan is unknown. */
+		/** Monthly limit ÷ the plan price. */
 		credit: Count,
 		promo: Count,
 		peak: Count,
 		int: Count,
-		/** Borrowed from Artificial Analysis, or the catalogue's own when it still carries one. */
+		/** Borrowed: Artificial Analysis, or the catalogue's own. */
 		tps: Count,
-		/** Measured on this machine, on this provider. Outranks `tps` and carries no tilde. */
+		/** Measured on this machine, on this provider. */
 		measured: Count,
 		enabled: { type: "boolean" },
 	},
@@ -41,11 +40,10 @@ const Snapshot = {
 		rows: { type: "array", items: Row },
 		/** `providerID/modelID` of the models the host keeps as favourites, from `model.json`. */
 		favorites: { type: "array", items: { type: "string" } },
-		/** How many offers the catalogue holds, and how many came out with a speed — the pair that tells a
-		 *  thin source from a broken key. */
+		/** How many offers the catalogue holds, and how many came out with a speed. */
 		offers: Count,
 		withSpeed: Count,
-		/** False when the Go plan could not be read and no cache was there: every credit is 1. */
+		/** False when the Go plan could not be read and no cache was there. */
 		credits: { type: "boolean" },
 		/** What failed, in the words the panel shows. Empty when everything came back. */
 		problems: { type: "array", items: { type: "string" } },

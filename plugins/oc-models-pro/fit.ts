@@ -1,19 +1,18 @@
 // oc-models-pro — how a row and the footer fit a panel of a given width, in columns.
 //
-// The host hands `session.panel` a `width` in columns (pixels on the very first frame, which the
-// clamp absorbs). Everything that depends on it lives here, so the thresholds sit in one place:
+// Everything that depends on it lives here, so the thresholds sit in one place:
 //   node plugins/oc-models-pro/fit.ts --self-check
 
-/** The name column at its widest: 32 + the fixed 53 is the 85-character table. */
+/** The name column at its widest. */
 export const NAME = 32
-/** ...and at its narrowest. Below this a model name is unreadable, and a column is worth more. */
+/** ...and at its narrowest. */
 export const NAME_MIN = 24
-/** The cells that never go: marker 2, tag 4, in 6, out 6, cred 4 and the nine separators. */
+/** The cells that never go. */
 const FIXED = 53
 
 export type Fit = { name: number; ctx: boolean; int: boolean; tkps: boolean; note: boolean }
 
-/** Columns dropped as the panel narrows: one with no data, then the note, then context, then int. */
+/** Columns dropped as the panel narrows, in the order the width runs out. */
 const DROPS = [
 	{ key: "tkps", width: 7 },
 	{ key: "note", width: 7 },

@@ -1,10 +1,5 @@
 // oc-models-pro/rows.ts — the facts both surfaces read the same way.
 //
-// The terminal draws a monospace table and the desktop draws a grid, but what a row *means* is not the
-// renderer's business: the effective price, what counts as free, and the ten orders are one definition
-// here. Two copies would drift the way they already did once — the terminal kept free models out of the
-// price order and the desktop did not.
-//
 // Runnable standalone for its self-check: node plugins/oc-models-pro/rows.ts --self-check
 
 export interface Row {
@@ -12,14 +7,14 @@ export interface Row {
 	providerID: string
 	modelID: string
 	provider: string
-	/** Two letters from `tags.ts`: the provider's, unique in the catalogue. */
+	/** Two letters from `tags.ts`. */
 	tag: string
-	/** Undefined when the catalogue has no price for the model: an unknown figure, not a free one. */
+	/** Undefined when the catalogue has no price for the model. */
 	input?: number
 	output?: number
 	/** Undefined when the model carries no limit. */
 	context?: number
-	/** Monthly limit ÷ the $10 plan: the ordering multiplier, shown so the order explains itself. */
+	/** Monthly limit ÷ the plan price: the ordering multiplier. */
 	credit: number
 	/** Allowance ÷ its normal one, when the page marks a promotion. */
 	promo?: number
@@ -28,7 +23,7 @@ export interface Row {
 	/** Stencil's intelligence score and its speed; absent when the catalogue has no row for the model. */
 	int?: number
 	tps?: number
-	/** Tokens per second measured here, on this provider. Outranks `tps` and carries no tilde. */
+	/** Tokens per second measured here, on this provider. */
 	measured?: number
 	enabled: boolean
 }
@@ -40,12 +35,12 @@ export function effective(row: Row): number | undefined {
 	return row.input / (row.credit || 1)
 }
 
-/** A missing price is not a free one: both figures must be there, and be zero. */
+/** Both figures must be there, and be zero. */
 export function isFree(row: Row): boolean {
 	return row.input === 0 && row.output === 0
 }
 
-/** The speed to sort and print: what this machine measured first, the borrowed figure after. */
+/** The speed to sort and print. */
 export function speedOf(row: Row): number | undefined {
 	return row.measured ?? row.tps
 }
@@ -78,8 +73,7 @@ export interface Order {
 	value(row: Row, context: SortContext): number | undefined
 }
 
-/** Whatever an order cannot measure sorts last, never first, and in either direction: an unknown price is
- *  not the cheapest thing on the list, and a missing score is not the highest. */
+/** Whatever an order cannot measure sorts last, never first, and in either direction. */
 
 export const ORDERS: Record<SortKey, Order> = {
 	effective: { label: "effective price", short: "effective↑", value: effective },
@@ -92,7 +86,6 @@ export const ORDERS: Record<SortKey, Order> = {
 			row.input === undefined || row.output === undefined ? undefined : (row.input + row.output) / (row.credit || 1),
 	},
 	context: { label: "context window", short: "ctx↓", desc: true, value: (row) => row.context },
-	// A missing score sorts last, never first: Pi's rule, and the honest one.
 	int: { label: "intelligence", short: "int↓", desc: true, value: (row) => row.int },
 	speed: { label: "speed", short: "speed↓", desc: true, value: (row) => speedOf(row) },
 	recent: {
@@ -158,10 +151,7 @@ export interface Section {
 }
 
 /**
- * The order the surfaces draw, which is not the order they sort: free models never enter a price order,
- * so they follow their provider's paying rows; and the model in use is never buried — it leads its
- * provider, and its provider leads the list. Both surfaces held a copy of this (`gui.tsx` and
- * `tui.tsx`), and the copies drifted the moment a filter was added.
+ * The order the surfaces draw, which is not the order they sort.
  */
 export function arrange(list: Row[], options: { inUse?: string; grouped: boolean }): Section[] {
 	const used = options.inUse === undefined ? undefined : list.find((row) => id(row) === options.inUse)

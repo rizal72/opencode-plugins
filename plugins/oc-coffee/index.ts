@@ -1,20 +1,7 @@
 // oc-coffee — server half.
 //
-// The level and the assertion are one fact for the whole machine, so they live here: the server is the
-// single process every client talks to, it survives them, and it is the one that runs the turns. The
-// terminal and the window only read and write it over `rpc.ts`.
-//
-// **One process, one child.** The loader instantiates this plugin once per location — two open projects
-// mean two instances, and they do not share module scope — so the state cannot live in this closure: it
-// lives on the process, behind a symbol. The first instance to load starts it, every other instance
-// answers from it, and both clients get the same answer wherever they are.
-//
-// Counting is over **all** sessions: the assertion is machine-wide, so one session finishing must not
-// put the Mac back to sleep while another works. Subagents count too, because their work is work.
-//
-// The child is `caffeinate … -w <pid>`, bound to this process: if the server dies the work dies with
-// it, so an assertion falling with it says the truth and needs no cleanup. A level change mid-run
-// respawns the child with the new flags, which is exactly when it is wanted.
+// The level and the child live here, so both clients answer from one machine-wide fact; the terminal and
+// the window only read and write it over `rpc.ts`. The record is `docs/oc-coffee.md`.
 import { execFileSync, spawn, type ChildProcess } from "node:child_process"
 
 import { Plugin } from "@opencode/plugin"
@@ -27,9 +14,7 @@ const DEFAULT: Level = "display"
 /** The process-wide state. A symbol, so no other plugin's key can collide with ours. */
 const MACHINE = Symbol.for("oc-coffee.machine")
 
-/** The run's edges, and the signs of life inside one. The host renamed these once — `execution.*` became
- *  `step.*` plus the tool events — so both shapes are watched: the cup is a view of "the agent is
- *  working", and the names of the events that say it have already changed once. */
+/** The run's edges, and the signs of life inside one. */
 const WATCHED = [
 	"session.step.started",
 	"session.step.ended",
@@ -43,15 +28,6 @@ const WATCHED = [
 	"session.archived",
 ] as const
 
-/** A step ends before its tools run and the next one starts after them, so the turn is not a step: it is
- *  open from the first step to the step that finishes with anything but `tool-calls`. Nothing here is
- *  timed, which is what lets a command run for a minute without the cup dropping under it.
- *
- *  A command that outlives its turn is not on this stream at all: measured 2026-11-03, a background loop
- *  emitted no `session.shell.*` event, and the cup went out while the process kept running. The host
- *  answers that question itself — the `experimental.idle` hook lists the background work still going —
- *  and that is where the second half of the state comes from. */
-
 interface Machine {
 	readonly snapshot: () => CoffeeSnapshot
 	readonly setLevel: (next: Level) => Promise<CoffeeSnapshot>
@@ -62,12 +38,10 @@ interface Machine {
 const machine = (ctx: any): Promise<Machine> => ((globalThis as any)[MACHINE] ??= start(ctx))
 
 async function start(ctx: any): Promise<Machine> {
-	// macOS only: `caffeinate` is not on the PATH elsewhere, so the spawn is skipped rather than failed.
+	// macOS only: skipped rather than failed, so the plugin stays loaded elsewhere.
 	const supported = process.platform === "darwin"
 
-	// `-w` binds the child to the server, and the server outlives the plugin — so a child from a plugin
-	// that is gone is still there, holding the assertion with flags nothing will ever change. Reaped
-	// before any spawn: an orphan is ours by construction, its `-w` is this process.
+	// Reaped before any spawn: an orphan is ours by construction, its `-w` is this process.
 	try {
 		const suffix = `-w ${process.pid}`
 		const table = execFileSync("ps", ["-A", "-o", "pid=", "-o", "command="], { encoding: "utf8" })
@@ -85,8 +59,7 @@ async function start(ctx: any): Promise<Machine> {
 	if (isLevel(stored)) level = stored
 
 	const running = new Set<string>()
-	/** Shells a session left running, grouped by the session that reports them. Replaced on every report, never
-	 *  merged: the report is the whole picture, so a shell that is no longer listed is a shell that ended. */
+	/** Shells each session reported running at its last idle. */
 	const shells = new Map<string, Set<string>>()
 	let child: ChildProcess | undefined
 	/** The level the live child was spawned with, so a change can be told from a no-op. */
@@ -99,7 +72,7 @@ async function start(ctx: any): Promise<Machine> {
 		held?.kill("SIGTERM")
 	}
 
-	/** Turns in flight, plus every command they left behind: a session counts once for its turn, each shell once. */
+	/** Turns in flight plus the commands they left behind. */
 	const inFlight = () => running.size + [...shells.values()].reduce((total, ids) => total + ids.size, 0)
 
 	// The assertion is up exactly while there is work and the level asks for it.
@@ -124,9 +97,8 @@ async function start(ctx: any): Promise<Machine> {
 
 	const snapshot = (): CoffeeSnapshot => ({ level, running: inFlight(), held: !!child })
 
-	// A stream can end while the process lives: one hiccup used to stop the cup until the next restart, and
-	// it did so silently. So this is a loop that always comes back, with a backoff so a subscription that
-	// cannot open at all cannot spin either.
+	// Resubscribing with a backoff: a stream can end while the process lives, and a silent stop is worse
+	// than a gap.
 	void (async () => {
 		let wait = 1_000
 		for (;;) {
@@ -136,8 +108,7 @@ async function start(ctx: any): Promise<Machine> {
 					const data = (event as any).data ?? {}
 					const id = String(data.sessionID ?? "")
 					const opened = event.type === "session.step.started" || event.type === "session.execution.started"
-					// A session that is gone can never report again, so its shells go with it: a keep-awake is
-					// only worth holding while something can still end it.
+					// A session that is gone can never report again, so its shells go with it.
 					const gone = event.type === "session.deleted" || event.type === "session.archived"
 					const closed =
 						event.type === "session.execution.succeeded" ||
@@ -153,9 +124,7 @@ async function start(ctx: any): Promise<Machine> {
 			} catch (error) {
 				console.warn("oc-coffee: the event stream ended, resubscribing —", error instanceof Error ? error.message : error)
 			}
-			// The set survives a resubscribe on purpose: a stream that hiccups mid-run must not release
-			// the assertion, and over-holding is the safe direction for a keep-awake. A session that really
-			// ended still clears itself on its own `execution.*` event.
+			// The set survives a resubscribe: over-holding is the safe direction for a keep-awake.
 			apply()
 			await new Promise((resolve) => setTimeout(resolve, wait))
 			wait = Math.min(wait * 2, 30_000)
@@ -192,14 +161,9 @@ export default Plugin.define({
 				return coffee.setLevel(input.level)
 			},
 		})
-		// The host's own answer to "what is still running": the turn is over, and a command it left behind is
-		// not. Only the jobs this session **owns**: a descendant's shell is listed for information only, its
-		// end wakes the descendant, and an entry filed under the ancestor would never be replaced.
+		// The host's own answer to "what is still running", filed per session.
 		//
-		// `setBackground` is checked because a reload replaces this setup and not the machine: the object on
-		// `globalThis` was built by the previous code, so a new member is missing until the server restarts.
-		// The warning is best effort — a plugin's `console` output has not been seen in `opencode.log`
-		// (`docs/oc-notify.md`) — but silence would leave a fix live and quietly off.
+		// `setBackground` is checked because a reload replaces this setup and not the machine.
 		let stale = false
 		await ctx.session.hook("experimental.idle", (input: any) => {
 			if (typeof (coffee as any).setBackground !== "function") {
@@ -215,7 +179,6 @@ export default Plugin.define({
 				.filter(Boolean)
 			coffee.setBackground(sessionID, ids)
 		})
-		// No cleanup: the machine belongs to the process, not to a location. Disabling the plugin leaves
-		// the child until the server restarts, which is the price of one assertion for one machine.
+		// No cleanup: the machine belongs to the process, not to a location.
 	},
 })

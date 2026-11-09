@@ -1,8 +1,6 @@
 // oc-coffee/header-menu.tsx — the popover the header cup opens, lifted as it stands from
-// `oc-budget/header-menu.tsx`: the pattern is the app's own (`packages/gui-plugins/src/details/popover.tsx`),
-// where the open state is ours, so a second click on the trigger closes what the first opened. The platform's
-// `popover="auto"` cannot do that: it dismisses on any click outside, the trigger is outside, and the click
-// that should close arrives at a button whose panel is already gone and reopens it.
+// `oc-budget/header-menu.tsx`: the open state is ours, so a second click on the trigger closes what the
+// first opened. The record, and why the platform's `popover="auto"` cannot do that, is `docs/oc-coffee.md`.
 import { Popover } from "@kobalte/core/popover"
 
 export function HeaderMenu(props: {

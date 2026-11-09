@@ -1,7 +1,5 @@
-// oc-git — server half.
-//
-// Empty to the terminal, which reads git itself, but not to the desktop: a GUI plugin window has no
-// Node built-ins, so the read happens here and the window asks for it through `rpc.ts`.
+// oc-git — server half: the read the desktop half asks for through `rpc.ts`. Empty to the terminal,
+// which reads git itself.
 import { Plugin } from "@opencode/plugin"
 
 import { read } from "./git.ts"
@@ -16,8 +14,7 @@ export default Plugin.define({
 				const status = directory ? await read(directory) : undefined
 
 				if (!status) return { ok: false }
-				// `undefined` is not a number for the output validator, and the key being present is what
-				// it checks: a repository without an upstream fails `ahead` unless the key is absent.
+				// An absent key, not `undefined`: that is the shape the output validator accepts.
 				const { branch, added, modified, untracked } = status
 				return {
 					ok: true,

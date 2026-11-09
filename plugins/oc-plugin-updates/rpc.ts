@@ -1,5 +1,5 @@
-// The contract the GUI half reads: a plugin window has no Node built-ins and no environment, so the two
-// calls to the CLI stay on the server and the window asks for their result.
+// The contract both halves read: a plugin window has no Node built-ins and no environment, so the calls
+// stay on the server (`docs/oc-plugin-updates.md`).
 import { Rpc } from "@opencode/plugin/rpc"
 
 /** One installed plugin that has a newer version published. */
@@ -8,7 +8,7 @@ export interface UpdateRow {
 	id?: string
 	/** What `plugin update` takes: the npm name, or the Git source. */
 	target: string
-	/** The installed version. The newer one is not in `Plugin.Info`: even `plugin check` does not know it. */
+	/** The installed version, never the target: `Plugin.Info` does not carry it. */
 	version?: string
 }
 

@@ -1,16 +1,5 @@
 // oc-models-pro: intelligence per model, from the stencil.so catalog.
 //
-// The catalog is keyed by gateway and its ids are qualified (`alibaba/deepseek-v4.1-flash`), so the
-// comparison uses the last segment — and the key is built from *our* model's display name, never its
-// id. That is what makes the aliases meet: the same model is `deepseek/deepseek-flash` here and
-// "DeepSeek V4.1 Flash 1017" to the eye, while stencil calls it `deepseek-v4.1-flash`. The name is
-// stripped of the labels a catalogue attaches (`latest`, `contributor`, `free`, `preview`) and of
-// snapshot stamps (`1017`, `0731`); the model id is the fallback when the name finds nothing.
-//
-// `int` is on most entries; `tps` was on none of them when this was last measured (2026-10-19), so the
-// speed column is fed by `tps.ts` and `aa.ts` instead — this file's `tps` stays only as the last resort.
-// A figure that is not there is never guessed.
-//
 // Runnable standalone for its self-check: node plugins/oc-models-pro/bench.ts --self-check
 
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
@@ -86,7 +75,7 @@ async function cached(): Promise<Cached | undefined> {
 	}
 }
 
-/** Six hours of grace: a benchmark does not move between two coffee breaks. */
+/** Grace, not freshness: a benchmark does not move between two coffee breaks. */
 export async function benchIndex(): Promise<Map<string, Bench>> {
 	const previous = await cached()
 	if (previous && Date.now() - previous.fetched < GRACE_MS) return indexOf(previous)

@@ -1,21 +1,7 @@
 // oc-coffee — TUI half.
 //
-// Keeps the Mac awake while the agent works: the port of pi's `pi-coffee`.
-//
-//   off | idle | display | system      ->  caffeinate (), (-i), (-i -d), (-i -d -s -u)
-//
-// The level and the assertion are not held here any more. They are one fact for the whole machine —
-// the desktop app is a second client, and two clients with a copy each are two answers to one
-// question — so the server owns them (`index.ts`) and this half only reads and writes them over
-// `rpc.ts`. Measured 2026-10-27: the server does receive `session.execution.started` and
-// `.succeeded`, which the 2026-10-16 note said it did not.
-//
-// The badge shows the level whenever it is not `off` — the setting, not the moment — and only the
-// cup lights up (green) while the assertion is up, so the state is one mark and the level stays
-// legible. `/coffee` opens the menu with the level in force marked, `/coffee <level>` sets one: the menu
-// is the status, and there is no separate command to ask for it.
-//
-// macOS only: elsewhere the server never spawns the child, and the badge simply never lights.
+// The footer badge and the `/coffee` command: both read and write the server's state over `rpc.ts`. The
+// level table, the badge's colours and why it stays visible at `off` are in `docs/oc-coffee.md`.
 import { Plugin } from "@opencode/plugin/tui"
 import { createRoot, createSignal } from "solid-js"
 
@@ -24,13 +10,11 @@ import { Coffee, LEVELS, isLevel, withTimeout, type CoffeeSnapshot, type Level }
 /** md-coffee_outline (U+F06CA), the glyph pi's own badge uses. */
 const CUP_GLYPH = "\u{f06ca}"
 
-/** Short: the read is a local call, and the cup must light while the agent is still working. */
+/** The poll: short, so the cup lights while the agent is still working. */
 const REFRESH_MS = 2_000
 const RPC_TIMEOUT_MS = 15_000
 
-/** The four menu rows: a name short enough that truncation never eats it, and the effect in words, which a
- *  narrow terminal may cut. The `caffeinate` flags stay in the desktop popover — in a menu they were the
- *  longest part and the least useful. */
+/** The four menu rows: a title short enough that truncation never eats it, and the effect in words. */
 const LEVEL_ROW: Record<Level, { title: string; detail: string }> = {
 	off: { title: "Off", detail: "no prevention" },
 	idle: { title: "Idle", detail: "Mac stays awake, screen may sleep" },
@@ -62,8 +46,6 @@ export default Plugin.define({
 		const DIM = themeColour(["text", "muted"], ["text", "faint"]) ?? FALLBACK_DIM
 
 		const rpc = context.client.rpc(Coffee)
-		// Reactive: the badge must repaint when the assertion goes up or down, and that now happens in
-		// the server, so it arrives through a read rather than through a local variable.
 		const [snapshot, setSnapshot] = createRoot(() => createSignal<CoffeeSnapshot>(DEFAULT))
 
 		const level = (): Level => snapshot().level
@@ -106,9 +88,7 @@ export default Plugin.define({
 		void read()
 		const timer = setInterval(() => void read(), REFRESH_MS)
 
-		/** Always visible, `off` included: the badge is the setting, and seeing `off` is how you
-		 *  know the plugin is loaded and deliberately doing nothing. (pi hides it when off; the
-		 *  owner asked for the name instead.) */
+		/** The badge: the level as the setting, the cup lit while the assertion is up. */
 		const Badge = () => (
 			<box flexDirection="row" flexShrink={0}>
 				<text fg={held() ? GREEN : DIM} wrapMode="none">{CUP_GLYPH}</text>
@@ -131,8 +111,7 @@ export default Plugin.define({
 						await read()
 						const argument = (input ?? "").trim().split(/\s+/).filter(Boolean)[0]
 
-						// `/coffee display` sets a level without the menu; the menu itself is the status, since
-						// `current` marks the level in force and the footer's cup says whether it is holding.
+						// `/coffee <level>` sets a level without the menu.
 						if (isLevel(argument)) {
 							await setLevel(argument)
 							context.ui.toast.show({ message: describe() })
@@ -155,10 +134,8 @@ export default Plugin.define({
 									description: LEVEL_ROW[candidate].detail,
 									value: candidate as string,
 								})),
-								// A reading, not a setting: the row says what the level is doing right now, and
-								// picking it only closes the menu. It cannot be disabled — this app drops disabled
-								// options from the list instead of greying them out — and it cannot open a second
-								// panel either, because the menu is already the status.
+								// A reading, not a setting: picking it only closes the menu. Not a disabled
+								// option either — this app drops those from the list (docs/oc-coffee.md).
 								{
 									title: "Status",
 									description: stateText(),

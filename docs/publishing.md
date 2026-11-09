@@ -230,8 +230,9 @@ before asking, and that it stops before the registry — it never commits and ne
 it leaves are the commit and the push, both the owner's.
 
 The commit that carries a version is the task's own commit: the bump joins it, so a task is one commit and
-one push, and the push is the publication. The message and the plugin's doc answer "which commit was 0.1.2" a
-year later: record the version and the date in the plugin's own doc.
+one push, and the push is the publication. A year later "which commit was 0.1.2" is answered by the message
+and by the release — the tag carries the version, the page carries the date. A plugin's doc records a
+version only where it already keeps a *Publication* section, and that section is history, not a changelog.
 
 **On this machine the two paths stay local.** `opencode plugin add` is the user's command: run here it
 would install the package and load a second copy of the same id, so the unpacked tarball is tested by

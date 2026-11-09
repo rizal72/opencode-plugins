@@ -1,19 +1,7 @@
 // oc-session-search: keyword search over past OpenCode sessions.
 //
-// No index, on purpose. The transcripts live in one SQLite file that belongs to the host and is
-// opened read-only; a second derived file would have to be kept in sync with a schema that is
-// internal to OpenCode, and the corpus is one person's sessions. The scan costs what the corpus
-// costs, and that trade is written down in docs/oc-session-search.md.
-//
-// Two rules the measurements forced:
-//
-//   - never truncate by recency before ranking. The session in progress is the loudest one, so a
-//     `order by time_created desc limit 400` on the newest rows hides every older session (measured:
-//     "mirror" lives in 452 rows across 31 sessions, and the 400 newest were all from today);
-//   - read the rows in chunks. `bun:sqlite` is synchronous and a tool runs on the server's single
-//     thread, so for the length of the call every HTTP request, the event feed, the token stream and
-//     the other sessions wait (packages/core/src/session/runner/step.ts). `CHUNK` is the batch size
-//     the host itself uses for deletes (EVENT_DELETE_BATCH_SIZE), and it bounds the stall to ~20 ms.
+// The transcripts live in the host's own SQLite file, opened read-only. There is no index and nothing
+// is written; the trade, the measurements and the reasons are in docs/oc-session-search.md.
 //
 // Runnable standalone for its self-check: node plugins/oc-session-search/search.ts --self-check
 
@@ -61,15 +49,15 @@ interface Candidate {
 /** How a query is looked for: as words, or as the expression the caller wrote. */
 type Plan = { kind: "regex"; source: string } | { kind: "terms"; terms: string[] }
 
-/** Rows per statement. The stall the event loop sees is one chunk, not the whole scan. */
+/** Rows per statement: the stall the event loop sees is one chunk, not the whole scan. */
 const CHUNK = 1_000
-/** Each term is a pass over every message, so the count is capped: the longest words are kept. */
+/** The count is capped so the scan stays bounded; the longest words are kept. */
 const MAX_TERMS = 6
-/** Messages whose JSON is read per round. Reading 2.500 bodies to discard 2.450 is waste. */
+/** Messages whose JSON is read per round. */
 const FIELD = 120
 /** Rounds of `FIELD` bodies: the word-bounded test may reject a whole page of substring noise. */
 const ROUNDS = 5
-/** Beyond this many candidates the scan stops. Only a corpus this size makes it a real limit. */
+/** Beyond this many candidates the scan stops. */
 const CANDIDATES = 30_000
 const SNIPPET_BEFORE = 120
 const SNIPPET_AFTER = 200
@@ -79,7 +67,7 @@ export function databasePath(): string {
 	return process.env.OPENCODE_DB ?? join(data, "opencode", "opencode.db")
 }
 
-/** The words of a query, longest first: the longest are the most selective. */
+/** The words of a query, longest first. */
 export function terms(query: string): string[] {
 	const seen = new Set<string>()
 	const out: string[] = []
@@ -87,15 +75,14 @@ export function terms(query: string): string[] {
 		const key = word.toLowerCase()
 		if (seen.has(key)) continue
 		seen.add(key)
-		// Lowercase because SQL's `instr` is case-sensitive while the JS judge is not: the
-		// prefilter has to stay a superset of what the judge will accept.
+		// Lowered with the stored text: `instr` is case-sensitive — the doc, Gotchas.
 		out.push(key)
 		if (out.length === MAX_TERMS) break
 	}
 	return out
 }
 
-/** A term and, for a plural, its singular. Substring matching already covers the other direction. */
+/** A term and, for a plural, its singular. */
 export function variants(term: string): string[] {
 	return term.length >= 5 && /[^s]s$/i.test(term) ? [term, term.slice(0, -1)] : [term]
 }
@@ -119,7 +106,7 @@ export function plain(data: string): string {
 		.replace(/\u0000/g, "\\")
 }
 
-/** The prose of a message: `text`, or the text parts of a reply — tool calls and their output excluded. */
+/** The prose of a message: `text`, or its text parts. */
 export function textOf(data: string): string | undefined {
 	try {
 		const entry = JSON.parse(data) as { text?: unknown; content?: unknown }
@@ -134,7 +121,7 @@ export function textOf(data: string): string | undefined {
 	}
 }
 
-/** A turn of the event loop: what stops one chunk from stalling the whole server. */
+/** A turn of the event loop. */
 function tick(): Promise<void> {
 	return new Promise((resolve) => setImmediate(resolve))
 }
@@ -162,7 +149,7 @@ interface Store {
 	close(): void
 }
 
-/** The host's own SQLite, loaded once: OpenCode is a Bun binary, so this is always there. */
+/** The host's own SQLite, loaded once. */
 let host: typeof import("bun:sqlite") | undefined | false
 
 async function hostSqlite() {
@@ -213,14 +200,18 @@ function sqlFor(plan: Plan): { where: string; cols: string[] } {
 		const runs = literals(plan.source)
 		return {
 			// An expression with no literal run (`.`, `\d+`) has nothing to prefilter on: every row is
-			// a candidate, and the cap below is what keeps that survivable.
-			where: runs.length === 0 ? "1 = 1" : runs.map((run) => "instr(m.data, " + literal(run) + ") > 0").join(" or "),
+			// a candidate, and the cap below is what keeps that survivable. Both sides are lowered: `instr`
+			// is case-sensitive on the stored text.
+			where:
+				runs.length === 0
+					? "1 = 1"
+					: runs.map((run) => "instr(lower(m.data), " + literal(run) + ") > 0").join(" or "),
 			cols: [],
 		}
 	}
 	const one = (term: string) =>
 		variants(term)
-			.map((variant) => "instr(m.data, " + literal(variant) + ") > 0")
+			.map((variant) => "instr(lower(m.data), " + literal(variant) + ") > 0")
 			.join(" or ")
 	return {
 		where: plan.terms.map((term) => "(" + one(term) + ")").join(" or "),
@@ -279,10 +270,7 @@ async function scan(store: Store, plan: Plan, options: SearchOptions): Promise<{
 		}
 		await tick()
 	}
-	// Rarity weighting without a second pass. Every message holding a term is a candidate, so the
-	// number of candidates holding term i is its exact document frequency: a word present in most
-	// messages weighs almost nothing, a word present in a handful carries the ranking. This is what
-	// keeps "why the panel went blank" from matching everything through "the" and "why".
+	// Weights from the scan's own candidate set, applied in place: no second pass over the corpus.
 	const weights: number[] = plan.kind === "terms" ? plan.terms.map(() => 0) : []
 	if (plan.kind === "terms") {
 		const keys = plan.terms.map((_, i) => "t" + i)
@@ -302,7 +290,7 @@ function through(value: number | null | undefined): string | undefined {
 	return typeof value === "number" ? String(value) : undefined
 }
 
-/** The words of the query as word-bounded matchers: SQL is loose on purpose, this is the precision. */
+/** The words of the query as word-bounded matchers: this is the precision pass. */
 function judge(plan: Plan, weights: number[]): (text: string) => { matched: number; at: number } {
 	if (plan.kind === "regex") {
 		const source = plan.source
@@ -329,8 +317,7 @@ function judge(plan: Plan, weights: number[]): (text: string) => { matched: numb
 			const found = text.search(matcher)
 			if (found < 0) return
 			matched++
-			// The snippet centres on the rarest word present: the first match in a message is
-			// usually "the", which shows a reader nothing.
+			// Centre the snippet on the rarest word present, not the first match.
 			if (weights[i] > weight) {
 				weight = weights[i]
 				at = found
@@ -402,13 +389,10 @@ export async function searchSessions(options: SearchOptions): Promise<{
 		// Ranked before anything is read or cut: score first, recency as the tiebreak.
 		candidates.sort((a, b) => b.score - a.score || b.ts - a.ts)
 
-		// Prose first, tool payloads only as filler: a search for a discussed topic wants the
-		// sentence, not the command that happened to name it. Judged here, because SQL reads JSON
-		// and cannot tell the two apart.
+		// Prose first, tool payloads only as filler: SQL cannot read the JSON and tell the two apart.
 		const test = judge(plan, weights)
 		const scored: Array<{ candidate: Candidate; prose: boolean; at: number; matched: number; source: string }> = []
-		// The substring score decides which bodies are read; the word-bounded test decides what is
-		// returned. A page of substring noise can hide real matches, so read on while the list is short.
+		// Read on while the list is short: one page of substring noise can hide real matches.
 		for (let taken = 0; taken < candidates.length && scored.length < limit && taken < FIELD * ROUNDS; taken += FIELD) {
 			const field = candidates.slice(taken, taken + FIELD)
 			if (field.length === 0) break
@@ -437,8 +421,7 @@ export async function searchSessions(options: SearchOptions): Promise<{
 			}
 			await tick()
 		}
-		// Prose first, then the rarity-weighted score from the scan, then date. Re-sorting by the
-		// count of words present would throw away the weighting that the scan just computed.
+		// Prose first, then the weight the scan already computed, then date.
 		scored.sort(
 			(a, b) =>
 				Number(b.prose) - Number(a.prose) || b.candidate.score - a.candidate.score || b.candidate.ts - a.candidate.ts,
@@ -446,9 +429,8 @@ export async function searchSessions(options: SearchOptions): Promise<{
 
 		const hits: SearchHit[] = []
 		const perSession = new Map<string, number>()
-		// One hit per session first: "did we discuss this?" is answered by a session, not by four
-		// consecutive messages of the same one. The rest of the list fills by rank, with no cap, so a
-		// long session that holds every mention can still take the tail.
+		// One hit per session first, then the rest by rank with no cap: a long session that holds
+		// every mention can still take the tail.
 		const take = (cap: number) => {
 			for (const entry of scored) {
 				if (hits.length >= limit) return
@@ -485,15 +467,20 @@ if (process.argv[2] === "--self-check") {
 
 		const filtered = await searchSessions({ query: "session_search", project: "OpenCode", limit: 2 })
 		if (filtered.hits.length === 0) throw new Error("self-check: the project filter found nothing")
-		if (filtered.hits.some((h) => h.project !== "OpenCode")) throw new Error("self-check: project filter leaked")
+		// The filter is a substring match on the directory, so its own subdirectories and siblings match too.
+		if (filtered.hits.some((h) => !h.project.toLowerCase().includes("opencode")))
+			throw new Error("self-check: project filter leaked")
 
 		const bad = await searchSessions({ query: "([unclosed" })
 		if (!/Invalid regular expression/.test(bad.text)) throw new Error("self-check: bad regex not reported")
 
-		// Regression: the SQL prefilter is case-sensitive, the judge is not. A mixed-case query must
-		// still find the lowercase rows.
+		// Regression: a mixed-case query must still find the lowercase rows, and a lower-case query must
+		// find a row where the word appears only capitalised — `instr` is case-sensitive on both sides.
 		const mixed = await searchSessions({ query: "GitHub", limit: 2 })
 		if (mixed.hits.length === 0) throw new Error("self-check: a capitalised query lost the lowercase rows")
+		const sql = sqlFor({ kind: "terms", terms: terms("github") }).where
+		if (!/instr\(lower\(m\.data\),/.test(sql))
+			throw new Error("self-check: the prefilter does not lower the stored text")
 
 		// Regression: a regex prefilter on one branch hides the others.
 		const alternation = await searchSessions({ query: "pairing|ponytail", limit: 2 })

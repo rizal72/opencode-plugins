@@ -1,13 +1,4 @@
-// oc-models-pro/aa.ts — tokens per second for the models this machine has never run, from
-// Artificial Analysis' free API. Attribution: https://artificialanalysis.ai/
-//
-// Their number is the same measurement as ours — "the average number of tokens received per second,
-// after the first token is received" — so filling an empty cell with it does not mix two families,
-// the way `int` and speed already do. The panel marks those values with a leading `~`, because they
-// were measured on their infrastructure and not on this person's provider.
-//
-// No key, no calls: without ARTIFICIAL_ANALYSIS_API_KEY this module returns an empty map and nothing
-// leaves the machine. With a key the response is cached six hours, which their terms ask for.
+// oc-models-pro/aa.ts — borrowed speed, from Artificial Analysis' free API.
 //
 // Runnable standalone for its self-check: node plugins/oc-models-pro/aa.ts --self-check
 
@@ -21,7 +12,7 @@ export const AA = "https://artificialanalysis.ai/api/v2/data/llms/models"
 const CACHE_DIR = process.env.XDG_CACHE_HOME || join(homedir(), ".cache")
 const CACHE = join(CACHE_DIR, "oc-models-pro", "aa.json")
 const GRACE_MS = 6 * 60 * 60 * 1000
-/** Optional decoration must never hold the panel: a hanging endpoint gives up after this. */
+/** Optional decoration must never hold the panel. */
 const FETCH_MS = 5_000
 
 interface Cached {
@@ -34,7 +25,7 @@ export function apiKey(): string | undefined {
 	return key && key.trim() ? key.trim() : undefined
 }
 
-/** Name first, slug second — the same meeting point `bench.ts` uses, so one model has one key. */
+/** Name first, slug second. */
 export function buildIndex(payload: any): Map<string, number> {
 	const index = new Map<string, number>()
 	for (const entry of payload?.data ?? []) {
@@ -68,7 +59,6 @@ async function cached(): Promise<Cached | undefined> {
 	}
 }
 
-/** Empty without a key: this is the whole cost of the column being optional. */
 export async function aaIndex(): Promise<Map<string, number>> {
 	const key = apiKey()
 	if (!key) return new Map()

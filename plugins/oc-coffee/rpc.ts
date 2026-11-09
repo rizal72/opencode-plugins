@@ -1,5 +1,4 @@
-// The contract both clients read: the level is one fact for the machine, so the server owns it and
-// neither the terminal nor the window ever keeps a copy of its own.
+// The contract both clients read: the server owns the level, neither client keeps a copy of its own.
 import { Rpc } from "@opencode/plugin/rpc"
 
 export const LEVELS = ["off", "idle", "display", "system"] as const
@@ -29,7 +28,7 @@ const Snapshot = {
 	type: "object",
 	properties: {
 		level: Level,
-		/** Turns and commands in flight right now, across the whole server: the assertion is machine-wide. */
+		/** Turns and commands in flight right now. */
 		running: { type: "number" },
 		/** Whether our own `caffeinate` is up. */
 		held: { type: "boolean" },
@@ -78,7 +77,6 @@ export const Coffee = Rpc.define({
 			output: Snapshot,
 		},
 	},
-	// Present (empty) on purpose: a missing events map fails the whole plugin.
 	events: {},
 })
 

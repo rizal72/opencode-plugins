@@ -1,37 +1,11 @@
 // oc-git — TUI half.
 //
-// The repository's state in the sidebar, vertical because the sidebar has room:
-//
-//   <git glyph> Git status
-//   <branch glyph> main
-//   +2  ±1  ?0
-//   ↑1 ↓3
-//
-// Branch, then the files that have something to commit — added (index `A`), everything else that
-// changed (`M`, `T`, `D`, `R`, `U`), and untracked — then ahead/behind, which appears only when an
-// upstream exists. Zeros are the point: a clean repository reads `+0 ±0 ?0` and no extra word is
-// needed to say so.
-//
-// Colour: the title in bold white, the branch in the theme's accent, and each count on its own — the
-// warning yellow when that figure is not zero, grey when it is. A clean repository is therefore three
-// grey zeros, which is the point: it should not catch the eye. The ahead/behind line has two weights and
-// no alarms: `↑n` white when it is not zero, `↓n` yellow, because a branch can wait for a push and cannot
-// rest behind its upstream.
-//
-// Data: `git status --porcelain=v2 --branch`, one read-only call, chosen over the plugin API's
-// `ctx.vcs` because that one exposes the branch and the file list but not the counts this block is
-// built on, nor ahead/behind. The call runs on a timer, skipped while the previous one is still
-// running, so a very large repository cannot stack reads.
-//
-// The block is hidden whenever git cannot answer — outside a repository, or on a machine without
-// git — because an empty block is worse than no block.
+// The block is hidden, not drawn empty, when git cannot answer: an empty block is worse than no block.
 import { Plugin } from "@opencode/plugin/tui"
 import { createSignal } from "solid-js"
 
 import { read, type Status } from "./git.ts"
 
-/** The two glyphs pi's own widget uses, copied from there — verified by reading the codepoints
- *  back out of this file, never from memory. */
 const BRANCH_GLYPH = ""
 const GIT_GLYPH = ""
 
@@ -55,12 +29,9 @@ export default Plugin.define({
 		const BASE = themeColour(["text", "base"])
 		const DIM = themeColour(["text", "muted"], ["text", "faint"]) ?? FALLBACK_DIM
 		// One accent for everything that is a *value*, never a state: `syntax.function` is the blue-ish
-		// identity colour in most themes. Green and yellow are deliberately not used — in this UI they
-		// mean ok and warning, and a count is neither.
+		// identity colour in most themes.
 		const ACCENT =
 			themeColour(["syntax", "function"], ["syntax", "variable"], ["text", "base"]) ?? FALLBACK_ACCENT
-		/** The warning yellow the other sidebar blocks use — here it means "there is something to
-		 *  commit", the one state this block exists to announce. */
 		const YELLOW =
 			themeColour(["text", "feedback", "warning", "base"], ["syntax", "type"], ["syntax", "number"]) ??
 			FALLBACK_YELLOW
@@ -102,9 +73,6 @@ export default Plugin.define({
 				</text>
 				{state()!.ahead !== undefined ? (
 					<text>
-						{/* Two weights, not two alarms: ahead is white — it is news, and a presentation does not raise
-						    it to a warning; behind is yellow, because a branch can wait for a push but cannot rest
-						    behind its upstream. */}
 						<span style={{ fg: (state()!.ahead ?? 0) > 0 ? BASE : DIM }}>↑{state()!.ahead} </span>
 						<span style={{ fg: (state()!.behind ?? 0) > 0 ? YELLOW : DIM }}>↓{state()!.behind}</span>
 					</text>
@@ -112,10 +80,7 @@ export default Plugin.define({
 			</box>
 		)
 
-		// Footer: the branch is already printed there by the TUI, and the whole block lives in the
-		// sidebar, so the glyph and the three figures are the entire message. Shown only when there is
-		// something to commit: on a narrow screen that is the point — the sidebar is gone, and this is
-		// the one line that still has to reach the eye.
+		// Footer: the three figures, shown only when there is something to commit.
 		const dirty = () => {
 			const current = state()
 			return !!current && (current.added > 0 || current.modified > 0 || current.untracked > 0)

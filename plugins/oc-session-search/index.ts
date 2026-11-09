@@ -1,10 +1,7 @@
 // oc-session-search — the `session_search` tool: keyword search over past OpenCode sessions.
 //
-// Why a tool and not a command: the point is that the agent reaches for it on its own when the owner
-// says "we discussed this already", without being told which command to run. It is registered with
-// `codemode: true`, so it costs no prompt bytes: it sits in the Code Mode catalog as one line.
-//
-// The transcripts are in SQLite, not in files — search.ts carries the query and the self-check.
+// Registered with `codemode: true`, so it costs no prompt bytes. search.ts carries the query and the
+// self-check; the why of it all is in docs/oc-session-search.md.
 import { Plugin } from "@opencode/plugin"
 import { searchSessions } from "./search.ts"
 

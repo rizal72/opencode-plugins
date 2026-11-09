@@ -1,5 +1,4 @@
-// The contract the GUI half reads: a plugin window has no Node built-ins, so the git call stays on the
-// server and the window asks for its result.
+// The contract the desktop half reads: the git call stays on the server.
 import { Rpc } from "@opencode/plugin/rpc"
 
 const Count = { type: "number" }
@@ -17,7 +16,6 @@ export const Git = Rpc.define({
 			output: {
 				type: "object",
 				properties: {
-					/** False outside a repository: a valid answer, not a failed call. */
 					ok: { type: "boolean" },
 					branch: { type: "string" },
 					ahead: Count,
@@ -31,7 +29,6 @@ export const Git = Rpc.define({
 			},
 		},
 	},
-	// Present (empty) on purpose: a missing events map fails the whole plugin.
 	events: {},
 })
 
