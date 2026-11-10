@@ -40,6 +40,11 @@ const CSS = `
   text-align: left; }
 .omp-head .omp-num { text-align: right; }
 .omp-body { overflow: auto; min-height: 0; }
+/* The model in use, outside the scroller: it keeps the tint it has inside the list, the border says the row
+   is pinned rather than simply first, and the scrollbar's width is held back as the column header does —
+   the two sit outside the same scroller and must stay on its rows' columns. */
+.omp-pin { flex-shrink: 0; padding-right: var(--omp-gutter, 0px);
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent); }
 .omp-group { padding: 8px 8px 4px; text-transform: uppercase; letter-spacing: .04em; font-size: 10px;
   position: sticky; top: 0; z-index: 1;
   background: var(--v2-background-bg-base, Canvas);
@@ -174,6 +179,24 @@ export default Plugin.define({
 
 		/** Which rows are drawn, and in what order: one rule, in `rows.ts`, for both surfaces. */
 		const sections = createMemo<Section[]>(() => arrange(ordered(), { inUse: mine(), grouped: grouped() }))
+
+		/** The model in use is the one every comparison is made against, so it does not scroll away with the
+		 *  rest: it is drawn above the list, and the filters are the same ones — a search that excludes it
+		 *  leaves nothing pinned. */
+		const pinned = createMemo<Row | undefined>(() => {
+			const key = mine()
+			if (!key) return undefined
+			return sections()
+				.flatMap((section) => section.rows)
+				.find((row) => id(row) === key)
+		})
+		const scrolled = createMemo<Section[]>(() => {
+			const key = mine()
+			if (!key) return sections()
+			return sections()
+				.map((section) => ({ ...section, rows: section.rows.filter((row) => id(row) !== key) }))
+				.filter((section) => section.rows.length > 0)
+		})
 
 		const choose = (row: Row) => {
 			const composer = ctx.screen.current()?.composer
@@ -339,11 +362,26 @@ export default Plugin.define({
 						<span class="omp-num omp-credit">×</span>
 						<span class="omp-num omp-note">note</span>
 					</div>
+					{/* Outside the scroller, like the column headers: the row every comparison is made against
+					    stays on screen while the rest passes under it. */}
+					<Show keyed when={pinned()}>
+						{(row: Row) => (
+							<div class="omp-pin">
+								<Row row={row} />
+							</div>
+						)}
+					</Show>
 					<div class="omp-body">
-						<Show when={sections().length === 0}>
-							<div class="omp-empty">{value() ? "no model matches" : "reading the catalogue…"}</div>
+						<Show when={scrolled().length === 0}>
+							<div class="omp-empty">
+								{value()
+									? pinned()
+										? "no other model matches"
+										: "no model matches"
+									: "reading the catalogue…"}
+							</div>
 						</Show>
-						<For each={sections()}>
+						<For each={scrolled()}>
 							{(section: Section) => (
 								<>
 									<Show when={section.title}>

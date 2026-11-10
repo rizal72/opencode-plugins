@@ -149,6 +149,17 @@ the note, then context, then intelligence; the price figures never go, they are 
 tracks live in `gui.tsx`; the header is padded by the scrollbar's measured width, because it sits outside
 the scrolling list and would otherwise be wider than its rows.
 
+**The model in use sits outside the scroller too**, above the body and under the column header: the
+comparison the panel exists for is against it, so it must not leave the screen while the rest scrolls. It
+is drawn by the row component, with the tint and the dot it has inside the list, plus a bottom border that
+says it is pinned rather than first. It is not a second rule: the pinned row and the body are cut from the
+same `sections()` that `arrange` produces, so every scope, sort and grouping applies to both — including the
+in-use row that the `favorites` and `paying` scopes keep on purpose — and the row is simply taken out of the
+body's copy, nothing drawn twice. The band is keyed on the row, so switching model replaces it instead of
+leaving the previous one on screen. A search that does not match it leaves nothing pinned, and a search that
+matches nothing else says so under it. The same bar holds the scrollbar's width back, as the header does, or
+its columns would not line up with the rows under it.
+
 ## When the panel is narrow
 
 The host hands the panel a `width` in columns, and it is the only lever: `presentation` tells the same
