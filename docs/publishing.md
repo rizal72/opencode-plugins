@@ -146,10 +146,19 @@ entry as the workaround.
   not satisfy it — what an install run with `--legacy-peer-deps` leaves behind, since that flag prunes the
   peers the lock still names (measured 2026-10-30: the run failed 16 s in, after the push).
 
-The condition for going back to shipping `.tsx` is not that issue closing: it is the `include` option in
-`anomalyco/opentui#1741`, which compiles the folders whose path contains `node_modules`. Until it lands,
-an installed `.tsx` fails twice — `Cannot find package 'react'`, and, with JSX supplied, Bun evaluates
-`{n()}` once so the plugin draws its first frame and never updates.
+The condition for going back to shipping `.tsx` is that issue, and only that issue: the road its plan named
+first — an `include` option on OpenTUI's Solid transform, so the host compiles the folders whose path
+contains `node_modules` — was closed unmerged on 2026-11-10 (`anomalyco/opentui#1741`: *"We'd rather decide
+how external TSX is compiled ourselves"*). The decision sits in OpenCode now, so #39986 closing is the
+whole signal; anything short of it is not. Until then an installed `.tsx` fails twice — `Cannot find
+package 'react'`, and, with JSX supplied, Bun evaluates `{n()}` once so the plugin draws its first frame
+and never updates.
+
+The other shape that loads from an installed package needs no build step and no bundler: a `.ts` entry with
+no JSX syntax, `jsx()`/`jsxs()` with a getter per reactive expression, imports through
+`opentui:runtime-module:*` ids, optional peers, and a **type-only** `Rpc` import so the TUI half has no
+runtime `@opencode/plugin` import. Confirmed on 2.1.4 and 2.2.5 by two authors in that thread, and rejected
+here on one count: it trades a build step for hand-written trees, and our halves stay readable as TSX.
 
 ## package.json
 

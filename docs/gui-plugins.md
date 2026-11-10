@@ -32,7 +32,7 @@ Every app release, two questions — the first is a gate, the second a reading:
 |---|---|
 | one `icon` and one `label` per pill or row, `tone` on the icon only | the surface takes more than one icon — likelier than it sounds: icons are the first thing to grow |
 | the prebuilt CommonJS bundle, dynamic imports inlined | the app can load a second chunk |
-| the compiled `tui.js` in the published package (`docs/publishing.md`) | the packaged loader runs our TSX reactively — issue #39986 |
+| the compiled `tui.js` in the published package (`docs/publishing.md`) | the packaged loader runs our TSX reactively — issue #39986 resolved inside OpenCode, the OpenTUI `include` route being closed unmerged (`docs/publishing.md`, *Two consequences of the push*) |
 | a 2 s clock, and a 15 s guard on every call to the server | the host pushes a change event for what we watch |
 | the header's scrollbar offset measured, never written | the header and the rows share one grid |
 | `IconName` checked by eye, because the union is wider than the app draws | the union and the drawn set are the same thing |
@@ -187,7 +187,9 @@ render function, and the host contributes none of the rows.
   mixing the two shapes in one page is what reads as an accident.
 - **The first read waits for a server.** A settings page can mount before the app has listed one, and
   `ctx.servers.get` answers `undefined` until the interface mounts: read it inside a `createKeyed` on
-  `ctx.servers.list().length`, and use the `builtin` server, which is the desktop's own.
+  `ctx.servers.list().length`, and use the `builtin` server, which is the desktop's own. A server in that
+  list is not the plugin registered: since 2.2.7 `rpc.call` does not wait for a plugin to finish loading,
+  so a read that lands early fails instead of waiting.
 - **Nothing is kept in the window.** The state is a file on the server, read and written through the plugin's
   `rpc`, and the page shows what its last read or write returned. Two open windows do not push to each other,
   so a stale one writes its own view back: a settings page is one window's, and a second should be reopened.
