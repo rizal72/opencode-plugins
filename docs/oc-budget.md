@@ -234,8 +234,10 @@ The windows, `isPeak`, `doubles` and `nextChange` live in `peak.ts`, one definit
   reminder not to switch *to* them is worth more than a report on the one in use. The footer keeps
   `doubles` — it shows one wallet, the one paying;
 - **desktop**: `↗` at the end of the figure's label when what you are paying doubles — the footer's rule.
-  In the popover, `↗` sits on the GO heading and on the `DS` line whenever the hour is peak, whether or not
-  they are the ones paying: the same rule as the block. Zen and OpenRouter never carry it.
+  In the popover, `↗` sits on the GO heading — immediately after it, since that name carries no minimum
+  width; the one written for the wallet rows put fourteen pixels of nothing between the two — and on the
+  `DS` line whenever the hour is peak, whether or not they are the ones paying: the same rule as the block.
+  Zen and OpenRouter never carry it.
 
 ## Colours come from the theme
 

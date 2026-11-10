@@ -47,7 +47,7 @@ const CSS = `
 .ocb { display: flex; flex-direction: column; gap: 5px; width: 100%; font-size: 13px; font-weight: 440;
   letter-spacing: -0.04px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .ocb-line { display: flex; align-items: center; gap: 6px; }
-.ocb-name { font-weight: 600; letter-spacing: .02em; min-width: 2.6em; }
+.ocb-name { font-weight: 600; letter-spacing: .02em; }
 .ocb-figure { margin-left: auto; min-width: 4.2em; text-align: right; }
 .ocb-peak { margin-left: 4px; }
 .ocb-windows { gap: 4px; line-height: 1; }
