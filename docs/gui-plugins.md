@@ -35,6 +35,7 @@ Every app release, two questions — the first is a gate, the second a reading:
 | the compiled `tui.js` in the published package (`docs/publishing.md`) | the packaged loader runs our TSX reactively — issue #39986 resolved inside OpenCode, the OpenTUI `include` route being closed unmerged (`docs/publishing.md`, *Two consequences of the push*) |
 | a 2 s clock, and a 15 s guard on every call to the server | the host pushes a change event for what we watch |
 | the header's scrollbar offset measured, never written | the header and the rows share one grid |
+| a drag on a share-the-conversation panel, re-sent to `Layout.side.resize` on release | the host stores every panel's drag app-wide, declared width or not |
 | `IconName` checked by eye, because the union is wider than the app draws | the union and the drawn set are the same thing |
 
 Nothing here is a measurement: it is the price of the surface. Re-checking costs one pass over this page
@@ -282,8 +283,8 @@ would cost a version for no change in behaviour.
 | `oc-coffee/gui.tsx:29` | the same, per server | published |
 | `oc-ponytail-widget/gui.tsx:54` | reads the session, polls every `REFRESH_MS`, cleared by `onCleanup` | published |
 | `oc-budget/gui.tsx:176` | one poll per server, plus `refreshNow` for the popover | published; the reference migration when the poller is next touched |
-| `oc-models-pro/gui.tsx:296` | re-measures the scrollbar gutter when the rows change | published |
-| `oc-models-pro/gui.tsx:301` | a `ResizeObserver`, in an effect with nothing reactive in it | published, and a form defect: `onMount` says it |
+| `oc-models-pro/gui.tsx:306` | re-measures the scrollbar gutter when the rows change | published |
+| `oc-models-pro/gui.tsx:311` | a `ResizeObserver`, in an effect with nothing reactive in it | published, and a form defect: `onMount` says it |
 
 `scripts/check-source.mjs` fails a `gui.tsx` that imports `createEffect` unless its package is on the
 allow-list, so the list can only shrink: a half that migrates must lose its name, and the check refuses a
@@ -307,6 +308,12 @@ file is already open, never as a campaign.
   during the model panel's construction appeared live (measured 2026-10-27), and the docs' development
   note says the same. A change that does not appear is a build that did not run, or the trap above: the
   two are told apart by a rebuild fixing the first and only a restart fixing the second.
+- **`ctx.ui` is a whitelist, not a passthrough: a prop the SDK does not declare is dropped, silently.**
+  The bridge forwards a fixed list per component. `TextInput` takes `type`, `size`, `value`, `placeholder`,
+  `label`, `disabled`, `invalid`, `autofocus`, `class`, `onInput`, `onSubmit` — so the field's own clear
+  button, which the app's component has and the app itself uses, cannot be reached from a plugin, and a cast
+  changes nothing because nothing is read (measured 2026-11-10 on `oc-models-pro`, whose X went missing that
+  way). `class` *is* forwarded, so a half can size and position the host's own root from its own CSS.
 - **A `tui.js` beside a `tui.tsx` wins, and git does not show it.** The loader resolves a plugin directory
   by file name and does not read `package.json`, so a compiled half left in the repository shadows the
   source: the TUI keeps running that build while the `.tsx` is edited, silently, and `plugins/*/tui.js` is
@@ -325,6 +332,13 @@ file is already open, never as a campaign.
   it replays, so the earlier hook would leave a bundle built from an intermediate commit (measured
   2026-10-31: after a rebase the window drew the previous branch's widget). Enabled once per clone with
   `git config core.hooksPath scripts/hooks`; about a second and a half for all the halves.
+- **A side panel's dragged width comes back per session, whatever the SDK promises.** `Panel.width`
+  documents the drag as "app-wide", but with no `width` declared the panel shares the conversation's width
+  and the app keeps the drag in the *session's* layout: `layout.side.width("main")` answered `undefined` on a
+  panel that had just been resized, and a new session opened it at the app's own half-of-the-window default
+  again (measured 2026-11-10). The app's persisted store also carries a `panelWidths` map, one entry per
+  panel, which is where `Layout.side.resize` writes (read in the bundle): declaring `width` is what moves the
+  panel onto that store.
 - **An `undefined` in an RPC answer is an instant 500, and the widget vanishes.** The output schema is
   JSON: a key that is *present* with `undefined` is neither its declared type nor absent, so the whole
   answer is rejected after the handler ran — in the log a 500 with `http.span=1`, no request made, no work

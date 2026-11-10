@@ -160,6 +160,39 @@ leaving the previous one on screen. A search that does not match it leaves nothi
 matches nothing else says so under it. The same bar holds the scrollbar's width back, as the header does, or
 its columns would not line up with the rows under it.
 
+**The search field is what the bar shrinks, and its flex basis is its floor, not the width it opens at.**
+That is the whole trick: a wrapping row breaks lines on the basis, so a basis of 120px keeps the filters on
+the first line until the field has given back everything down to its floor, and `grow` fills the row's slack
+again on a wide panel — up to the 280px it has always had. With the basis at the widest, the row would wrap
+at once and the field would never shrink at all (which is exactly what the first attempt did). The whole bar
+needs **574px of table inside a 582px region** to keep its controls on one row (measured 2026-11-10 from a
+screenshot of a 1512px window: the four filter words and `effective price` take about 275px, three times what
+a guess of ours had allowed).
+
+**The X is ours, laid over the field's right end**: the app's `small` icon button, 20px square (measured
+2026-11-10 on 2.2.x), rendered only while there is something to clear, so it takes no room from the layout and
+costs the neighbouring 8px gap nothing. While it is there the input's own right padding grows by 24px, so a
+long query is never typed under it; the selector stops at the `input` element, no internal slot is named.
+`preventDefault` on the mousedown keeps the caret in the field and a click on the X hands the focus back to
+it, so clearing is a click — or Enter on the button — and then typing.
+
+The field's own clear button would have been the better X, and the app has one — but `ctx.ui` forwards a
+fixed list of props and that one is not in it, so no cast can reach it (`docs/gui-plugins.md`, *Traps*).
+
+**The panel keeps its width where the host keeps it, and notices the drag itself.** Omitted, the region follows
+the conversation's width — what every other tab does, and what a window resize should go on doing — and the
+drag that makes this panel narrower than that belongs to the panel, app-wide, in the store `Panel.width`
+documents. The app only fills that store when a width is *declared*, so a sharing panel forgot the drag at the
+next session; hence the one thing this half adds: a press within 10px of the panel's own edge, then a width at
+`pointerup` (or `pointercancel`) that differs from the width at that press, handed to `ctx.layout.side.resize`
+— the host storing it. The proximity is what keeps the promise honest: while the panel shares the
+conversation's width, dragging the sidebar's splitter changes the panel's width too, and without it that
+gesture would pin the panel for good. An observer is the wrong instrument twice over: it follows the drag live,
+so there is nothing left to compare at the release, and it fires before the pointer comes up. The number passed
+is the parent element's — the region the API speaks in, the table plus this panel's padding — with the table's
+own as a fallback. So the panel opens at the app's default until the first drag, and at the user's from then
+on, in every session (`docs/gui-plugins.md`, *Traps*).
+
 ## When the panel is narrow
 
 The host hands the panel a `width` in columns, and it is the only lever: `presentation` tells the same

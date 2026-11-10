@@ -28,6 +28,15 @@ const CSS = `
 .omp { container-type: inline-size; display: flex; flex-direction: column; height: 100%; min-height: 0;
   font-size: 12px; }
 .omp-bar { display: flex; align-items: center; gap: 8px; padding: 6px 8px; flex-wrap: wrap; }
+/* A wrapping row breaks lines on the flex basis, so the field's basis is its floor: it grows into the slack
+   and gives it back before the filters go to a second line. */
+.omp-bar .omp-search { position: relative; display: flex; flex: 1 1 120px; min-width: 120px;
+  max-width: 280px; }
+.omp-search > :first-child { flex: 1 1 0; width: auto; min-width: 0; }
+/* The X sits over the field's right end, so it costs no layout: room is made inside the text only while it is
+   there. The selector stops at the input element — nothing here names an internal slot. */
+.omp-search:has(.omp-clear) input { padding-inline-end: 24px; }
+.omp-clear { position: absolute; inset-inline-end: 4px; top: 50%; translate: 0 -50%; display: flex; }
 .omp-scopes { display: flex; gap: 2px; margin-left: auto; }
 .omp-scope { background: none; border: 0; border-radius: 4px; color: inherit; cursor: pointer; font: inherit;
   opacity: .55; padding: 2px 6px; }
@@ -304,16 +313,64 @@ export default Plugin.define({
 				if (root) observer.observe(root)
 				onCleanup(() => observer.disconnect())
 			})
+			// A drag on the panel's own edge is the one thing this half writes back: the host keeps it
+			// app-wide, but only for a panel that declares a width. Which drag, and why not an observer, is
+			// in docs/oc-models-pro.md.
+			let pressed = 0
+			let mine = false
+			const press = (event: PointerEvent) => {
+				const box = root?.getBoundingClientRect()
+				if (!box) return
+				mine = Math.abs(event.clientX - box.left) <= 10
+				pressed = Math.round(box.width)
+			}
+			const release = () => {
+				const content = Math.round(root?.getBoundingClientRect().width ?? 0)
+				if (mine && pressed > 0 && content > 0 && content !== pressed) {
+					// `resize` speaks in region pixels: the parent element is that region, the same number
+					// plus this panel's padding.
+					const region = Math.max(Math.round(root?.parentElement?.getBoundingClientRect().width ?? 0), content)
+					ctx.layout.side.resize("main", region)
+				}
+				mine = false
+				pressed = 0
+			}
+			window.addEventListener("pointerdown", press, true)
+			window.addEventListener("pointerup", release, true)
+			window.addEventListener("pointercancel", release, true)
+			onCleanup(() => {
+				window.removeEventListener("pointerdown", press, true)
+				window.removeEventListener("pointerup", release, true)
+				window.removeEventListener("pointercancel", release, true)
+			})
+			// The X disappears with the text it clears, so focus is handed back to the field.
+			const clear = () => {
+				setQuery("")
+				root?.querySelector<HTMLInputElement>("input")?.focus()
+			}
 			return (
 				<div class="omp" ref={(el: HTMLDivElement) => (root = el)}>
 					<div class="omp-bar">
-						<ctx.ui.TextInput
-							label="Search models"
-							placeholder="Search models"
-							type="search"
-							value={query()}
-							onInput={setQuery}
-						/>
+						<div class="omp-search">
+							<ctx.ui.TextInput
+								label="Search models"
+								placeholder="Search models"
+								type="search"
+								value={query()}
+								onInput={setQuery}
+							/>
+							{/* preventDefault keeps the caret in the field, so clearing is a click and then typing. */}
+							<Show when={query()}>
+								<span class="omp-clear" onMouseDown={(event: MouseEvent) => event.preventDefault()}>
+									<ctx.ui.IconButton
+										icon="xmark-small"
+										label="Clear the search"
+										size="small"
+										onClick={clear}
+									/>
+								</span>
+							</Show>
+						</div>
 						<ctx.ui.Menu
 							trigger="button"
 							// The arrow is a control, not decoration: only an order that owns a column can be
