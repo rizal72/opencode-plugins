@@ -11,7 +11,7 @@
 //
 // The binary itself is NOT installed here: `npm i -g donsetch` stays the one-time step.
 import { Plugin } from "@opencode/plugin"
-import { spawn, execFileSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import { mkdir, readFile, writeFile } from "node:fs/promises"
 import { homedir } from "node:os"
 import { dirname, join } from "node:path"
@@ -19,14 +19,21 @@ import { dirname, join } from "node:path"
 const CACHE_DIR = process.env.XDG_CACHE_HOME || join(homedir(), ".cache")
 const STAMP = join(CACHE_DIR, "oc-donsetch", "last-check")
 
-/** `DONSETCH_BINARY` wins; otherwise the binary on PATH, which is where `npm i -g` puts it. */
-function resolveBinary(): string | undefined {
+/**
+ * `DONSETCH_BINARY` wins; otherwise the binary on PATH, which is where `npm i -g` puts it.
+ * `--version` exits 0 over an invalid config file and only warns on stderr, so a probe that discards
+ * stderr calls a dead tool healthy — and `update` dies on the same file. The warning travels with the
+ * binary instead.
+ */
+function resolveBinary(): { binary: string; configError?: string } | undefined {
 	const candidates = [process.env.DONSETCH_BINARY, "donsetch"].filter((value): value is string => !!value)
 	for (const candidate of candidates) {
-		try {
-			execFileSync(candidate, ["--version"], { stdio: "ignore", timeout: 5000 })
-			return candidate
-		} catch {}
+		const run = spawnSync(candidate, ["--version"], { encoding: "utf8", timeout: 5000 })
+		// A binary that will not answer is not a binary: spawnSync reports a non-zero exit without
+		// throwing, where execFileSync did throw.
+		if (run.error || run.status !== 0) continue
+		const configError = (run.stderr || "").split("\n").find((line) => line.includes("invalid config file"))
+		return { binary: candidate, configError }
 	}
 	return undefined
 }
@@ -51,12 +58,18 @@ async function checkUpdate(binary: string): Promise<void> {
 export default Plugin.define({
 	id: "oc-donsetch",
 	async setup(context: any) {
-		const binary = resolveBinary()
-		if (!binary) {
+		const found = resolveBinary()
+		if (!found) {
 			console.error(
 				"[oc-donsetch] no donsetch binary found (install it with: npm i -g donsetch, or set DONSETCH_BINARY); the MCP server will not start",
 			)
 			return
+		}
+		const { binary, configError } = found
+		if (configError) {
+			console.error(
+				`[oc-donsetch] ${configError} — every donsetch command except --version fails until that file is fixed, the update check included`,
+			)
 		}
 
 		// Once a day, on the first prompt after the date changes. Not per session: sessions are continued

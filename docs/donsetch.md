@@ -18,11 +18,14 @@ the plugin keeps the binary current.
 
 ## What it is
 
-One Rust binary plus `libonnxruntime` (OCR, semantic rerank), AGPL-3.0, **keyless**, `4.10.1`:
+One Rust binary plus `libonnxruntime` (OCR, semantic rerank), AGPL-3.0, **keyless**. `donsetch update`
+replaces the binary inside the installed npm package, so the two versions part company: on 2026-11-12
+`npm ls -g` printed `donsetch@4.10.1` and the binary answered `5.2.1`.
 
 - tier 1 fetches with Chrome's own TLS (BoringSSL ClientHello), persistent cookies, session resumption;
-- when a wall appears the **installed Chrome** renders the challenge and hands the cookies back; the browser
-  almost never fetches content ("solve-and-bounce");
+- v5 answers a challenge in process, with a V8 engine for the page's own challenge programs: the fetch path
+  carries no browser at all (v5.0.0 release notes, "no browser in the path"). The installed Chrome is
+  launched only by `web_screenshot`;
 - it does **not** install a browser, and it does **not** solve captchas that need a human, by design.
 
 That is why it beats the alternatives: `r.jina.ai` answers 403 (it needs a key now), Firecrawl, Browserbase
@@ -30,21 +33,13 @@ and Jina MCP all want an account and are paid, Playwright / Puppeteer / Chrome D
 page by page and hand you automation, not markdown. No OpenCode plugin does this on V2: the only
 self-installing one runs the V1 plugin API.
 
-## A logged-in session, headless
+## A page behind a login is a wall
 
-`donsetch login <domain>` opens a real browser window on that site; the owner signs in, presses Enter in
-the terminal, and the cookies go into the same 0600 vault the engine already uses. Every later `fetch` on
-that domain replays them, so a page behind a login is read **headless** — no tab to keep in front, no
-consent per page, nothing to click mid-read. `--list`, `--status <domain>` and `--logout <domain>`
-inspect and remove; `--import cookies.txt` takes a Netscape export instead of a sign-in; `--fresh` wipes
-the login profile first, for a shared machine.
-
-The password is typed into the page and nowhere else: no keystroke capture, no screenshot, and no CDP
-before Enter. What is stored is the session, not the credentials.
-
-**Not run here yet**: `login --list` reports no stored logins, so the mechanism above is the one its own
-help declares. The cost it carries is the one that decides the route: the session belongs to the tool's
-browser, not the owner's Chrome, so it has none of his extensions, his fingerprint or his other logins.
+v5 removed `donsetch login` and the session vault it fed, and the headful browser path with them; the
+release notes state that `web_fetch` no longer sends sessions stored by the old login, and a page behind a
+login is a declared auth wall. Authenticated reading is `browse`'s job — the owner's own Chrome, his
+logins, his extensions. donsetch is the route for a page that refuses an agent, never for a page that
+wants the owner's identity.
 
 ## The binary is installed separately
 
@@ -70,11 +65,26 @@ executing a binary from the plugin, which is more code to own and review than on
 | `/opt/homebrew/lib/node_modules/donsetch/` | 53 MB | the npm package; the real binary is `binaries/donsetch` | only after `npm un -g donsetch` |
 | `/opt/homebrew/bin/donsetch` | — | npm **shim** (JavaScript, needs `node`): what the plugin finds on PATH and what the CLI runs | with the package; the shim works, the plugin also accepts the real binary via `DONSETCH_BINARY` |
 | `~/.config/opencode/opencode.jsonc` | — | two lines: the plugin in `plugins`, and the `mcp.servers.donsetch` entry **commented out** | both |
-| `~/Library/Application Support/donsetch` | 4 KB | cookies, cooldowns, search state | with the tool |
+| `~/Library/Application Support/donsetch` | 4 KB | `donsetch.toml`, the only settings file the tool reads, plus cookies, cooldowns, search state | with the tool |
 | `$XDG_CACHE_HOME/oc-donsetch/last-check`, else `~/.cache/oc-donsetch/last-check` | 10 B | the date of the last update check, so it happens once a day | harmless; recreates itself |
 | `~/.pi/agent/npm/node_modules/donsetch` | 53 MB | Pi's own copy, which Pi's extension manager updates | Pi's business |
 
 Nothing else: the `launchd` agent that used to run the updates, its plist and its `/tmp` logs are gone.
+
+## The toml, and the key that kills every command
+
+`~/Library/Application Support/donsetch/donsetch.toml` is the owner's file, and one unknown key in it is
+fatal rather than ignored: every command but `--version` exits 1 with `invalid config file … unknown
+field 'x', expected one of …`, so a fetch, a crawl, `doctor` and `update` all do nothing at all.
+
+That is what a v4 setting costs after a v5 update. `[browser] backend = "headless"` named the render path
+when the file was written on 2026-09-29; the v5.0.0 release notes remove the headful path, and the key went
+with it. The record here had never mentioned the file, so nothing said a schema had moved under it.
+
+The check that follows, after any update that crosses a major version: run `donsetch fetch
+https://example.com` once, with the file in place. That command separates the two states — it answers
+`ok` on a valid file and prints the config error on a broken one — where `--version` prints the version
+and exits 0 over both.
 
 ## Config
 
@@ -123,6 +133,13 @@ yesterday produced one and rewrote the stamp to today; a further prompt the same
 The accepted trade-off: a machine where OpenCode is never opened never checks, and a machine left open
 without prompts checks only once the next prompt arrives. Pi's copy is kept current by Pi's own extension
 manager, independently.
+
+**A broken config makes the daily check a no-op.** `donsetch update` loads the same toml, so an invalid
+key kills the update as surely as it kills a fetch, while the probe the plugin ran to decide the binary
+was alive (`--version`) exits 0 over the same file. The stamp moved to today, the binary stayed a major
+version behind, and no line anywhere said so — found on 2026-11-12, 5.1.2 stuck while 5.2.1 had been out
+since 9 November. The probe reads `--version`'s stderr now and logs the config error instead of discarding
+it.
 
 The binary keeps `rollback`, `status` and `doctor` for the manual cases; `donsetch update` remains the
 manual command.

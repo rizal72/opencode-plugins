@@ -33,6 +33,10 @@ The stamp is `~/.cache/oc-donsetch/last-check` (or `$XDG_CACHE_HOME/oc-donsetch/
 date it last ran. A failed check writes the stamp anyway: it only means the binary stays a day behind, and
 retrying it on every prompt would be the thing this plugin exists to avoid.
 
+The one failure that is not transient is the config file: `donsetch update` reads it, so an invalid key
+kills every update while `--version` still answers 0 over the same file. The probe therefore reads that
+command's stderr and logs the config error, instead of calling a dead tool healthy.
+
 ## The MCP server is not here
 
 `donsetch` as an MCP server is a **config entry**, off by default: a server that is always connected costs
