@@ -75,18 +75,29 @@ async function read(database: string): Promise<Array<{ data: string; at: number;
 	})
 }
 
+/**
+ * The start of generation for a message recorded before `firstToken` existed, from its **reasoning** part alone.
+ * A tool part is never a candidate: its time is when the call begins, after the model has generated, so the
+ * window it gives is a fraction of the real one — measured 2026-11-14 on rows carrying both parts, it is 23%
+ * of the reasoning window, which turned a 105 t/s step into a 466 t/s one. A text part carries no time at all.
+ */
+function firstReasoning(content: any[]): number | undefined {
+	for (const part of content) {
+		if (part?.type !== "reasoning") continue
+		const at = part?.time?.created
+		if (typeof at === "number") return at
+	}
+	return undefined
+}
+
 /** One assistant turn as a rate, or nothing when the clock or the token counts cannot carry one. */
 export function turn(entry: any, sid = ""): Turn | undefined {
 	if (!entry || !entry.tokens || !entry.time || !Array.isArray(entry.content)) return undefined
 	const provider = entry.model?.providerID
 	const model = entry.model?.id
 	if (typeof provider !== "string" || typeof model !== "string") return undefined
-	// The provider's own first-token instant, which is what the window must open at: the parts' timestamps
-	// are a fallback for messages recorded before it existed. A text part carries no time at all, so a
-	// text-only step has no part to fall back to — this is why `firstToken` comes first.
-	const first =
-		entry.time.firstToken ??
-		entry.content.find((part: any) => typeof part?.time?.created === "number")?.time?.created
+	// The provider's own first-token instant, and the reasoning part as the fallback for older messages.
+	const first = entry.time.firstToken ?? firstReasoning(entry.content)
 	// Only the end of the provider stream: `completed` adds post-stream bookkeeping and drags the rate
 	// down, so a message without it is not measured rather than measured wrongly.
 	const last = entry.time.streamed
@@ -162,7 +173,7 @@ if (process.argv[2] === "--self-check") {
 			model: { providerID: "p", id: "m" },
 			time: { created: 0, streamed: 1000 },
 			tokens: { output: 30, reasoning: 20 },
-			content: [{ type: "text", time: { created: 200 } }],
+			content: [{ type: "reasoning", time: { created: 200 } }],
 		}
 		const good = turn(base, "ses_x")
 		if (!good || good.key !== "p/m" || good.sid !== "ses_x") throw new Error("self-check: a plain turn did not parse")
@@ -182,6 +193,13 @@ if (process.argv[2] === "--self-check") {
 		if (!both || Math.abs(both.tps - 62.5) > 0.001) throw new Error("self-check: firstToken must outrank a part's timestamp")
 		// No `streamed` is no measurement: `completed` carries post-stream work and would understate the rate.
 		if (turn({ ...base, time: { created: 0, firstToken: 200, completed: 1000 } })) throw new Error("self-check: a message without streamed must be dropped")
+		// An old message whose only timed part is a tool call is not measured — and this one would be, under the
+		// old rule: the window it leaves (700 → 1000) is 300 ms over 50 tokens, well inside the floors.
+		const toolOnly = turn({ ...base, content: [{ type: "tool", time: { created: 700 } }], time: { created: 0, streamed: 1000 } })
+		if (toolOnly) throw new Error("self-check: a tool part must not open the window")
+		// An old message with a reasoning part still measures, and from that part rather than from a later tool one.
+		const oldReasoning = turn({ ...base, time: { created: 0, streamed: 1000 }, content: [{ type: "reasoning", time: { created: 200 } }, { type: "tool", time: { created: 900 } }] })
+		if (!oldReasoning || Math.abs(oldReasoning.tps - 62.5) > 0.001) throw new Error("self-check: an old message with a reasoning part must measure from it")
 
 		if (rows === 0) {
 			console.log("self-check ok: no assistant messages on this machine, nothing to measure")

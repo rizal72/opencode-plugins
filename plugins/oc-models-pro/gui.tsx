@@ -148,7 +148,7 @@ export default Plugin.define({
 				)
 			} catch (error) {
 				ctx.toast.show({
-					title: "Models",
+					title: "Models Pro",
 					description: error instanceof Error ? error.message : String(error),
 					variant: "error",
 				})
@@ -212,7 +212,7 @@ export default Plugin.define({
 			if (!composer) return
 			const key = id(row)
 			if (!composer.setModel({ providerID: row.providerID, modelID: row.modelID })) {
-				ctx.toast.show({ title: "Models", description: `${row.name} is not available on this server`, variant: "error" })
+				ctx.toast.show({ title: "Models Pro", description: `${row.name} is not available on this server`, variant: "error" })
 				return
 			}
 			setRecent([key, ...recent().filter((entry) => entry !== key)].slice(0, 20))
@@ -227,7 +227,7 @@ export default Plugin.define({
 				.then((raw) => {
 					const value = raw as { ok: boolean; favorites: string[] }
 					if (!value.ok) {
-						ctx.toast.show({ title: "Models", description: "model.json could not be written", variant: "error" })
+						ctx.toast.show({ title: "Models Pro", description: "model.json could not be written", variant: "error" })
 						return
 					}
 					const previous = snapshot()
@@ -236,7 +236,7 @@ export default Plugin.define({
 				.catch(() => {
 					// A rejection is a star that would never move, silently. Say it, as every other
 					// failure path in this file does.
-					ctx.toast.show({ title: "Models", description: "the favourite did not reach the server", variant: "error" })
+					ctx.toast.show({ title: "Models Pro", description: "the favourite did not reach the server", variant: "error" })
 				})
 		}
 
@@ -457,7 +457,7 @@ export default Plugin.define({
 		const tab: PanelTab = {
 			id: "main",
 			get title() {
-				return "Models"
+				return "Models Pro"
 			},
 			closable: "hover",
 		}
@@ -481,7 +481,7 @@ export default Plugin.define({
 
 		ctx.add(Command, (): Command => ({
 			id: "open",
-			title: "Models: the table",
+			title: "Models Pro: the table",
 			description: "Prices, context, intelligence and the Go credit, side by side",
 			keywords: "model price context credit list",
 			section: "model",
@@ -497,7 +497,7 @@ export default Plugin.define({
 			return {
 				menu: "session.panel",
 				id: "models",
-				title: "Models",
+				title: "Models Pro",
 				icon: "models",
 				description: "compare and switch",
 				keybind: `${ctx.id}.open`,
