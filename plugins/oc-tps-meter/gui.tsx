@@ -14,6 +14,7 @@ import {
 	visibleRange,
 	type Step,
 	type StepMessage,
+	type ModelStats,
 	type Summary,
 } from "./metrics.ts"
 
@@ -54,6 +55,9 @@ const CSS = `
 .tpsm-dmodel { overflow-wrap: anywhere; }
 /* The speed is what the pointer is there for: bright and bold, the instant quiet beside it. */
 .tpsm-dspeed { font-weight: 600; }
+/* A figure the line exists for — a median, a peak, a time to first token: white and bold, the words around
+   it keeping the faint they had. */
+.tpsm-num { color: var(--v2-text-text-base); font-weight: 600; }
 .tpsm-dmute { color: var(--v2-text-text-faint); }
 .tpsm-dtime { color: var(--v2-text-text-faint); }
 .tpsm-counts { margin-top: 6px; color: var(--v2-text-text-faint); line-height: 1.4; font-variant-numeric: tabular-nums; }
@@ -97,6 +101,16 @@ const age = (ms: number) => (ms < 60_000 ? Math.round(ms / 1000) + "s" : Math.ro
 const stamp = (at: number) =>
 	new Date(at).toLocaleTimeString(undefined, { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" })
 
+/** A line as the words around a `figure`: the words stay faint, a figure is drawn bright, because it is the
+ *  number the line exists for. One shape for the median, the peak and the time to first token, so they read
+ *  the same wherever they appear. */
+type Piece = string | { figure: string }
+
+const piecesText = (pieces: Piece[]) => pieces.map((piece) => (typeof piece === "string" ? piece : piece.figure)).join("")
+
+/** A speed, or the dash a line shows where it has none. */
+const tps = (value: number | undefined) => (value === undefined ? "—" : speed(value))
+
 /** Every message of the session, assistant and otherwise, handed back oldest first: the revert cut has to find
  *  the message it points at, which is usually a user one. */
 const readAll = async (session: MountedSession): Promise<{ messages: StepMessage[]; truncated: boolean }> => {
@@ -133,6 +147,12 @@ const Total = (props: { label: string; value: string }) => (
 		<span>{props.label}</span>
 		<span class="tpsm-amount">{props.value}</span>
 	</div>
+)
+
+const Figures = (props: { pieces: Piece[] }) => (
+	<For each={props.pieces}>
+		{(piece) => (typeof piece === "string" ? piece : <span class="tpsm-num">{piece.figure}</span>)}
+	</For>
 )
 
 export default Plugin.define({
@@ -355,8 +375,8 @@ export default Plugin.define({
 			const ttft = () => {
 				const value = lastStep()?.ttft
 				// Milliseconds below a second, where the digits mean something; seconds above, where they do not.
-				if (value === undefined) return ""
-				return "TTFT " + (value < 1000 ? Math.round(value) + " ms" : (value / 1000).toFixed(1) + " s")
+				if (value === undefined) return undefined
+				return value < 1000 ? ([String(Math.round(value)), " ms"] as const) : ([(value / 1000).toFixed(1), " s"] as const)
 			}
 			/** Absolute local times at the two ends of the visible window, with the day only when it spans more
 			 *  than one. */
@@ -376,18 +396,27 @@ export default Plugin.define({
 				if (scrolled() <= 1) return "scroll →"
 				return right ? "← scroll" : "← scroll →"
 			}
-			const counts = () => {
+			const countsLine = (): Piece[] => {
 				const value = summary()
-				if (!value) return ""
-				const parts = [
-					value.steps.length + " steps",
-					value.measured + " measured",
-					"median " + (value.median === undefined ? "—" : speed(value.median)) + " t/s",
-					"peak " + (value.peak === undefined ? "—" : speed(value.peak)) + " t/s",
+				if (!value) return []
+				const pieces: Piece[] = [
+					value.steps.length + " steps · " + value.measured + " measured · median ",
+					{ figure: tps(value.median) },
+					" t/s · peak ",
+					{ figure: tps(value.peak) },
+					" t/s",
 				]
-				if (reading()?.truncated) parts.push("truncated")
-				return parts.join(" · ")
+				if (reading()?.truncated) pieces.push(" · truncated")
+				return pieces
 			}
+			const counts = () => piecesText(countsLine())
+			const modelLine = (row: ModelStats): Piece[] => [
+				(row.steps === 1 ? "1 step" : row.steps + " steps") + " · med ",
+				{ figure: tps(row.median) },
+				" t/s · peak ",
+				{ figure: tps(row.peak) },
+				" t/s",
+			]
 			const amount = (pick: (totals: Summary["totals"]) => number) => {
 				const totals = summary()?.totals
 				return totals ? count(pick(totals)) : ""
@@ -428,7 +457,17 @@ export default Plugin.define({
 							<div class="tpsm-block">
 								<div class="tpsm-label">last measurable step</div>
 								<div class="tpsm-figure">{figure()}<span class="tpsm-unit"> t/s</span></div>
-								<div class="tpsm-sub">{[model(), ttft()].filter(Boolean).join(" · ")}</div>
+								<div class="tpsm-sub">
+									{model()}
+									<Show when={ttft()}>
+										{(pair) => (
+											<>
+												{model() ? " · " : ""}TTFT <span class="tpsm-num">{pair()[0]}</span>
+												{pair()[1]}
+											</>
+										)}
+									</Show>
+								</div>
 							</div>
 							<div class="tpsm-block">
 								<div class="tpsm-chart" ref={watch} onScroll={onScroll}>
@@ -513,7 +552,7 @@ export default Plugin.define({
 										<span class="tpsm-dtime"> · {detailTime()}</span>
 									</div>
 								</div>
-								<div class="tpsm-counts">{counts()}</div>
+								<div class="tpsm-counts"><Figures pieces={countsLine()} /></div>
 								<Show when={reading()?.revertLost}>
 									<div class="tpsm-warn">
 										the revert point is older than the messages read: undone steps may be counted
@@ -525,13 +564,7 @@ export default Plugin.define({
 										{(row) => (
 											<div class="tpsm-mrow">
 												<div class="tpsm-mname">{row.model || "—"}</div>
-												<div class="tpsm-mnum">
-													{(row.steps === 1 ? "1 step" : row.steps + " steps") +
-														" · med " +
-														(row.median === undefined ? "—" : speed(row.median) + " t/s") +
-														" · peak " +
-														(row.peak === undefined ? "—" : speed(row.peak) + " t/s")}
-												</div>
+												<div class="tpsm-mnum"><Figures pieces={modelLine(row)} /></div>
 											</div>
 										)}
 									</For>

@@ -78,6 +78,7 @@ session, and a session with more than 2,000 messages loses the oldest end of its
 | no cost figure | the session header already shows the session's cost, and under Go it is `$0` | nothing stored for it: the field was summed and never drawn, so it is not kept at all |
 | no quota, no usage | that is [`oc-budget`](oc-budget.md)'s, and it is the only part that needs a credential and the network | zero network calls |
 | bars, not a line | a histogram reads a distribution at a glance; the line exists in the reference plugin only for the live 60 s | none |
+| a figure is white | the median, the peak and the time to first token are what the panel is opened for, so each is drawn in `--v2-text-text-base` bold while the words around it keep the faint — one `.tpsm-num` wherever they appear, in the counts line, the per-model rows and the header | three numbers shout at once in a session with several models; the labels are what orders them |
 
 ## Traps found while building it
 
