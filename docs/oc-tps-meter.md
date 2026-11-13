@@ -105,7 +105,11 @@ session, and a session with more than 2,000 messages loses the oldest end of its
   next to 100 reads as itself — but a single freak step then flattens the rest. So the scale is
   `min(peak, 2 × p95)`: normally that is the peak exactly, and only a bar more than twice the 95th percentile is
   cut at the top edge with a bright cap, keeping its true figure in the detail line while the peak stays in the
-  counts. The earlier rule scaled to the p95 itself and cut the top 5% — on a real session that was twenty bars
+  counts.
+  **The top of the drawing is always drawn**, one dashed line at `y = 0` whether or not a bar is cut: the block's
+  padding is black on black, so without it the edge of the drawing is invisible, a cut bar seems cut by the
+  panel, and a session whose peak is beyond the fence is left with no reference at all. The line means the top,
+  which is the peak exactly when nothing is cut. The earlier rule scaled to the p95 itself and cut the top 5% — on a real session that was twenty bars
   with the same cap, which hid exactly the fast steps the chart exists to show.
 - **The revert cut needs every message type.** `session.revert.messageID` points at a message that may be a
   user one, so reading `type: "assistant"` only would never find the boundary. Reading every type costs steps

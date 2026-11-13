@@ -259,11 +259,10 @@ export default Plugin.define({
 
 			const steps = () => summary()?.steps ?? []
 			const lastStep = () => summary()?.last
-			const peak = () => summary()?.peak
 			const medianTps = () => summary()?.median
-			// The drawing stops at the 95th percentile: the few steps above it are cut at the top edge, so one
-			// freak step cannot flatten the other 95%. A short session's p95 is its peak, so nothing is cut.
-			const scale = () => summary()?.scale ?? peak() ?? 1
+			// The drawing stops at the peak, or at twice the 95th percentile when one step is beyond both: that
+			// step is cut at the top edge instead of flattening all the others. A short session's p95 is its peak.
+			const scale = () => summary()?.scale ?? 1
 			const y = (tps: number) => Math.max(0, HEIGHT - (tps / (scale() || 1)) * HEIGHT)
 			const clipped = (tps: number) => tps > scale()
 
@@ -360,13 +359,6 @@ export default Plugin.define({
 				const value = medianTps()
 				return value === undefined ? undefined : y(value)
 			}
-			const peakLine = () => {
-				const value = peak()
-				// Above the scale there is nowhere to draw it: the cut bars carry it, and the counts line says
-				// the figure.
-				return value === undefined || value > scale() ? undefined : y(value)
-			}
-
 			const figure = () => {
 				const step = lastStep()
 				return step?.tps === undefined ? "—" : speed(step.tps)
@@ -524,12 +516,15 @@ export default Plugin.define({
 												opacity="0.3"
 											/>
 										</Show>
-										<Show when={peakLine() !== undefined}>
+										{/* The top of the drawing, drawn whatever the data does: the block's padding is black on
+										    black, so without this line the edge is invisible and a cut bar has nothing to be cut
+										    against. The tallest bar reaches it, unless the fence cut it. */}
+										<Show when={summary()?.scale}>
 											<line
 												x1="0"
 												x2={chartWidth()}
-												y1={peakLine()}
-												y2={peakLine()}
+												y1="0"
+												y2="0"
 												stroke="currentColor"
 												stroke-width="1"
 												stroke-dasharray="3 3"
