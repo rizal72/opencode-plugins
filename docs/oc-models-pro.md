@@ -331,10 +331,15 @@ untouched by the rule.
   content part carrying a timestamp, and a text-only answer has no such part: those steps were dropped
   silently. Measured 2026-11-13 over the whole store — 20,611 assistant rows, 18,415 measurable before
   the change and 18,432 after, so **17 recovered, all in the last seven days**, and none lost.
-  A part's timestamp stays the fallback for messages recorded before `firstToken` existed — a different
-  window, opening where the first reasoning or tool part starts: 1–2 ms after the first token on most
-  rows, more than 2 ms on 37 of the 364 comparable ones, up to 119 ms, which reads up to **17.8% fast**.
-  The median of the mix does not move; a single fallback row can.
+  A part's timestamp stays the fallback for messages recorded before `firstToken` existed: 1–2 ms after the
+  first token on most rows, more than 2 ms on 37 of the 364 comparable ones, up to 119 ms, which reads up to
+  **17.8% fast**. The median of the mix does not move; a single fallback row can.
+  **Open defect, 2026-11-14**: that fallback still accepts a **tool** part's timestamp, and a tool part starts
+  *after* generation — measured on the same rows, the window it gives is 23% of the real one. Over this store it
+  supplies **3,790 of the 18,948 samples**, and the per-model medians read 4–10% high (`deepseek-v4.1-flash`
+  157 → 148 t/s, `deepseek-flash` 215 → 206, `minimax-m3.1-flash-free` 141 → 127 with the rule below). The fix
+  is the rule the panel now uses: the fallback takes a **reasoning** part only, and a tool-only old step is
+  unmeasured. Pending, with a self-check case and a patch bump.
   `time.completed` is never used: it carries post-stream bookkeeping, so a message without `streamed` is
   not measured at all — 331 rows carry none, the newest 2026-11-13, and none of them was measurable
   before either, being too short or too small. Turns under 200 ms or under 20 tokens are dropped; the
