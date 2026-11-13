@@ -1,8 +1,7 @@
 # oc-tps-meter — the record
 
-Tokens per second, per step, in a side panel: one bar per closed step of the session on screen — grouped into
-a median when the session has more steps than the chart has columns — the model behind each bar, and the totals
-around them. **Not published**: it is installed from this repository by
+Tokens per second, per step, in a side panel: one bar per step of the session on screen — the model behind each
+bar, and the totals around them. **Not published**: it is installed from this repository by
 path, `~/.config/opencode/opencode.jsonc` -> `plugins: [...]`.
 
 ## A GUI half and nothing else
@@ -22,26 +21,37 @@ blanks the panel on a bad night).
 Per assistant message, called a step:
 
 - `tokens = tokens.output + tokens.reasoning`
-- `tps = tokens / ((streamed − firstToken) / 1000)` — the decode window, so the wait for the first token is
+- `tps = tokens / ((streamed − started) / 1000)` — the decode window, so the wait for the first token is
   not in it
-- `ttft = firstToken − created`
-- measured only when both instants exist, `tokens >= 20` and the window is `>= 200` ms; anything else is a
-  **gap**, never a zero
+- `ttft = started − created`
+- `started` is `time.firstToken`, and for the messages recorded **before that field existed**, the time of the
+  first **reasoning** part. Reasoning only: a tool part's time is when the call begins, which is after the
+  model has generated, so using it collapses the window — on real rows it turned 365 tokens into 1388 t/s.
+  Text parts carry no time, so an old text-only or tool-only message stays unmeasured.
+- measured only when `started` and `streamed` exist, `tokens >= 20` and the window is `>= 200` ms; anything
+  else is a **gap**, never a zero
 - the figure is the **median** of the measured steps, because one slow step must not move it
 - cache hit is `cache.read / (input + cache.read + cache.write)`
 
+The fallback is what makes an older session readable at all. Measured on one session started the day before
+`firstToken` appeared (2026-11-13): 853 assistant steps, `firstToken` on the newest 113 and on no other. Of the
+740 older ones, 484 carry a timed reasoning part, 206 only a timed tool part, and 50 nothing timed — so the
+fallback recovers 483 of them, and the tool-only ones stay gaps rather than becoming wrong numbers. Its cost:
+the reasoning part's time is 1–2 ms after the first token on most rows, more than 2 ms on 37 of 364 compared
+ones and up to 119 ms, which reads up to **17.8% fast** on that row. The median of a session does not move; a
+single old bar can.
+
 `completed` marks a **closed** step and is never a denominator. The two roles are different: a message still
 streaming already has `firstToken`, so it would enter the histogram and change on every poll; and
-`completed` carries post-stream bookkeeping, so using it as the window's end understates the rate. This panel
-reads the window from the message's own two instants and has **no fallback**: a message without `streamed` is
-a gap, which is 331 of the assistant rows on this machine on 2026-11-13, counted with `select data from
-session_message where type = 'assistant'` in `$XDG_DATA_HOME/opencode/opencode.db`, read-only. Whether a
-fallback is worth having, and what it costs in accuracy, is the question
-[`oc-models-pro`](oc-models-pro.md) answers — it measures the same quantity and keeps one.
+`completed` carries post-stream bookkeeping, so using it as the window's end understates the rate. A message
+without `streamed` is a gap — 331 of the assistant rows on this machine on 2026-11-13, counted with
+`select data from session_message where type = 'assistant'` in `$XDG_DATA_HOME/opencode/opencode.db`,
+read-only — and nothing can measure it, because the end of the stream is the one instant with no substitute.
 
-The same measurement lives in `oc-models-pro/tps.ts`; the two are separate copies on purpose, because a
-plugin package has no runtime to share and a shared one would make one plugin depend on the other being
-installed.
+The same measurement lives in `oc-models-pro/tps.ts`; the two are separate copies on purpose, because a plugin
+package has no runtime to share and a shared one would make one plugin depend on the other being installed.
+That copy still accepts **any** timed part in its fallback, tool parts included, which reads those rows high —
+an open defect recorded in [`oc-models-pro`](oc-models-pro.md), *Speed, measured*.
 
 ## Reading the session
 
@@ -82,16 +92,25 @@ session, and a session with more than 2,000 messages loses the oldest end of its
   `layout.side.resize("tps", …)` — the per-panel call, which does write — and the width is the same at every
   open. That is the behaviour the owner asked for, reached from the other side: the width is a constant, the
   drag is a temporary wish.
-- **A bar never mixes two models.** A drawing column that would hold a model switch is cut at the switch.
-  Before that rule the detail line read `2 models` over a wrapped list of names, which at 360 px is unreadable;
-  two short bars say more.
-- **Buckets follow step order, not time.** Above the drawing's column count the steps are grouped by count,
-  so the axis is exact at its two ends and approximate in between. Deliberate: the alternative is a
-  horizontally scrolling chart, and in this width a bar the user has to hunt for is worse than a thin one.
+- **A bar never mixes two models.** One bar is one step, and a step has one model, so the question cannot
+  arise: an earlier version grouped steps into columns and one column could straddle a model switch, which read
+  as `2 models` over a wrapped list of names at 360 px.
+- **One bar per step, and the chart scrolls.** Grouping was the earlier answer to a long session — the axis
+  then was exact at its two ends and approximate in between — and panning replaced it: a step is a fixed 4 px
+  (3 px bar, 1 px gap), the drawing is as wide as the session, and a wrapper scrolls sideways only. Vertical
+  gestures stay with the panel. The hint between the two times says which way there is more, and says nothing
+  when the whole session fits.
+- **The scale is the peak, with one fence.** Scaling to the peak alone is what every bar wants — 460 next to 250
+  next to 100 reads as itself — but a single freak step then flattens the rest. So the scale is
+  `min(peak, 2 × p95)`: normally that is the peak exactly, and only a bar more than twice the 95th percentile is
+  cut at the top edge with a bright cap, keeping its true figure in the detail line while the peak stays in the
+  counts. The earlier rule scaled to the p95 itself and cut the top 5% — on a real session that was twenty bars
+  with the same cap, which hid exactly the fast steps the chart exists to show.
 - **The revert cut needs every message type.** `session.revert.messageID` points at a message that may be a
   user one, so reading `type: "assistant"` only would never find the boundary. Reading every type costs steps
   per page, since the cap is on messages: 2,000 of them, newest first, `truncated` when it stops there.
-- **A bucket's `1 step` is singular** in the detail line and in `by model`; the panel is read, not skimmed.
+- **An unmeasured step still owns its 4 px**, and its detail line says it was not measured: a gap in the
+  histogram would otherwise read the same as a session that did nothing for a while.
 
 ## Where it lives in the window
 

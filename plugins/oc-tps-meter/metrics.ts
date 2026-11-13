@@ -26,6 +26,7 @@ export type StepMessage = {
 	time?: MessageTime
 	tokens?: MessageTokens
 	model?: { providerID?: string; id?: string; variant?: string }
+	content?: readonly { type?: string; time?: null | { created?: number } }[]
 }
 
 export type Step = {
@@ -60,6 +61,8 @@ export type Summary = {
 	/** The median of the measured speeds, not the mean. */
 	median?: number
 	peak?: number
+	/** The top of the drawing: the 95th percentile, so one freak step cannot flatten the other 95%. */
+	scale?: number
 	/** The newest measured step. */
 	last?: Step
 }
@@ -73,10 +76,26 @@ const instant = (value: number | undefined) =>
 /** A step is closed only once `completed` is there: a message still streaming is not history. */
 export const closed = (message: StepMessage) => message.time?.completed !== undefined
 
+/** The instant generation started: the provider's own first token, and for the messages recorded before that
+ *  field existed, the first **reasoning** part. Only reasoning: a tool part's time is when the call begins,
+ *  after the model has already generated, and using it collapses the window — on real rows it turned 365 tokens
+ *  into 1388 t/s. A text part carries no time at all, so an old text-only or tool-only message stays a gap. */
+const started = (message: StepMessage): number | undefined => {
+	const firstToken = instant(message.time?.firstToken)
+	if (firstToken !== undefined) return firstToken
+	let earliest: number | undefined
+	for (const part of message.content ?? []) {
+		if (part?.type !== "reasoning") continue
+		const at = instant(part.time?.created)
+		if (at !== undefined && (earliest === undefined || at < earliest)) earliest = at
+	}
+	return earliest
+}
+
 export const stepOf = (message: StepMessage): Step => {
 	const tokens = number(message.tokens?.output) + number(message.tokens?.reasoning)
 	const created = number(message.time?.created)
-	const firstToken = instant(message.time?.firstToken)
+	const firstToken = started(message)
 	const streamed = instant(message.time?.streamed)
 	const span = firstToken !== undefined && streamed !== undefined ? streamed - firstToken : undefined
 	const measured = span !== undefined && span >= MIN_SPAN_MS && tokens >= MIN_TOKENS
@@ -99,6 +118,22 @@ export const median = (values: readonly number[]): number | undefined => {
 	const sorted = [...values].sort((a, b) => a - b)
 	const middle = Math.floor(sorted.length / 2)
 	return sorted.length % 2 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
+}
+
+/** The value 95% of the speeds sit at or below, by nearest rank. */
+export const p95 = (values: readonly number[]): number | undefined => {
+	if (values.length === 0) return undefined
+	const sorted = [...values].sort((a, b) => a - b)
+	return sorted[Math.max(0, Math.ceil(sorted.length * 0.95) - 1)]
+}
+
+/** The top of the drawing: the peak itself, unless one step is more than twice the 95th percentile — then the
+ *  scale stops at that fence, so a freak bar is cut instead of flattening every other one. With no such step
+ *  this is exactly the peak. */
+export const scaleOf = (values: readonly number[]): number | undefined => {
+	if (values.length === 0) return undefined
+	const max = Math.max(...values)
+	return Math.min(max, 2 * (p95(values) ?? max))
 }
 
 /** A staged revert leaves the messages it undid stored but no longer part of the session: the message it points
@@ -131,62 +166,32 @@ export const byModel = (steps: readonly Step[]): ModelStats[] => {
 		.sort((a, b) => b.steps - a.steps || a.model.localeCompare(b.model))
 }
 
-/** One histogram column: the steps whose index falls in it, all of one model — a bar never mixes two, so the
- *  detail line can name the one that made it — the median of the measured ones, and the span it covers. */
-export type Bucket = {
-	/** Epoch ms of the first and the last step it covers. */
-	from: number
-	to: number
-	steps: number
-	/** Undefined when no step in it was measured: that is the gap. */
-	median?: number
-	/** The model of every step in it, or empty when the message carried neither. */
-	model: string
+/** A bar is one step: 3 px of bar and the 1 px gap after it, so the chart is four pixels per step wide. */
+export const BAR_PX = 3
+export const STEP_PX = 4
+
+/** The steps the window shows, as inclusive indices: the slot the left edge falls in and the one the right edge
+ *  reaches. Nothing in view is `last < first`. */
+export const visibleRange = (count: number, scrollLeft: number, viewport: number): { first: number; last: number } => {
+	if (count <= 0) return { first: 0, last: -1 }
+	const first = Math.max(0, Math.min(count - 1, Math.floor(scrollLeft / STEP_PX)))
+	const last = Math.min(count - 1, Math.max(first, Math.ceil((scrollLeft + viewport) / STEP_PX) - 1))
+	return { first, last }
 }
 
-/** One column out of a run of steps of a single model. */
-const bucketOf = (slice: readonly Step[]): Bucket => {
-	const speeds = slice.flatMap((step) => (step.tps === undefined ? [] : [step.tps]))
-	return {
-		from: slice[0].created,
-		to: slice[slice.length - 1].created,
-		steps: slice.length,
-		median: median(speeds),
-		model: slice[0].model,
-	}
-}
+/** Whether the window sits at its right end, within the native scroll's 1 px — and true when nothing overflows. */
+export const atRightEnd = (scrollLeft: number, scrollWidth: number, clientWidth: number) =>
+	scrollWidth - clientWidth - scrollLeft <= 1
 
-export const bucketise = (steps: readonly Step[], columns: number): Bucket[] => {
-	if (steps.length === 0) return []
-	const count = Math.max(1, Math.min(steps.length, Math.floor(columns)))
-	const buckets: Bucket[] = []
-	for (let index = 0; index < count; index += 1) {
-		const slice = steps.slice(Math.floor((index * steps.length) / count), Math.floor(((index + 1) * steps.length) / count))
-		// A target column that straddles a model switch is cut again at the switch: two short bars of two
-		// models say more than one bar that has to explain both. It is never re-merged to reach the count.
-		let run = 0
-		for (let at = 1; at <= slice.length; at += 1) {
-			if (at < slice.length && slice[at].model === slice[run].model) continue
-			buckets.push(bucketOf(slice.slice(run, at)))
-			run = at
-		}
-	}
-	return buckets
-}
-
-/** The widest a bar is ever drawn, in pixels, and the share of its slot it fills: the rest is the gap that keeps
- *  two bars apart. */
-export const BAR_MAX_PX = 6
-export const BAR_GAIN = 0.7
-
-/** Where the bars sit in the drawing's own units (0 to 100 across): a slot never gives its bar more than
- *  `BAR_MAX_PX`, and what it leaves over is empty chart to the left of them. */
-export const barLayout = (count: number, widthPx: number): { left: number; slot: number } => {
-	const bars = Math.max(1, count)
-	const width = widthPx > 0 ? widthPx : 1
-	const slotPx = Math.min(width / bars, BAR_MAX_PX / BAR_GAIN)
-	return { left: ((width - bars * slotPx) / width) * 100, slot: (slotPx / width) * 100 }
-}
+/** Whether the window follows the newest step after a scroll event: only a scroll the user made can move that
+ *  latch. A clamp after the content shrank, a resize and our own settle all arrive as scroll events too, and
+ *  every one of them lands at the right end — reading them as intent would drag the user forward on the next
+ *  read, which is exactly what the latch exists to prevent. */
+export const followAfter = (
+	current: boolean,
+	event: { user: boolean; scrollLeft: number; scrollWidth: number; clientWidth: number },
+): boolean =>
+	event.user ? atRightEnd(event.scrollLeft, event.scrollWidth, event.clientWidth) : current
 
 export const summarise = (messages: readonly StepMessage[]): Summary => {
 	const history = messages.filter(closed)
@@ -210,6 +215,8 @@ export const summarise = (messages: readonly StepMessage[]): Summary => {
 		measured: measured.length,
 		median: median(speeds),
 		peak: speeds.length ? Math.max(...speeds) : undefined,
+		// A session with few steps gets its peak back: 95% of ten values is still nearly all of them.
+		scale: scaleOf(speeds),
 		last: measured[measured.length - 1],
 	}
 }

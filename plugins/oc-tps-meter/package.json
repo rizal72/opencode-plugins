@@ -1,6 +1,6 @@
 {
 	"name": "oc-tps-meter",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"type": "module",
 	"description": "Tokens per second for every closed step of an OpenCode v2 session: a histogram in the desktop side panel, with the median, the peak, TTFT and the token totals",
 	"repository": {

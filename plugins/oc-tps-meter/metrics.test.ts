@@ -4,15 +4,19 @@ import assert from "node:assert/strict"
 import { test } from "node:test"
 
 import {
-	barLayout,
-	BAR_GAIN,
-	bucketise,
+	atRightEnd,
+	BAR_PX,
 	byModel,
+	followAfter,
 	MIN_SPAN_MS,
 	MIN_TOKENS,
+	p95,
+	scaleOf,
 	revertCut,
+	STEP_PX,
 	stepOf,
 	summarise,
+	visibleRange,
 	type StepMessage,
 } from "./metrics.ts"
 
@@ -54,6 +58,48 @@ test("no firstToken: unmeasured, never zero, and no fallback to `completed`", ()
 	assert.equal(step.measured, false)
 	assert.equal(step.tps, undefined)
 	assert.equal(step.ttft, undefined)
+})
+
+test("a message older than firstToken measures from its first timed part", () => {
+	// Messages recorded before the host wrote `firstToken` carry only the parts' own times; without this the
+	// whole history of a session started earlier shows as empty slots.
+	const old = stepOf(
+		message({
+			time: { created: 1_000, streamed: 3_400, completed: 3_500 },
+			content: [{ type: "reasoning", time: { created: 1_400 } }, { type: "text", time: null }],
+		}),
+	)
+	assert.equal(old.measured, true)
+	assert.equal(old.tps, 50)
+	assert.equal(old.ttft, 400)
+})
+
+test("an old message whose only timed part is a tool call stays unmeasured", () => {
+	// A tool part's time is when the call begins, after generation: using it collapses the window and reports
+	// rates no provider reaches.
+	const step = stepOf(
+		message({
+			time: { created: 1_000, streamed: 3_400, completed: 3_500 },
+			content: [{ type: "tool", time: { created: 3_100 } }],
+		}),
+	)
+	assert.equal(step.measured, false)
+	assert.equal(step.tps, undefined)
+})
+
+test("an old message with no timed part stays unmeasured", () => {
+	const step = stepOf(
+		message({ time: { created: 1_000, streamed: 3_400, completed: 3_500 }, content: [{ type: "text", time: null }] }),
+	)
+	assert.equal(step.measured, false)
+	assert.equal(step.tps, undefined)
+})
+
+test("firstToken outranks a part's timestamp", () => {
+	const step = stepOf(
+		message({ content: [{ type: "tool", time: { created: 3_100 } }] }),
+	)
+	assert.equal(step.tps, 50) // the 2 s window from firstToken, not the 300 ms one from the part
 })
 
 test("under 20 tokens is unmeasured however long the window", () => {
@@ -171,57 +217,29 @@ test("no message is an empty summary, not a crash", () => {
 	assert.equal(summary.totals.cacheHit, undefined)
 })
 
-test("a model switch inside a column cuts the column: a bucket never mixes two models", () => {
-	const fast = { providerID: "opencode-go", id: "deepseek-v4" }
-	const slow = { providerID: "anthropic", id: "opus" }
-	const at = (id: string, created: number, tokens: number, model: StepMessage["model"]) =>
-		message({
-			id,
-			model,
-			time: { created, firstToken: created + 400, streamed: created + 2_400, completed: created + 2_500 },
-			tokens: { output: tokens, reasoning: 0 },
-		})
-	// Three steps over two target columns: the left column holds the first, the right one holds the other two
-	// and those two are of different models. Speeds are 10, 50 and 30 t/s; the right column is cut at the
-	// switch, so three bars come back for two columns.
-	const steps = summarise([at("a", 1_000, 20, fast), at("b", 2_000, 100, slow), at("c", 3_000, 60, fast)]).steps
-	const split = bucketise(steps, 2)
-	assert.equal(split.length, 3)
-	assert.deepEqual(
-		split.map((bucket) => [bucket.steps, bucket.model]),
-		[
-			[1, "opencode-go/deepseek-v4"],
-			[1, "anthropic/opus"],
-			[1, "opencode-go/deepseek-v4"],
-		],
-	)
-	assert.equal(split[0].from, 1_000)
-	assert.equal(split[2].from, 3_000)
-	assert.equal(split[2].median, 30)
+test("the visible window is the steps the scroll position and the viewport cover", () => {
+	// Ten steps of 4 px: 40 px of content.
+	assert.deepEqual(visibleRange(10, 0, 24), { first: 0, last: 5 })
+	// Scrolled: 8 px in, a 16 px window reaches from step 2 to step 5.
+	assert.deepEqual(visibleRange(10, 8, 16), { first: 2, last: 5 })
+	// The right edge of the window lands mid-slot, and still counts the step it shows.
+	assert.deepEqual(visibleRange(10, 8, 17), { first: 2, last: 6 })
+	// Nothing outside the content, whatever the scroll says.
+	assert.deepEqual(visibleRange(10, 10_000, 40), { first: 9, last: 9 })
+	// A width the app has not measured yet shows the step the left edge is in.
+	assert.deepEqual(visibleRange(10, 8, 0), { first: 2, last: 2 })
+	// No step at all is nothing in view.
+	assert.deepEqual(visibleRange(0, 0, 100), { first: 0, last: -1 })
+	assert.equal(STEP_PX, BAR_PX + 1)
+})
 
-	// A single column is cut at the switch too: no count is reached by re-merging two models.
-	const whole = bucketise(steps, 1)
-	assert.equal(whole.length, 3)
-	assert.ok(whole.every((bucket) => bucket.model))
-	assert.equal(whole.reduce((sum, bucket) => sum + bucket.steps, 0), 3)
-
-	// Steps of one model keep the target count, and a column holding two of them is still one bar.
-	const sameModel = summarise([at("d", 1_000, 20, fast), at("e", 2_000, 40, fast), at("f", 3_000, 200, fast)]).steps
-	const [first, pair] = bucketise(sameModel, 2)
-	assert.equal(pair.steps, 2)
-	assert.equal(pair.median, 60) // 20 and 100 t/s
-	assert.equal(first.steps, 1)
-	assert.equal(pair.model, "opencode-go/deepseek-v4")
-	assert.deepEqual(
-		bucketise(sameModel, 1).map((bucket) => bucket.steps),
-		[3],
-	)
-
-	// A bucket with no measured step is a gap, and more columns than steps is one bar per step.
-	const unmeasuredOnly = summarise([message({ id: "gap", time: { created: 1_000, completed: 1_100 } })]).steps
-	assert.equal(bucketise(unmeasuredOnly, 8)[0].median, undefined)
-	assert.equal(bucketise(steps, 99).length, 3)
-	assert.deepEqual(bucketise([], 8), [])
+test("at the right end means within a pixel, and always when nothing overflows", () => {
+	assert.equal(atRightEnd(0, 40, 100), true)
+	assert.equal(atRightEnd(0, 100, 100), true)
+	assert.equal(atRightEnd(59, 100, 40), true)
+	assert.equal(atRightEnd(59.5, 100, 40), true)
+	assert.equal(atRightEnd(58, 100, 40), false)
+	assert.equal(atRightEnd(0, 100, 40), false)
 })
 
 test("per model: measured steps only, busiest first, ties by name", () => {
@@ -262,30 +280,6 @@ test("per model: measured steps only, busiest first, ties by name", () => {
 	assert.equal(byModel([]).length, 0)
 })
 
-test("a bar never gets wider than 6 px, and the few-step chart keeps the newest against the right edge", () => {
-	// A 296 px drawing: a slot is the width divided by the bar count, but its bar stops growing at 6 px.
-	const BAR_PX = 6
-	const width = 296
-	const px = (slot: number) => (slot / 100) * width
-
-	const few = barLayout(2, width)
-	assert.equal(Math.round(px(few.slot * BAR_GAIN) * 1000) / 1000, BAR_PX)
-	// Two 6 px bars, packed right: the empty chart is to their left, which is where it ends.
-	assert.equal(Math.round(few.left * 100) / 100, Math.round(((width - 2 * (BAR_PX / BAR_GAIN)) / width) * 10000) / 100)
-	assert.ok(few.left > 90)
-	// The last bar's slot ends flush with the drawing's right edge.
-	assert.equal(Math.round((few.left + 2 * few.slot) * 1000) / 1000, 100)
-
-	// Many steps: the slot is the drawing divided by the count, as before, and nothing is left over.
-	const many = barLayout(148, width)
-	assert.equal(many.left, 0)
-	assert.equal(many.slot, 100 / 148)
-	assert.ok(px(many.slot * BAR_GAIN) < BAR_PX)
-
-	// No bars, or a width the app has not measured yet, does not divide by zero.
-	assert.deepEqual(barLayout(0, 0), { left: 0, slot: 100 })
-})
-
 test("a staged revert cuts the message it points at and everything newer, and says whether it found it", () => {
 	const list: StepMessage[] = [
 		{ id: "u1", type: "user", time: { created: 1_000 } },
@@ -309,4 +303,35 @@ test("a staged revert cuts the message it points at and everything newer, and sa
 	assert.equal(gone.found, false)
 	// The list is not mutated: the panel reads it again on the next poll.
 	assert.equal(list.length, 4)
+})
+
+test("p95 is the nearest rank, so one freak step does not set the top of the drawing", () => {
+	assert.equal(p95([]), undefined)
+	// Twenty values: the 95th percentile by nearest rank is the 19th, not the highest.
+	const even = Array.from({ length: 20 }, (_, index) => index + 1)
+	assert.equal(p95(even), 19)
+	// One step ten times faster than the rest does not move it.
+	const freak = [...Array.from({ length: 19 }, () => 100), 1_000]
+	assert.equal(p95(freak), 100)
+})
+
+test("the scale is the peak, unless one step is more than twice the 95th percentile", () => {
+	// No freak: the top of the drawing is the peak itself, so every bar keeps its true height.
+	const even = Array.from({ length: 20 }, (_, index) => index + 1)
+	assert.equal(scaleOf(even), 20)
+	// One step three times the rest: the scale stops at twice the p95, and only that bar is cut.
+	const freak = [...Array.from({ length: 19 }, () => 100), 600]
+	assert.equal(scaleOf(freak), 200)
+})
+
+test("only the user's own scroll moves the follow latch", () => {
+	const at = (scrollLeft: number) => ({ scrollLeft, scrollWidth: 1_000, clientWidth: 400 })
+	// The user scrolls back: following stops.
+	assert.equal(followAfter(true, { user: true, ...at(100) }), false)
+	// The user scrolls to the right end again: it resumes.
+	assert.equal(followAfter(false, { user: true, ...at(600) }), true)
+	// A clamp after the content shrank lands at the right end, and must not be read as intent.
+	assert.equal(followAfter(false, { user: false, ...at(600) }), false)
+	// A resize that lands at the right end is the same.
+	assert.equal(followAfter(false, { user: false, ...at(0) }), false)
 })

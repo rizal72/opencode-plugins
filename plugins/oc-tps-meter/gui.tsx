@@ -4,13 +4,15 @@ import { Command, MenuItem, Panel, Plugin, Style, createKeyed, type MountedSessi
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js"
 
 import {
-	BAR_GAIN,
+	BAR_PX,
+	atRightEnd,
+	followAfter,
 	byModel,
 	revertCut,
-	bucketise,
-	barLayout,
+	STEP_PX,
 	summarise,
-	type Bucket,
+	visibleRange,
+	type Step,
 	type StepMessage,
 	type Summary,
 } from "./metrics.ts"
@@ -18,6 +20,8 @@ import {
 const REFRESH_MS = 2_000
 /** The panel's width, re-applied at every open. */
 const PANEL_WIDTH = 360
+/** The drawing's height in pixels, where a bar's top is measured from the baseline of a 0-based scale. */
+const HEIGHT = 120
 /** What a read asks for in one page, and the most it will accumulate before saying so. */
 const PAGE = 200
 const MAX_MESSAGES = 2_000
@@ -30,19 +34,28 @@ const CSS = `
 .tpsm-block + .tpsm-block { border-top: 1px solid color-mix(in srgb, var(--v2-text-text-base) 8%, transparent); }
 .tpsm-label { color: var(--v2-text-text-faint); text-transform: uppercase; letter-spacing: .06em; font-size: 10px;
   font-weight: 600; margin-bottom: 6px; }
-.tpsm-figure { font-size: 28px; line-height: 1.15; font-weight: 500; font-variant-numeric: tabular-nums; }
+.tpsm-figure { font-size: 28px; line-height: 1.15; font-weight: 700; font-variant-numeric: tabular-nums; }
+/* The unit is a label, not part of the figure: bold digits, a quiet "t/s" beside them. */
+.tpsm-unit { font-size: 14px; font-weight: 400; opacity: .7; }
 .tpsm-sub { color: var(--v2-text-text-faint); margin-top: 2px; overflow: hidden; text-overflow: ellipsis;
   white-space: nowrap; }
-/* One drawing for the whole histogram: it stretches with the panel, the strokes do not, and the bars keep
-   their pixel width — barLayout in metrics.ts decides where they land. */
-.tpsm-hist { display: block; width: 100%; height: 120px; color: var(--v2-text-text-base); }
-.tpsm-axis { display: flex; justify-content: space-between; margin-top: 4px; color: var(--v2-text-text-faint);
-  font-variant-numeric: tabular-nums; }
+/* The chart pans sideways and nothing else: a step is a fixed 4 px, so a long session scrolls natively. */
+.tpsm-chart { display: flex; overflow-x: auto; overflow-y: hidden; }
+.tpsm-hist { display: block; flex: 0 0 auto; margin-left: auto; height: ${HEIGHT}px;
+  color: var(--v2-text-text-base); }
+.tpsm-axis { display: grid; grid-template-columns: 1fr auto 1fr; gap: 6px; align-items: baseline; margin-top: 4px;
+  color: var(--v2-text-text-faint); font-variant-numeric: tabular-nums; }
+/* The way to the earlier steps, between the two dates: the only place it belongs, and silent when it all fits. */
+.tpsm-pan { font-size: 10px; letter-spacing: .04em; opacity: .8; }
+.tpsm-end { text-align: right; }
 /* The rollover's detail: the tooltip, in the flow under the axis, its height reserved against the jumps. */
 .tpsm-detail { min-height: 2.8em; margin-top: 2px; line-height: 1.4; font-variant-numeric: tabular-nums; }
 /* The model is the point of the line, so it is not truncated; a name too long for the panel wraps. */
 .tpsm-dmodel { overflow-wrap: anywhere; }
-.tpsm-dmeta { color: var(--v2-text-text-faint); opacity: .9; }
+/* The speed is what the pointer is there for: bright and bold, the instant quiet beside it. */
+.tpsm-dspeed { font-weight: 600; }
+.tpsm-dmute { color: var(--v2-text-text-faint); }
+.tpsm-dtime { color: var(--v2-text-text-faint); }
 .tpsm-counts { margin-top: 6px; color: var(--v2-text-text-faint); line-height: 1.4; font-variant-numeric: tabular-nums; }
 .tpsm-warn { margin-top: 4px; color: var(--v2-text-text-faint); line-height: 1.4; }
 .tpsm-models { margin-top: 6px; }
@@ -80,7 +93,7 @@ const clock = (at: number, withDay: boolean) =>
 
 const age = (ms: number) => (ms < 60_000 ? Math.round(ms / 1000) + "s" : Math.round(ms / 60_000) + "m")
 
-/** `HH:MM:SS`, the granularity a bucket of steps needs. */
+/** `HH:MM:SS`, the granularity one step's instant needs. */
 const stamp = (at: number) =>
 	new Date(at).toLocaleTimeString(undefined, { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" })
 
@@ -132,6 +145,18 @@ export default Plugin.define({
 			const [loading, setLoading] = createSignal(false)
 			/** The instant the note about age is read against, bumped by the poll so it never freezes. */
 			const [now, setNow] = createSignal(Date.now())
+			const [viewport, setViewport] = createSignal(0)
+			const [scrolled, setScrolled] = createSignal(0)
+			const [hovered, setHovered] = createSignal<number | undefined>(undefined)
+			let box: HTMLDivElement | undefined
+			/** True while the window sits at the right end. Written by the user's own scrolling only, so a read
+			 *  that lands while they are reading back does not yank them forward. */
+			let follow = true
+			/** Where this plugin last scrolled to itself: its own event must not touch `follow`. */
+			let ownScroll: number | undefined
+			/** Until this instant every scroll event is the layout's doing — a clamp, a resize, our own settle —
+			 *  never the user's word on where they want to be. */
+			let programmaticUntil = 0
 
 			// Keyed by `session.key`: another session means another read, and it starts blank so no figure of
 			// the session before is ever drawn under this one's name. Each run owns its timer and its
@@ -145,6 +170,10 @@ export default Plugin.define({
 					setReading(undefined)
 					setFailure(undefined)
 					setLoading(true)
+					// A new session inherits no offset: the right end, no hover, and following back on.
+					setHovered(undefined)
+					setScrolled(0)
+					follow = true
 
 					const read = async () => {
 						const session = current()
@@ -157,6 +186,9 @@ export default Plugin.define({
 							const cut = revertCut(page.messages, revert)
 							// Assistant messages only are steps; the user and compaction ones existed for the cut.
 							const kept = cut.messages.filter((message) => message.type === "assistant")
+							// The content is about to change width: any scroll event until the layout settles is
+							// the browser's, not the user's.
+							programmaticUntil = performance.now() + 150
 							setReading({
 								readAt: Date.now(),
 								summary: summarise(kept),
@@ -164,6 +196,7 @@ export default Plugin.define({
 								revertLost: revert !== undefined && !cut.found && page.truncated,
 							})
 							setFailure(undefined)
+							requestAnimationFrame(() => settle())
 						} catch (error) {
 							if (!latest()) return
 							setFailure({ at: Date.now(), error: error instanceof Error ? error.message : String(error) })
@@ -188,6 +221,9 @@ export default Plugin.define({
 						setReading(undefined)
 						setFailure(undefined)
 						setLoading(false)
+						setHovered(undefined)
+						setScrolled(0)
+						follow = true
 					},
 				},
 			)
@@ -205,60 +241,99 @@ export default Plugin.define({
 			const lastStep = () => summary()?.last
 			const peak = () => summary()?.peak
 			const medianTps = () => summary()?.median
-			const top = () => Math.max(peak() ?? 0, 1)
-			const y = (tps: number) => 100 - (tps / top()) * 100
+			// The drawing stops at the 95th percentile: the few steps above it are cut at the top edge, so one
+			// freak step cannot flatten the other 95%. A short session's p95 is its peak, so nothing is cut.
+			const scale = () => summary()?.scale ?? peak() ?? 1
+			const y = (tps: number) => Math.max(0, HEIGHT - (tps / (scale() || 1)) * HEIGHT)
+			const clipped = (tps: number) => tps > scale()
 
-			// A step is a fraction of a pixel wide, so bars are bucketed, each reading as the median of its steps;
-			// an unmeasured bucket is the gap. This decides the drawing only, never the counts.
-			const [drawWidth, setDrawWidth] = createSignal(296)
-			const [hovered, setHovered] = createSignal<number | undefined>(undefined)
-			let chart: SVGSVGElement | undefined
+			// The chart is one bar per step in real pixels, so it can be wider than the panel and scrolls sideways.
+			const contentWidth = () => steps().length * STEP_PX
+			const chartWidth = () => Math.max(contentWidth(), viewport())
+			const chartLeft = () => Math.max(0, chartWidth() - contentWidth())
+			const range = () => visibleRange(steps().length, scrolled(), viewport())
+
 			// The width is re-applied once at mount, never reactively, so a drag is not fought.
 			onMount(() => {
 				if (ctx.layout.side.width("tps") !== PANEL_WIDTH) ctx.layout.side.resize("tps", PANEL_WIDTH)
 			})
-			onMount(() => {
-				const element = chart
+			/** After a render: follow the newest only when the window was already at the right end, and clamp an
+			 *  offset the content no longer has. */
+			const settle = () => {
+				const element = box
 				if (!element) return
-				const observer = new ResizeObserver(() => setDrawWidth(element.getBoundingClientRect().width))
-				observer.observe(element)
-				onCleanup(() => observer.disconnect())
-			})
-			const buckets = () => bucketise(steps(), drawWidth() / 2)
-			// The bars sit against the right edge, where the newest one is, and the chart to their left is empty.
-			const bars = () => barLayout(buckets().length, drawWidth())
-			const barX = (index: number) => bars().left + index * bars().slot + bars().slot * 0.15
-			const barWidth = () => bars().slot * BAR_GAIN
-			const newestBar = () => {
-				const list = buckets()
-				for (let index = list.length - 1; index >= 0; index -= 1) if (list[index].median !== undefined) return index
-				return -1
+				programmaticUntil = performance.now() + 150
+				const end = Math.max(0, element.scrollWidth - element.clientWidth)
+				const target = follow ? end : Math.min(element.scrollLeft, end)
+				if (target !== element.scrollLeft) {
+					ownScroll = target
+					element.scrollLeft = target
+				}
+				setScrolled(target)
 			}
-			/** The bucket the pointer is over, which the detail line describes; the newest one when it is away. */
-			const shown = (): Bucket | undefined => buckets()[hovered() ?? newestBar()]
+			const onScroll = () => {
+				const element = box
+				if (!element) return
+				setScrolled(element.scrollLeft)
+				// The bar the pointer was over is no longer where it pointed: the detail falls back to the last
+				// bar in view, which is what the axis is describing.
+				setHovered(undefined)
+				// The scroll this plugin just made arrives as an event too, and it is not the user's word.
+				if (ownScroll !== undefined && Math.abs(element.scrollLeft - ownScroll) <= 1) {
+					ownScroll = undefined
+					return
+				}
+				// Only a scroll the user made may move the latch: a clamp after the content shrank arrives as a
+				// scroll event too, and it always lands at the right end (docs/oc-tps-meter.md, Traps).
+				const user = performance.now() > programmaticUntil
+				follow = followAfter(follow, {
+					user,
+					scrollLeft: element.scrollLeft,
+					scrollWidth: element.scrollWidth,
+					clientWidth: element.clientWidth,
+				})
+			}
+			/** The chart's own wrapper, which the observer has to follow: it comes and goes with the steps. */
+			let observer: ResizeObserver | undefined
+			const watch = (element: HTMLDivElement) => {
+				box = element
+				observer?.disconnect()
+				observer = new ResizeObserver(() => {
+					setViewport(element.clientWidth)
+					requestAnimationFrame(settle)
+				})
+				observer.observe(element)
+				setViewport(element.clientWidth)
+				requestAnimationFrame(settle)
+			}
+			onCleanup(() => observer?.disconnect())
+			/** A step's slot is hoverable whether or not it was measured: the detail says which it was. */
 			const point = (event: PointerEvent & { currentTarget: SVGSVGElement }) => {
-				const list = buckets()
-				const width = event.currentTarget.getBoundingClientRect()
-				if (!list.length || !width.width) return
-				// In the drawing's own units, so the empty chart to the left of the bars lands on the first one.
-				const { left, slot } = bars()
-				const index = Math.floor((((event.clientX - width.left) / width.width) * 100 - left) / slot)
+				const list = steps()
+				if (!list.length) return
+				const left = event.currentTarget.getBoundingClientRect().left
+				const index = Math.floor((event.clientX - left - chartLeft()) / STEP_PX)
 				setHovered(Math.max(0, Math.min(list.length - 1, index)))
 			}
-			/** Row 1: the one model the bucket holds. */
+			/** The step the detail describes: the one under the pointer, else the last one in the visible window. */
+			const shown = (): Step | undefined => {
+				const list = steps()
+				const over = hovered()
+				const index = over !== undefined && over < list.length ? over : range().last
+				return index >= 0 ? list[index] : undefined
+			}
+			/** Row 1: the model of that step. */
 			const detailModel = () => shown()?.model ?? "—"
-			/** Row 2: the steps, the speed and the instant — a single one unless the bucket really spans more
-			 *  than a second. */
-			const detail = () => {
-				const bucket = shown()
-				if (!bucket) return ""
-				const parts: string[] = [bucket.steps === 1 ? "1 step" : bucket.steps + " steps"]
-				const tps = (bucket.median === undefined ? "—" : speed(bucket.median)) + " t/s"
-				parts.push(bucket.steps > 1 ? "median " + tps : tps)
-				const from = stamp(bucket.from)
-				const to = stamp(bucket.to)
-				parts.push(from === to ? from : from + "–" + to)
-				return parts.join(" · ")
+			/** Row 2: the speed of the step under the pointer, or that it was not measured. One bar is one step, so
+			 *  a count and a median would say nothing here. */
+			const detailSpeed = () => {
+				const step = shown()
+				if (!step) return ""
+				return step.tps === undefined ? "not measured" : speed(step.tps) + " t/s"
+			}
+			const detailTime = () => {
+				const step = shown()
+				return step === undefined ? "" : stamp(step.created)
 			}
 			const models = () => byModel(steps())
 			const medianLine = () => {
@@ -267,12 +342,14 @@ export default Plugin.define({
 			}
 			const peakLine = () => {
 				const value = peak()
-				return value === undefined ? undefined : y(value)
+				// Above the scale there is nowhere to draw it: the cut bars carry it, and the counts line says
+				// the figure.
+				return value === undefined || value > scale() ? undefined : y(value)
 			}
 
 			const figure = () => {
 				const step = lastStep()
-				return step?.tps === undefined ? "—" : speed(step.tps) + " t/s"
+				return step?.tps === undefined ? "—" : speed(step.tps)
 			}
 			const model = () => lastStep()?.model ?? ""
 			const ttft = () => {
@@ -281,14 +358,23 @@ export default Plugin.define({
 				if (value === undefined) return ""
 				return "TTFT " + (value < 1000 ? Math.round(value) + " ms" : (value / 1000).toFixed(1) + " s")
 			}
-			/** Absolute local times at the two ends, with the day only when the session spans more than one. */
+			/** Absolute local times at the two ends of the visible window, with the day only when it spans more
+			 *  than one. */
 			const axis = () => {
 				const list = steps()
-				const first = list[0]?.created
-				const end = list[list.length - 1]?.created
-				if (first === undefined || end === undefined) return ["", ""]
-				const withDay = new Date(first).toDateString() !== new Date(end).toDateString()
-				return [clock(first, withDay), clock(end, withDay)]
+				const { first, last } = range()
+				const start = list[first]?.created
+				const end = list[last]?.created
+				if (start === undefined || end === undefined) return ["", ""]
+				const withDay = new Date(start).toDateString() !== new Date(end).toDateString()
+				return [clock(start, withDay), clock(end, withDay)]
+			}
+			/** Which way there is more to see, between the two dates: nothing when the whole session fits. */
+			const pan = () => {
+				if (contentWidth() <= viewport()) return ""
+				const right = atRightEnd(scrolled(), contentWidth(), viewport())
+				if (scrolled() <= 1) return "scroll →"
+				return right ? "← scroll" : "← scroll →"
 			}
 			const counts = () => {
 				const value = summary()
@@ -341,72 +427,91 @@ export default Plugin.define({
 						<Show when={steps().length > 0} fallback={<div class="tpsm-note">No assistant step yet.</div>}>
 							<div class="tpsm-block">
 								<div class="tpsm-label">last measurable step</div>
-								<div class="tpsm-figure">{figure()}</div>
+								<div class="tpsm-figure">{figure()}<span class="tpsm-unit"> t/s</span></div>
 								<div class="tpsm-sub">{[model(), ttft()].filter(Boolean).join(" · ")}</div>
 							</div>
 							<div class="tpsm-block">
-								<svg
-									class="tpsm-hist"
-									ref={(element: SVGSVGElement) => (chart = element)}
-									viewBox="0 0 100 100"
-									preserveAspectRatio="none"
-									role="img"
-									aria-label={counts()}
-									onPointerMove={point}
-									onPointerLeave={() => setHovered(undefined)}
-								>
-									{/* One drawing for every step: bars are fills, the dashed lines are strokes kept at one pixel by
-									    `vector-effect`, and a bucket with no measured step draws nothing. */}
-									<For each={buckets()}>
-										{(bucket: Bucket, index) => {
-											const tps = bucket.median
-											if (tps === undefined) return null
-											return (
-												<rect
-													x={barX(index())}
-													y={y(tps)}
-													width={barWidth()}
-													height={100 - y(tps)}
-													fill="currentColor"
-													opacity={index() === hovered() ? 1 : index() === newestBar() ? 0.9 : 0.45}
-												/>
-											)
-										}}
-									</For>
-									<Show when={medianLine() !== undefined}>
-										<line
-											x1="0"
-											x2="100"
-											y1={medianLine()}
-											y2={medianLine()}
-											stroke="currentColor"
-											stroke-width="1"
-											stroke-dasharray="3 3"
-											opacity="0.3"
-											vector-effect="non-scaling-stroke"
-										/>
-									</Show>
-									<Show when={peakLine() !== undefined}>
-										<line
-											x1="0"
-											x2="100"
-											y1={peakLine()}
-											y2={peakLine()}
-											stroke="currentColor"
-											stroke-width="1"
-											stroke-dasharray="3 3"
-											opacity="0.3"
-											vector-effect="non-scaling-stroke"
-										/>
-									</Show>
-								</svg>
+								<div class="tpsm-chart" ref={watch} onScroll={onScroll}>
+									<svg
+										class="tpsm-hist"
+										width={chartWidth()}
+										height={HEIGHT}
+										role="img"
+										aria-label={counts()}
+										onPointerMove={point}
+										onPointerLeave={() => setHovered(undefined)}
+									>
+										{/* One drawing for every step, in real pixels: an unmeasured step leaves its slot empty, and the
+										    two dashed lines are strokes at one pixel over the whole width. */}
+										<For each={steps()}>
+											{(step: Step, index) => {
+												const tps = step.tps
+												if (tps === undefined) return null
+												return (
+													<>
+														<rect
+															x={chartLeft() + index() * STEP_PX}
+															y={y(tps)}
+															width={BAR_PX}
+															height={HEIGHT - y(tps)}
+															fill="currentColor"
+															opacity={index() === hovered() ? 1 : index() === steps().length - 1 ? 0.9 : 0.45}
+														/>
+														{/* Cut at the top: a bright cap says the bar goes on, and the detail line
+														    still carries its real figure. */}
+														<Show when={clipped(tps)}>
+															<rect
+																x={chartLeft() + index() * STEP_PX}
+																y={0}
+																width={BAR_PX}
+																height={2}
+																fill="currentColor"
+																opacity={1}
+															/>
+														</Show>
+													</>
+												)
+											}}
+										</For>
+										<Show when={medianLine() !== undefined}>
+											<line
+												x1="0"
+												x2={chartWidth()}
+												y1={medianLine()}
+												y2={medianLine()}
+												stroke="currentColor"
+												stroke-width="1"
+												stroke-dasharray="3 3"
+												opacity="0.3"
+											/>
+										</Show>
+										<Show when={peakLine() !== undefined}>
+											<line
+												x1="0"
+												x2={chartWidth()}
+												y1={peakLine()}
+												y2={peakLine()}
+												stroke="currentColor"
+												stroke-width="1"
+												stroke-dasharray="3 3"
+												opacity="0.3"
+											/>
+										</Show>
+									</svg>
+								</div>
 								<div class="tpsm-axis">
 									<span>{axis()[0]}</span>
-									<span>{axis()[1]}</span>
+									<span class="tpsm-pan">{pan()}</span>
+									<span class="tpsm-end">{axis()[1]}</span>
 								</div>
 								<div class="tpsm-detail">
 									<div class="tpsm-dmodel">{detailModel()}</div>
-									<div class="tpsm-dmeta">{detail()}</div>
+									<div>
+										<span class={shown()?.tps === undefined ? "tpsm-dmute" : "tpsm-dspeed"}>
+											{detailSpeed()}
+										</span>
+										<span class="tpsm-dtime"> · {detailTime()}</span>
+									</div>
 								</div>
 								<div class="tpsm-counts">{counts()}</div>
 								<Show when={reading()?.revertLost}>
