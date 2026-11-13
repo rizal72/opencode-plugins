@@ -116,6 +116,7 @@ the ones the account has (`docs/oc-budget.md`, *The four wallets*) — not the s
 | `oc-coffee` | `Slot "session.header"`, order 12 | the server owns the level and the assertion; the cup is the terminal's own glyph, which a pill could only swap for a `monitor` |
 | `oc-ponytail-widget` | `ComposerPill` | the level word alone, ordered beside the cup; the four levels are its rows, so the pill is the selector |
 | `oc-plugin-updates` | `ComposerPill` | a count when there is something to install, nothing when there is not; the rows are the act |
+| `oc-tps-meter` | `Panel`, side region | decode speed per step is a distribution and a distribution needs a drawing; nothing always-visible to add, since the header already carries tokens and cost (`docs/oc-tps-meter.md`) |
 
 ## The always-visible surfaces
 

@@ -18,6 +18,7 @@ agent calls). One plugin, one state, two surfaces, GUI and TUI:
 | [`@rizal72/oc-coffee`](plugins/oc-coffee/README.md) | keeps the Mac awake while the agent or a command is working (macOS only) | cup badge in the footer, `/coffee` | a cup in the session header, with the four levels | ✓ |
 | [`@rizal72/oc-ponytail-widget`](plugins/oc-ponytail-widget/README.md) | the ponytail level | badge in the footer | a pill, and the only selector | ✓ |
 | [`@rizal72/oc-session-search`](plugins/oc-session-search/README.md) | `session_search`: keyword search over the transcripts of past sessions | — | — | ✓ |
+| [`oc-tps-meter`](plugins/oc-tps-meter/README.md) | tokens per second: how fast each step answered, with the median, the peak and the wait for the first token | — | a side panel with a bar per step, the model that produced it, and the session's totals | — not published yet |
 | [`oc-context`](plugins/oc-context/README.md) | the Context block in the sidebar, with the window its percent is a percent of | sidebar | — | — redraws a built-in |
 | [`oc-donsetch`](plugins/oc-donsetch/README.md) | keeps the `donsetch` binary current | — | — | — needs that binary |
 
@@ -59,7 +60,9 @@ Or install [`@rizal72/oc-plugin-updates`](https://www.npmjs.com/package/@rizal72
 count appears in a pill above the composer, with the update one click away.
 
 The ones marked `—` in the npm column are here to be read: `oc-context` takes over a built-in and needs a line
-in `cli.json`, and `oc-donsetch` only updates a binary you install yourself, so neither is a package. The rest
+in `cli.json`, and `oc-donsetch` only updates a binary you install yourself, so neither is a package.
+`oc-tps-meter` is a package but not one on npm yet: it runs from this repository by path — one absolute entry
+in `~/.config/opencode/opencode.jsonc` — and it takes a scoped name the day it ships. The rest
 install with `opencode plugin add`, and `oc-notify` asks for one thing more — the free ntfy app on the phone.
 
 Where these came from: [Why I left OpenCode for Pi, then came back for v2](https://www.reddit.com/r/opencodeCLI/comments/1xcgnpr/why_i_left_opencode_for_pi_then_came_back_for_v2/).

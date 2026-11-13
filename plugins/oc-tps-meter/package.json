@@ -1,0 +1,31 @@
+{
+	"name": "oc-tps-meter",
+	"version": "0.1.0",
+	"type": "module",
+	"description": "Tokens per second for every closed step of an OpenCode v2 session: a histogram in the desktop side panel, with the median, the peak, TTFT and the token totals",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/rizal72/opencode-plugins.git"
+	},
+	"license": "MIT",
+	"files": [
+		"*.ts",
+		"*.tsx",
+		"README.md",
+		"dist",
+		"!*.test.ts"
+	],
+	"keywords": [
+		"opencode",
+		"opencode-plugin",
+		"tps",
+		"tokens",
+		"throughput"
+	],
+	"publishConfig": {
+		"access": "public"
+	},
+	"exports": {
+		"./gui-experimental": "./dist/gui-experimental.cjs"
+	}
+}
