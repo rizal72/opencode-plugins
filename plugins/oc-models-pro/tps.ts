@@ -81,12 +81,15 @@ export function turn(entry: any, sid = ""): Turn | undefined {
 	const provider = entry.model?.providerID
 	const model = entry.model?.id
 	if (typeof provider !== "string" || typeof model !== "string") return undefined
-	// The window opens at the first content part that carries a timestamp — a part without one (a file
-	// reference, say) would start the clock late and overstate the rate.
-	const first = entry.content.find((part: any) => typeof part?.time?.created === "number")?.time?.created
-	// The last streamed token; `completed` only when the host recorded nothing (it carries the same
-	// instant, and post-stream bookkeeping would drag the rate down).
-	const last = entry.time.streamed ?? entry.time.completed
+	// The provider's own first-token instant, which is what the window must open at: the parts' timestamps
+	// are a fallback for messages recorded before it existed. A text part carries no time at all, so a
+	// text-only step has no part to fall back to — this is why `firstToken` comes first.
+	const first =
+		entry.time.firstToken ??
+		entry.content.find((part: any) => typeof part?.time?.created === "number")?.time?.created
+	// Only the end of the provider stream: `completed` adds post-stream bookkeeping and drags the rate
+	// down, so a message without it is not measured rather than measured wrongly.
+	const last = entry.time.streamed
 	if (typeof first !== "number" || typeof last !== "number") return undefined
 	const tokens = (entry.tokens.output ?? 0) + (entry.tokens.reasoning ?? 0)
 	const span = last - first
@@ -170,6 +173,15 @@ if (process.argv[2] === "--self-check") {
 		if (turn(few)) throw new Error("self-check: five tokens must be dropped")
 		if (turn({ time: {}, tokens: {}, content: [] })) throw new Error("self-check: a turn without a model must be dropped")
 		if (median([3, 1, 2]) !== 2 || median([1, 4]) !== 2.5) throw new Error("self-check: median is wrong")
+
+		// A step made of text alone has no part carrying a time: its rate must come from firstToken, not be dropped.
+		const textOnly = turn({ ...base, content: [{ type: "text", text: "ok", time: null }], time: { created: 0, firstToken: 200, streamed: 1000 } }, "ses_y")
+		if (!textOnly || Math.abs(textOnly.tps - 62.5) > 0.001) throw new Error("self-check: a text-only step must be measured from firstToken")
+		// firstToken wins over the parts: a part timestamp later in the stream would shrink the window and inflate the rate.
+		const both = turn({ ...base, content: [{ type: "tool", time: { created: 900 } }], time: { created: 0, firstToken: 200, streamed: 1000 } })
+		if (!both || Math.abs(both.tps - 62.5) > 0.001) throw new Error("self-check: firstToken must outrank a part's timestamp")
+		// No `streamed` is no measurement: `completed` carries post-stream work and would understate the rate.
+		if (turn({ ...base, time: { created: 0, firstToken: 200, completed: 1000 } })) throw new Error("self-check: a message without streamed must be dropped")
 
 		if (rows === 0) {
 			console.log("self-check ok: no assistant messages on this machine, nothing to measure")

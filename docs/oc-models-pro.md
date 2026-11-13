@@ -324,10 +324,21 @@ untouched by the rule.
   `opencode-go`, all genuinely absent upstream. Self-check:
   `node plugins/oc-models-pro/bench.ts --self-check`.
 - **Speed, measured** — `plugins/oc-models-pro/tps.ts`, from this machine's own sessions. Per assistant
-  turn: `(tokens.output + tokens.reasoning) ÷ (last token − first content token)`, i.e. the number
+  turn: `(tokens.output + tokens.reasoning) ÷ (streamed − firstToken)`, i.e. the number
   the industry publishes — Artificial Analysis' "output speed", and `completion_tokens` as OpenAI,
-  Anthropic and OpenRouter bill it, where reasoning is part of the output. Turns under 200 ms or under 20
-  tokens are dropped; the figure is the **median** per `providerID/modelID`, over the **last 7 days** when
+  Anthropic and OpenRouter bill it, where reasoning is part of the output. Both instants come from the
+  message itself (`time.firstToken`, `time.streamed`). The earlier version opened the window at the first
+  content part carrying a timestamp, and a text-only answer has no such part: those steps were dropped
+  silently. Measured 2026-11-13 over the whole store — 20,611 assistant rows, 18,415 measurable before
+  the change and 18,432 after, so **17 recovered, all in the last seven days**, and none lost.
+  A part's timestamp stays the fallback for messages recorded before `firstToken` existed — a different
+  window, opening where the first reasoning or tool part starts: 1–2 ms after the first token on most
+  rows, more than 2 ms on 37 of the 364 comparable ones, up to 119 ms, which reads up to **17.8% fast**.
+  The median of the mix does not move; a single fallback row can.
+  `time.completed` is never used: it carries post-stream bookkeeping, so a message without `streamed` is
+  not measured at all — 331 rows carry none, the newest 2026-11-13, and none of them was measurable
+  before either, being too short or too small. Turns under 200 ms or under 20 tokens are dropped; the
+  figure is the **median** per `providerID/modelID`, over the **last 7 days** when
   that window holds at least three turns, over all of history when it does not. The median is taken
   twice — within each session, then across sessions — so one long-running session cannot elect the
   figure on its own. Cheap enough to recompute at every panel
