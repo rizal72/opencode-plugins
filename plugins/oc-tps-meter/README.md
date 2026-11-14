@@ -20,13 +20,15 @@ A tab in the session's side panel: the `+` menu beside the tabs, the command pal
 Top to bottom: the speed of the last step it could measure, with the model that produced it and the wait for
 the first token; the histogram, one bar per step, newest on the right, a dashed line at the median and one at
 the top of the drawing, where the tallest bar ends — and, when the peak is beyond the scale, a bright cap on
-the bars that cross it — and a gap where a step could not be measured; pointing at a bar names its model, its speed and its time; a pair of lines per model
-with how many of its steps were measured, its median and its peak; and the totals, cache included.
+the bars that cross it — and a gap where a step could not be measured. Pointing at a bar turns the block at the
+top into that step, its time in place of the label. Then a pair of lines per model with how many of its steps
+were measured, its median and its peak; and the totals, cache included.
 
 The chart scrolls sideways: two fingers on the trackpad, shift and the wheel, or the scrollbar, and the small
-hint between the two times says which way there is more. Bar heights follow the fastest step — only a step more
-than twice the 95th percentile is cut at the top edge, and it keeps its real figure in the line that describes
-it — so one exceptional step does not flatten the rest.
+hint between the two times says which way there is more. A time carries its date once it is not today's, at
+the ends of the axis and in the label alike. Bar heights follow the fastest step — only a step more than twice
+the 95th percentile is cut at the top edge, and it keeps its real figure in the block above when it is pointed
+at — so one exceptional step does not flatten the rest.
 
 ## What it leaves out
 

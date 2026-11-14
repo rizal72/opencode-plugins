@@ -30,7 +30,8 @@ Per assistant message, called a step:
   Text parts carry no time, so an old text-only or tool-only message stays unmeasured.
 - measured only when `started` and `streamed` exist, `tokens >= 20` and the window is `>= 200` ms; anything
   else is a **gap**, never a zero
-- the figure is the **median** of the measured steps, because one slow step must not move it
+- the session's number is the **median** of the measured steps, because one slow step must not move it; the
+  block at the top is the last measured step, with that step's own speed, never the median
 - cache hit is `cache.read / (input + cache.read + cache.write)`
 
 The fallback is what makes an older session readable at all. Measured on one session started the day before
@@ -50,8 +51,9 @@ read-only — and nothing can measure it, because the end of the stream is the o
 
 The same measurement lives in `oc-models-pro/tps.ts`; the two are separate copies on purpose, because a plugin
 package has no runtime to share and a shared one would make one plugin depend on the other being installed.
-That copy still accepts **any** timed part in its fallback, tool parts included, which reads those rows high —
-an open defect recorded in [`oc-models-pro`](oc-models-pro.md), *Speed, measured*.
+That copy carried the wider fallback for a while — any timed part, tool parts included — which read those rows
+high; `0.4.2` narrowed it to the reasoning part, the rule this panel uses. What it cost, and the numbers:
+[`oc-models-pro`](oc-models-pro.md), *Speed, measured*.
 
 ## Reading the session
 
@@ -78,6 +80,7 @@ session, and a session with more than 2,000 messages loses the oldest end of its
 | no cost figure | the session header already shows the session's cost, and under Go it is `$0` | nothing stored for it: the field was summed and never drawn, so it is not kept at all |
 | no quota, no usage | that is [`oc-budget`](oc-budget.md)'s, and it is the only part that needs a credential and the network | zero network calls |
 | bars, not a line | a histogram reads a distribution at a glance; the line exists in the reference plugin only for the live 60 s | none |
+| one block, not two | the rollover used to write a second block under the chart, so the same step was described in two places and the eye had to travel down and back; the block above now serves both roles, and at rest it keeps the headline | the described step's time moved into the label, and panning back no longer says which bar is last in the window |
 | a figure is white | the median, the peak and the time to first token are what the panel is opened for, so each is drawn in `--v2-text-text-base` bold while the words around it keep the faint — one `.tpsm-num` wherever they appear, in the counts line, the per-model rows and the header | three numbers shout at once in a session with several models; the labels are what orders them |
 
 ## Traps found while building it
@@ -100,21 +103,22 @@ session, and a session with more than 2,000 messages loses the oldest end of its
   then was exact at its two ends and approximate in between — and panning replaced it: a step is a fixed 4 px
   (3 px bar, 1 px gap), the drawing is as wide as the session, and a wrapper scrolls sideways only. Vertical
   gestures stay with the panel. The hint between the two times says which way there is more, and says nothing
-  when the whole session fits.
+  when the whole session fits. An end that is not today's carries its date (`13/11, 23:38`), and a window
+  crossing midnight dates both ends: an hour alone reads as this morning.
 - **The scale is the peak, with one fence.** Scaling to the peak alone is what every bar wants — 460 next to 250
   next to 100 reads as itself — but a single freak step then flattens the rest. So the scale is
   `min(peak, 2 × p95)`: normally that is the peak exactly, and only a bar more than twice the 95th percentile is
-  cut at the top edge with a bright cap, keeping its true figure in the detail line while the peak stays in the
-  counts.
-  **The top of the drawing is always drawn**, one dashed line at `y = 0` whether or not a bar is cut: the block's
-  padding is black on black, so without it the edge of the drawing is invisible, a cut bar seems cut by the
-  panel, and a session whose peak is beyond the fence is left with no reference at all. The line means the top,
-  which is the peak exactly when nothing is cut. The earlier rule scaled to the p95 itself and cut the top 5% — on a real session that was twenty bars
-  with the same cap, which hid exactly the fast steps the chart exists to show.
+  cut at the top edge with a bright cap, keeping its true figure in the block above when it is pointed at, while
+  the peak stays in the counts. The earlier rule scaled to the p95 itself and cut the top 5% — on a real session
+  that was twenty bars with the same cap, which hid exactly the fast steps the chart exists to show.
+- **The top of the drawing is always drawn**, one dashed line at `y = 0` whatever the data does, once anything is
+  measured at all: the block's padding is black on black, so without it the edge of the drawing is invisible, a
+  cut bar seems cut by the panel, and a session whose peak is beyond the fence is left with no reference at all.
+  The line means the top, which is the peak exactly when nothing is cut.
 - **The revert cut needs every message type.** `session.revert.messageID` points at a message that may be a
   user one, so reading `type: "assistant"` only would never find the boundary. Reading every type costs steps
   per page, since the cap is on messages: 2,000 of them, newest first, `truncated` when it stops there.
-- **An unmeasured step still owns its 4 px**, and its detail line says it was not measured: a gap in the
+- **An unmeasured step still owns its 4 px**, and pointing at it turns the block above into a dash: a gap in the
   histogram would otherwise read the same as a session that did nothing for a while.
 
 ## Where it lives in the window
@@ -126,7 +130,7 @@ panel adds the dimension they lack.
 
 ## Reading the figures
 
-At the time of writing, on this machine, DeepSeek's native provider measures a median around 194 t/s with a
-peak of 460, against around 106 t/s for the same models through Go — which is what the `by model` block is
-for. Those are a measurement of a route, not a catalogue number: the same model differs by provider, which is
-the same reason `oc-models-pro` measures its own `tok/s` instead of borrowing one.
+On this machine, 2026-11-14, DeepSeek's native route measures a median of **184.5** t/s and a peak of 535 on
+one session, against **115.8** t/s for the same model through Go — a ratio of 1.6, which is what the `by model`
+block is for. Those are a measurement of a route, not a catalogue number: the same model differs by provider,
+which is the same reason `oc-models-pro` measures its own `tok/s` instead of borrowing one.

@@ -33,13 +33,14 @@ const CSS = `
   color: var(--v2-text-text-base); }
 .tpsm-block { padding: 14px 12px; }
 .tpsm-block + .tpsm-block { border-top: 1px solid color-mix(in srgb, var(--v2-text-text-base) 8%, transparent); }
-.tpsm-label { color: var(--v2-text-text-faint); text-transform: uppercase; letter-spacing: .06em; font-size: 10px;
-  font-weight: 600; margin-bottom: 6px; }
+.tpsm-label { color: var(--v2-text-text-faint); text-transform: uppercase; letter-spacing: .06em; font-size: 11px;
+  font-weight: 600; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
 .tpsm-figure { font-size: 28px; line-height: 1.15; font-weight: 700; font-variant-numeric: tabular-nums; }
 /* The unit is a label, not part of the figure: bold digits, a quiet "t/s" beside them. */
 .tpsm-unit { font-size: 14px; font-weight: 400; opacity: .7; }
+/* One line of room kept even when a step carries neither model nor time, so the chart never jumps a row. */
 .tpsm-sub { color: var(--v2-text-text-faint); margin-top: 2px; overflow: hidden; text-overflow: ellipsis;
-  white-space: nowrap; }
+  white-space: nowrap; min-height: 1.4em; }
 /* The chart pans sideways and nothing else: a step is a fixed 4 px, so a long session scrolls natively. */
 .tpsm-chart { display: flex; overflow-x: auto; overflow-y: hidden; }
 .tpsm-hist { display: block; flex: 0 0 auto; margin-left: auto; height: ${HEIGHT}px;
@@ -49,21 +50,15 @@ const CSS = `
 /* The way to the earlier steps, between the two dates: the only place it belongs, and silent when it all fits. */
 .tpsm-pan { font-size: 10px; letter-spacing: .04em; opacity: .8; }
 .tpsm-end { text-align: right; }
-/* The rollover's detail: the tooltip, in the flow under the axis, its height reserved against the jumps. */
-.tpsm-detail { min-height: 2.8em; margin-top: 2px; line-height: 1.4; font-variant-numeric: tabular-nums; }
-/* The model is the point of the line, so it is not truncated; a name too long for the panel wraps. */
-.tpsm-dmodel { overflow-wrap: anywhere; }
-/* The speed is what the pointer is there for: bright and bold, the instant quiet beside it. */
-.tpsm-dspeed { font-weight: 600; }
+/* The model of the step being described: white, so a name keeps its own against the figure above it. */
+.tpsm-smodel { color: var(--v2-text-text-base); }
 /* A figure the line exists for — a median, a peak, a time to first token: white and bold, the words around
    it keeping the faint they had. */
 .tpsm-num { color: var(--v2-text-text-base); font-weight: 600; }
-.tpsm-dmute { color: var(--v2-text-text-faint); }
-.tpsm-dtime { color: var(--v2-text-text-faint); }
 .tpsm-counts { margin-top: 6px; color: var(--v2-text-text-faint); line-height: 1.4; font-variant-numeric: tabular-nums; }
 .tpsm-warn { margin-top: 4px; color: var(--v2-text-text-faint); line-height: 1.4; }
 .tpsm-models { margin-top: 6px; }
-/* One model per block, two lines read as one unit: the same rhythm as the detail above, and the space that
+/* One model per block, two lines read as one unit: the same rhythm as the block above, and the space that
    tells two models apart on the pair's top only, never between a name and its numbers. */
 .tpsm-mrow { line-height: 1.4; }
 .tpsm-mrow + .tpsm-mrow { padding-top: 6px; }
@@ -90,6 +85,9 @@ const speed = (value: number) => (value >= 100 ? String(Math.round(value)) : val
 
 const count = (value: number) => value.toLocaleString()
 
+/** Whether two instants fall on the same local day: what decides if a time needs its date beside it. */
+const sameDay = (a: number, b: number) => new Date(a).toDateString() === new Date(b).toDateString()
+
 const clock = (at: number, withDay: boolean) =>
 	withDay
 		? new Date(at).toLocaleString(undefined, { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })
@@ -97,9 +95,17 @@ const clock = (at: number, withDay: boolean) =>
 
 const age = (ms: number) => (ms < 60_000 ? Math.round(ms / 1000) + "s" : Math.round(ms / 60_000) + "m")
 
-/** `HH:MM:SS`, the granularity one step's instant needs. */
-const stamp = (at: number) =>
-	new Date(at).toLocaleTimeString(undefined, { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" })
+/** `HH:MM:SS`, the granularity one step's instant needs, behind its date when that is not today. */
+const stamp = (at: number, withDay: boolean) =>
+	withDay
+		? new Date(at).toLocaleString(undefined, {
+				month: "numeric",
+				day: "numeric",
+				hour: "2-digit",
+				minute: "2-digit",
+				second: "2-digit",
+			})
+		: new Date(at).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" })
 
 /** A line as the words around a `figure`: the words stay faint, a figure is drawn bright, because it is the
  *  number the line exists for. One shape for the median, the peak and the time to first token, so they read
@@ -294,8 +300,8 @@ export default Plugin.define({
 				const element = box
 				if (!element) return
 				setScrolled(element.scrollLeft)
-				// The bar the pointer was over is no longer where it pointed: the detail falls back to the last
-				// bar in view, which is what the axis is describing.
+				// The bar the pointer was over is no longer where it pointed, so the block goes back to the newest
+				// measured step rather than describe a bar that has moved.
 				setHovered(undefined)
 				// The scroll this plugin just made arrives as an event too, and it is not the user's word.
 				if (ownScroll !== undefined && Math.abs(element.scrollLeft - ownScroll) <= 1) {
@@ -326,7 +332,7 @@ export default Plugin.define({
 				requestAnimationFrame(settle)
 			}
 			onCleanup(() => observer?.disconnect())
-			/** A step's slot is hoverable whether or not it was measured: the detail says which it was. */
+			/** A step's slot is hoverable whether or not it was measured: the block above says which it was. */
 			const point = (event: PointerEvent & { currentTarget: SVGSVGElement }) => {
 				const list = steps()
 				if (!list.length) return
@@ -334,25 +340,22 @@ export default Plugin.define({
 				const index = Math.floor((event.clientX - left - chartLeft()) / STEP_PX)
 				setHovered(Math.max(0, Math.min(list.length - 1, index)))
 			}
-			/** The step the detail describes: the one under the pointer, else the last one in the visible window. */
+			/** The bar under the pointer, when the list still holds it: a poll appends, a revert cuts the tail, and
+			 *  either can leave the stored index past the end. */
+			const over = (): number | undefined => {
+				const index = hovered()
+				return index !== undefined && index < steps().length ? index : undefined
+			}
+			/** The step the block describes: the one under the pointer, else the newest measured one. Nothing
+			 *  hovered means the panel keeps its headline, so panning never moves the big figure. */
 			const shown = (): Step | undefined => {
-				const list = steps()
-				const over = hovered()
-				const index = over !== undefined && over < list.length ? over : range().last
-				return index >= 0 ? list[index] : undefined
+				const index = over()
+				return index === undefined ? lastStep() : steps()[index]
 			}
-			/** Row 1: the model of that step. */
-			const detailModel = () => shown()?.model ?? "—"
-			/** Row 2: the speed of the step under the pointer, or that it was not measured. One bar is one step, so
-			 *  a count and a median would say nothing here. */
-			const detailSpeed = () => {
+			/** What the block is describing: the hovered step's time, or the headline's own label. */
+			const blockLabel = () => {
 				const step = shown()
-				if (!step) return ""
-				return step.tps === undefined ? "not measured" : speed(step.tps) + " t/s"
-			}
-			const detailTime = () => {
-				const step = shown()
-				return step === undefined ? "" : stamp(step.created)
+				return over() !== undefined && step ? stamp(step.created, !sameDay(step.created, now())) : "last measured"
 			}
 			const models = () => byModel(steps())
 			const medianLine = () => {
@@ -360,26 +363,28 @@ export default Plugin.define({
 				return value === undefined ? undefined : y(value)
 			}
 			const figure = () => {
-				const step = lastStep()
+				const step = shown()
 				return step?.tps === undefined ? "—" : speed(step.tps)
 			}
-			const model = () => lastStep()?.model ?? ""
+			const model = () => shown()?.model ?? ""
 			const ttft = () => {
-				const value = lastStep()?.ttft
+				const value = shown()?.ttft
 				// Milliseconds below a second, where the digits mean something; seconds above, where they do not.
 				if (value === undefined) return undefined
 				return value < 1000 ? ([String(Math.round(value)), " ms"] as const) : ([(value / 1000).toFixed(1), " s"] as const)
 			}
-			/** Absolute local times at the two ends of the visible window, with the day only when it spans more
-			 *  than one. */
+			/** Absolute local times at the two ends of the visible window. A window that crosses midnight dates
+			 *  both ends — 23:58 and 00:08 alone would not say the day changed — and an end that is not today's
+			 *  carries its date, so panned back onto yesterday the axis cannot be mistaken for this morning. */
 			const axis = () => {
 				const list = steps()
 				const { first, last } = range()
 				const start = list[first]?.created
 				const end = list[last]?.created
 				if (start === undefined || end === undefined) return ["", ""]
-				const withDay = new Date(start).toDateString() !== new Date(end).toDateString()
-				return [clock(start, withDay), clock(end, withDay)]
+				const crosses = !sameDay(start, end)
+				const today = now()
+				return [clock(start, crosses || !sameDay(start, today)), clock(end, crosses || !sameDay(end, today))]
 			}
 			/** Which way there is more to see, between the two dates: nothing when the whole session fits. */
 			const pan = () => {
@@ -447,10 +452,10 @@ export default Plugin.define({
 					}>
 						<Show when={steps().length > 0} fallback={<div class="tpsm-note">No assistant step yet.</div>}>
 							<div class="tpsm-block">
-								<div class="tpsm-label">last measurable step</div>
+								<div class="tpsm-label">{blockLabel()}</div>
 								<div class="tpsm-figure">{figure()}<span class="tpsm-unit"> t/s</span></div>
 								<div class="tpsm-sub">
-									{model()}
+									<span class="tpsm-smodel">{model()}</span>
 									<Show when={ttft()}>
 										{(pair) => (
 											<>
@@ -488,8 +493,8 @@ export default Plugin.define({
 															fill="currentColor"
 															opacity={index() === hovered() ? 1 : index() === steps().length - 1 ? 0.9 : 0.45}
 														/>
-														{/* Cut at the top: a bright cap says the bar goes on, and the detail line
-														    still carries its real figure. */}
+														{/* Cut at the top: a bright cap says the bar goes on, and the block above
+														    still carries its real figure when pointed at. */}
 														<Show when={clipped(tps)}>
 															<rect
 																x={chartLeft() + index() * STEP_PX}
@@ -523,8 +528,8 @@ export default Plugin.define({
 											<line
 												x1="0"
 												x2={chartWidth()}
-												y1="0"
-												y2="0"
+												y1="0.5"
+												y2="0.5"
 												stroke="currentColor"
 												stroke-width="1"
 												stroke-dasharray="3 3"
@@ -537,15 +542,6 @@ export default Plugin.define({
 									<span>{axis()[0]}</span>
 									<span class="tpsm-pan">{pan()}</span>
 									<span class="tpsm-end">{axis()[1]}</span>
-								</div>
-								<div class="tpsm-detail">
-									<div class="tpsm-dmodel">{detailModel()}</div>
-									<div>
-										<span class={shown()?.tps === undefined ? "tpsm-dmute" : "tpsm-dspeed"}>
-											{detailSpeed()}
-										</span>
-										<span class="tpsm-dtime"> · {detailTime()}</span>
-									</div>
 								</div>
 								<div class="tpsm-counts"><Figures pieces={countsLine()} /></div>
 								<Show when={reading()?.revertLost}>
