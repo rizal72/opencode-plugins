@@ -18,36 +18,71 @@ repository's table, and its own record in `docs/`. All of it, in the same commit
 ## A new package: the name has to exist before the workflow can publish it
 
 The trusted publisher lives on the package's **settings page on npmjs.com**, and a package that does not
-exist has no settings page — so the first publish of a new name is manual, by the owner, with an OTP. The
-workflow takes over from the version after.
+exist has no settings page — so the first publish of a new name is always the owner's own act. Everything
+around it is the agent's: the owner's part is the fingerprint, and nothing else.
 
-Measured 2026-10-30 on `@rizal72/oc-plugin-updates`:
+Measured 2026-11-14, publishing `@rizal72/oc-tps-meter` from a shell with no terminal of its own:
 
-```sh
-cd plugins/<name>
-npm version 0.0.1 --no-git-tag-version   # a placeholder, only to claim the name
-npm publish --access public              # OTP; no --tag, 0.0.1 is not a prerelease
-git checkout -- package.json             # back to the real version, tree clean for the push
-```
+1. **Commit first, without pushing**: the scoped `name`, its version, and every document that describes it.
+   Not pushed, because the workflow would try to publish a name that does not exist yet and turn red on it —
+   and because step 3 ends with `git checkout -- package.json`, which restores what the commit holds, so the
+   rename must already be in it.
+2. **`npm whoami`**. `401` is an expired session: `npm login --auth-type=web` prints a URL, the owner opens
+   it and gives the fingerprint, and the CLI finishes on its own.
+3. **Claim the name**, each command under a pseudo-terminal — without one the CLI exits at once and the URL
+   it printed dies with it (see the traps):
+   ```sh
+   cd plugins/<name>
+   printf '\n' | script -q /dev/null npm version 0.0.1 --no-git-tag-version
+   printf '\n' | script -q /dev/null npm publish --access public
+   git checkout -- package.json
+   ```
+   `0.0.1` stays on the registry for good, as a published version; `latest` moves to the first real one at step
+   6. It is never reused, which is what `npm version` guards.
+4. **The trusted publisher, from the CLI** — no page, no form:
+   ```sh
+   printf '\n' | script -q /dev/null npm trust github @rizal72/<name> \
+     --file publish.yml --repo rizal72/opencode-plugins --allow-publish -y
+   ```
+   It prints the authentication URL and waits, the owner thumbs it, and it answers
+   `Trust configuration created successfully` with the connection id and `permissions: publish, stage publish`.
+   Leave out `--allow-publish` and the connection only stages, which is a different release flow.
+5. **Publishing access**, the one step with no CLI: `/package/<name>/access`, the radio *Require two-factor
+   authentication and disallow bypass 2fa tokens*, then **Update Package Settings**. It sits in the page's
+   settings tab, which is the same address.
+6. **Push**. The workflow publishes the real version and, by publishing once, validates the trusted publisher —
+   npm calls it *Pending validation* until then, and drops an unvalidated connection after two days.
 
-Then on the package's page: **Trusted publishing** → GitHub Actions, user `rizal72`, repository
-`opencode-plugins`, workflow `publish.yml`, with **`npm publish`** allowed; and **Publishing access** →
-*require 2FA and disallow tokens*. After that a push publishes the real version, with provenance.
+What the agent does and what the owner does: the agent presses **Use security key**; Chrome then asks the
+owner for the fingerprint by itself, and the flow continues. The agent never types a code, and never has to.
 
-Two things that cost a round trip each:
+Traps, each measured:
 
+- **`/package/<name>/settings` is not a route.** It answers *Route not found*; the settings page is `/access`.
+- **A publish outside a terminal cannot finish its second factor.** `npm publish` in a shell with no terminal
+  exits at once with `EOTP` and prints a `www.npmjs.com/auth/cli/<id>` URL, but that route lives only while the
+  CLI waits for it: opened afterwards it shows npm's 404 wombat. `script -q /dev/null` gives it a terminal, and
+  the same command then waits for the owner and finishes.
+- **Never retry-loop while a security-key prompt is up.** The tab stops answering CDP until the prompt is
+  answered — every call comes back `Timeout ... exceeded`, and a screenshot does not help. Press the button,
+  then wait for the owner.
+- **The 2FA assertion lasts a few minutes and then lapses.** npm offers *remember this device* on the
+  authentication page, and the owner turns it on: that is what lets the next operation inside those minutes go
+  through with no prompt at all (measured 2026-11-14: a save minutes after a thumb). It expires on its own, so
+  the next publication asks again — the flag is one fingerprint *per release*, never one per package or for good.
+- **`npm trust list` needs the second factor too** and answers `EOTP` without a terminal: read the connection
+  from the page, or keep the id the create printed.
 - **`0.0.0-stage` no longer works.** The packages published before 2026-10-30 carry it, and the same
   version is now refused: `403 You cannot publish using the version: 0.0.0-stage`. `0.0.1` is the version
   that goes.
 - **A `404` on the `PUT` is not always a name problem.** With an expired session the registry answers exactly
   that; `npm whoami` says `401` and the fix is `npm login`. Measured in the same attempt.
-- **A publish outside a terminal cannot finish its second factor.** `npm publish` in a shell with no terminal
-  exits at once with `EOTP` and prints a `www.npmjs.com/auth/cli/<id>` URL, but that route lives only while the
-  CLI waits for it: opened afterwards it answers *Route not found* — npm's 404 wombat. The claim needs a
-  terminal with the owner at it, and the CLI then resumes by itself. Measured 2026-11-14 on `oc-tps-meter`.
-
-The registry answers `404` for a few minutes after the publish — *"being processed"* — and `npm view
-<name> version` is the signal that the page is ready to configure.
+- **The registry serves `404` for about a minute after the claim**, *"being processed"*; `npm view <name>
+  version` is the signal that the page is ready to configure.
+- **Do not chase the version after the workflow either.** `npm view` kept answering `0.0.1` while the run had
+  already printed `+ @rizal72/<name>@<version>`; the registry's own copy took minutes to catch up, and its
+  `versions` list is the slowest of the three. The run log is the proof: the `+` line, plus
+  `Signed provenance statement` and the sigstore entry.
 
 ## The tarball gate, before the first publish
 
