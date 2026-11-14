@@ -132,9 +132,10 @@ export default Plugin.define({
 			return (
 				<Show when={value()}>
 					{(v: () => CoffeeSnapshot) => (
+						// The tooltip names the level, so it still reads when `compact` leaves only the cup.
 						<HeaderMenu
 							label={`Coffee: ${v().level}`}
-							hint="Coffee: sleep prevention"
+							hint={`Coffee: ${v().level}`}
 							tip={ctx.ui.Tooltip}
 							open={open()}
 							onOpenChange={setOpen}
@@ -189,6 +190,6 @@ export default Plugin.define({
 
 		ctx.add(Style, CSS)
 
-		ctx.add(Slot, { at: "session.header", order: 12, render: (input) => <HeaderCoffee input={input} /> })
+		ctx.add(Slot, { at: "session.header", order: 13, render: (input) => <HeaderCoffee input={input} /> })
 	},
 })

@@ -96,7 +96,10 @@ from it, and the child is reaped at start so a plugin that is gone cannot leave 
 
 ## The desktop half
 
-A `session.header` slot, `order` 12 — **after** the budget's figure (11) and before the app's actions (20).
+A `session.header` slot, `order` 13 — the last of the band our own header figures take (`oc-budget` 11,
+`oc-tps-meter` 12), after the app's own figures and before its actions at 20. Distinct numbers, not one shared
+number: a tie is listed in contribution order, and a reloaded half contributes again, which shuffled the row
+without anyone asking (`docs/gui-plugins.md`, measured 2026-11-14).
 It sits with the app's own system facts, the context ring and the cost, because that is what it is: whether
 this machine is being kept awake, not a setting of the conversation in front of you. Ponytail's pill stays
 above the composer for the opposite reason — its level is a control you change on purpose, and a pill is
@@ -107,7 +110,8 @@ The mark is the cup the terminal draws, not an imitation: **Material Design Icon
 coloured through `fill`. A `ComposerPill` could only choose from the app's icon set, which has no cup — the
 old half fell back to `monitor` — while a slot draws its own markup. It is lit in the success colour while
 `caffeinate` is up and inherits the faint header colour otherwise; the level is written beside it, and
-`compact` leaves the cup alone.
+`compact` leaves the cup alone. The tooltip names the level in force, so the cup by itself still says which
+one.
 
 The four levels live in the popover, which is `header-menu.tsx`, lifted as it stands from `oc-budget`: the
 open state is ours, so a second click on the cup closes what the first opened, which the platform's

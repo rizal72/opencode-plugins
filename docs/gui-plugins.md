@@ -113,10 +113,10 @@ the ones the account has (`docs/oc-budget.md`, *The four wallets*) — not the s
 | `oc-context` | none: no GUI half | the block is the terminal's; the desktop draws the session's tokens and cost itself, so there is nothing left to draw |
 | `oc-models-pro` | `Command` + `Panel` | a second implementation of the table, not the terminal's: a grid, a click to switch, the rows' meaning shared |
 | `oc-session-search` | none: no GUI half | a tool the agent calls; its results read in the transcript |
-| `oc-coffee` | `Slot "session.header"`, order 12 | the server owns the level and the assertion; the cup is the terminal's own glyph, which a pill could only swap for a `monitor` |
+| `oc-coffee` | `Slot "session.header"`, order 13 | the server owns the level and the assertion; the cup is the terminal's own glyph, which a pill could only swap for a `monitor` |
 | `oc-ponytail-widget` | `ComposerPill` | the level word alone, ordered beside the cup; the four levels are its rows, so the pill is the selector |
 | `oc-plugin-updates` | `ComposerPill` | a count when there is something to install, nothing when there is not; the rows are the act |
-| `oc-tps-meter` | `Panel`, side region | decode speed per step is a distribution and a distribution needs a drawing; nothing always-visible to add, since the header already carries tokens and cost (`docs/oc-tps-meter.md`) |
+| `oc-tps-meter` | `Slot "session.header"`, order 12 + `Panel`, side region | the speed is a figure read at a glance, so the header; the distribution needs a drawing, so the panel (`docs/oc-tps-meter.md`) |
 
 ## The always-visible surfaces
 
@@ -231,9 +231,20 @@ actions, and the contribution shrinks to its icon then.
 
 Those two groups are not one contribution: the app's own figures — context ring, tokens, cost — are a
 `session.header` item at **order 10**, and its actions (the panel toggle, the location, the sidebar
-button) another at **order 20**. A figure of ours belongs at **order 11**: after the native ring and cost,
-before the buttons. At `order: 10` it lands there only by a tie, decided by which plugin contributed first
-(measured 2026-10-31, `oc-budget` in the header).
+button) another at **order 20**. A figure of ours belongs in the band **11 to 13**: after the native ring and
+cost, before the app's display control and buttons, which is where the owner reads it. At `order: 9` ours moved
+ahead of the native figures instead, measured 2026-11-14.
+
+**Our own header elements take one number each, in a band.** `oc-budget` at 11, `oc-tps-meter` at 12,
+`oc-coffee` at 13: after the native figures and before the app's actions, which is the space that belongs to
+plugins.
+
+One shared number was tried first, on the reasoning that ties keep contribution order and so the `plugins`
+array would decide the row. **Ties do not survive a reload**: every GUI edit reloads a half, the half
+contributes again, and the tie re-shuffles. Measured 2026-11-14: with all three at `order: 11` and the array
+listing budget, tps-meter, coffee, one reload put the cup between the other two, and only `opencode service
+restart` put it back. A number per plugin is stable across reloads; the price is that the order inside the
+family is ours to release, not the user's to configure.
 
 ## A pill never shows a stale value as fresh
 
@@ -246,6 +257,10 @@ keeping the last value unmarked tells a lie that looks like the truth. Three sta
 | fresh | the figure, as usual | whatever the figure says | the usual |
 | stale — the last good reading is older than two polls | the figure, prefixed `~` | `warning` | what was read, and when |
 | nothing ever read, and the source failed | a short word, icon `circle-exclamation` | `danger` | the error itself, and as the menu's only row |
+
+The header figures follow the same rule with one difference: a `session.header` element has no label to prefix,
+so its staleness goes into the tooltip — `Budget: GO · 7% · last read 12m` reads the same fact in the place that
+has room for it (`docs/oc-budget.md`, `docs/oc-tps-meter.md`).
 
 Hiding is not one of them: it is the refusal to say. The terminal half of `oc-budget` has done this since
 its first version (`reading…`, `stale 12m`, `budget —`); the window was the one out of line, and it cost

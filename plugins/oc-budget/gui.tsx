@@ -583,6 +583,19 @@ export default Plugin.define({
 								? `Budget · ${f.alarm.label} ${Math.round(f.alarm.percent)}%${f.alarm.reset ? ` · reset ${f.alarm.reset}` : ""}`
 								: "Budget — what pays, and every wallet")
 
+			/** The hint carries the figure, because `compact` leaves the mark alone and the number on screen would
+			 *  otherwise be nowhere — the doc, Desktop half. The reason follows it when there is one: the window
+			 *  that is alarming and when it resets, or how old the figure is. */
+			const hint = (f: Figures) =>
+				f.label
+					? `Budget: ${f.label}` +
+						(f.stale
+							? ` · last read ${ageText(f.age)} ago`
+							: f.alarm
+								? ` · ${f.alarm.label} ${Math.round(f.alarm.percent)}%${f.alarm.reset ? ` · reset ${f.alarm.reset}` : ""}`
+								: "")
+					: seat(f)
+
 			// The menu can lose its trigger while open (a server switch and return): closing with it is the only
 			// state that cannot lie about a gesture that no longer exists.
 			createKeyed(
@@ -596,7 +609,7 @@ export default Plugin.define({
 					{(s: () => NonNullable<ReturnType<typeof shown>>) => (
 						<HeaderMenu
 							label={s().f.stale ? `~${s().text}` : s().text}
-							hint={seat(s().f)}
+							hint={hint(s().f)}
 							tip={Tooltip}
 							open={open()}
 							onOpenChange={change}

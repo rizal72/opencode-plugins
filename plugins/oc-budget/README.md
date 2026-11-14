@@ -59,7 +59,9 @@ and its countdown below — and, when more than one Console account is connected
 name. The colour is the window that stops the subscription first: green while all three are under 90, yellow
 once any is at 90, red once any is spent. The **figure** stays the month, because the three percentages are
 shares of three different limits (the 5 hour window is 20% of the monthly limit, the week 50%), so a 5 hour
-window at 62% is a month at 12%; the hover hint names the window that is sounding.
+window at 62% is a month at 12%; the hover hint names the window that is sounding. In a header too narrow for
+the label only the mark is drawn, and the hover hint then carries the figure as well, so the number is never
+lost to the width.
 
 Reaching any of the three limits stops the subscription's requests, unless the Console's **Extra Usage**
 toggle is on — off by default on Go and Go Plus — in which case they continue on the prepaid balance. The

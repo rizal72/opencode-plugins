@@ -296,10 +296,14 @@ The figure prints the **month** and keeps the month's own fill, because the thre
 three different limits and only the month is comparable from day to day: printing the highest would hide the
 month precisely while someone works hard. Its **tone**, however, is the window that comes first — the colour
 says "a wall is near", the number says "how much of the plan is left" — and the hover hint names the guilty
-window and its reset (`Budget · 5h 96% · reset 40m`) **when that window is not the month**: when the month is
+window and its reset (`Budget: GO · 7% · 5h 96% · reset 40m`) **when that window is not the month**: when the month is
 the one at 90 or more, the hint stays the generic line, because the figure already is the month and its colour
 says the rest. A spent 5 hour window therefore paints the figure red at
 7%, which is the honest reading: the subscription has stopped and the month has not.
+
+The figure follows the slot's `compact`, true when the title no longer fits beside the actions: the label goes
+and the mark stays. The hover hint carries the figure in both forms — `Budget — what pays, and every wallet ·
+GO · 7%`, or `· OC · $3.15` — so the number survives where the label does not.
 
 The block is the plugin's own popover, in the top layer and anchored to the figure: no host menu wraps it,
 so the width and the placement a `ComposerPill` `menu` imposed no longer apply (`docs/gui-plugins.md`,
