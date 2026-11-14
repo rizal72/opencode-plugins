@@ -41,6 +41,10 @@ Two things that cost a round trip each:
   that goes.
 - **A `404` on the `PUT` is not always a name problem.** With an expired session the registry answers exactly
   that; `npm whoami` says `401` and the fix is `npm login`. Measured in the same attempt.
+- **A publish outside a terminal cannot finish its second factor.** `npm publish` in a shell with no terminal
+  exits at once with `EOTP` and prints a `www.npmjs.com/auth/cli/<id>` URL, but that route lives only while the
+  CLI waits for it: opened afterwards it answers *Route not found* — npm's 404 wombat. The claim needs a
+  terminal with the owner at it, and the CLI then resumes by itself. Measured 2026-11-14 on `oc-tps-meter`.
 
 The registry answers `404` for a few minutes after the publish — *"being processed"* — and `npm view
 <name> version` is the signal that the page is ready to configure.
