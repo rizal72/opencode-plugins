@@ -18,7 +18,7 @@ agent calls). One plugin, one state, two surfaces, GUI and TUI:
 | [`@rizal72/oc-coffee`](plugins/oc-coffee/README.md) | keeps the Mac awake while the agent or a command is working (macOS only) | cup badge in the footer, `/coffee` | a cup in the session header, with the four levels | ✓ |
 | [`@rizal72/oc-ponytail-widget`](plugins/oc-ponytail-widget/README.md) | the ponytail level | badge in the footer | a pill, and the only selector | ✓ |
 | [`@rizal72/oc-session-search`](plugins/oc-session-search/README.md) | `session_search`: keyword search over the transcripts of past sessions | — | — | ✓ |
-| [`@rizal72/oc-tps-meter`](plugins/oc-tps-meter/README.md) | tokens per second: how fast each step answered, with the median, the peak and the wait for the first token | — | a side panel with a bar per step, the model that produced it, and the session's totals | ✓ |
+| [`@rizal72/oc-tps-meter`](plugins/oc-tps-meter/README.md) | tokens per second: how fast each step answered, with the median, the peak and the wait for the first token | — | a figure in the session header, and a side panel with a bar per step and the session's totals | ✓ |
 | [`oc-context`](plugins/oc-context/README.md) | the Context block in the sidebar, with the window its percent is a percent of | sidebar | — | — redraws a built-in |
 | [`oc-donsetch`](plugins/oc-donsetch/README.md) | keeps the `donsetch` binary current | — | — | — needs that binary |
 

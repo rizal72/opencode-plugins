@@ -129,6 +129,35 @@ session, and a session with more than 2,000 messages loses the oldest end of its
 - **An unmeasured step still owns its 4 px**, and pointing at it turns the block above into a dash: a gap in the
   histogram would otherwise read the same as a session that did nothing for a while.
 
+## The header figure
+
+`Slot "session.header"`, order 12 — after the app's own figures and before its display control, the place
+[`oc-budget`](oc-budget.md)'s figure takes. It is a button with a tachometer and the speed, a click toggles the
+panel, and the header's `compact` flag drops it to the glyph alone. The hint reads `TPS: 91.2 t/s`, with the
+model's own name on a second line — the provider prefix is dropped, because some providers carry a second one
+(`openrouter/deepseek/…`) and the row has no room for it — and the reason appended when the figure is old or a
+revert is staged, so nothing is lost when only the glyph is drawn. The button declares its state to a screen reader
+with `aria-expanded`, and draws no plate of its own: the panel lives in the side region, so the header control
+looks untouched once the pointer leaves it — the app's own controls keep no background after a click either. It has no colour of its own: faint like the app's
+own figures, white with the hover, and red only when the wait was a queue — the one thing that breaks that grey
+at rest, the same grammar `oc-budget` follows with its warning tone.
+
+Its read is ten messages, newest first, and it takes the newest **measured** step in that page — not merely the
+newest closed assistant one, which may carry no speed at all (under 20 tokens or under 200 ms) or be a user
+message with a reply still streaming behind it. Ten, so a short reply or a tool-only step cannot push the last
+good figure out of the page; when the page holds no measured step the figure it already had stays, because a dash
+would say the session produced nothing. A failed read keeps that figure too and the hint carries its age
+(`· last read 12s`), since a figure from a failed read is not a fresh one. A staged revert is the one case that
+draws a dash: ten messages cannot find the message the panel cuts at, and showing a step the panel has dropped
+would be worse than showing none — the hint says a revert is staged.
+
+With the panel open the element draws the panel's own last measured step, which the panel publishes after every
+read: one figure, one clock, one revert cut, so the two cannot disagree. The panel's 2,000-message walk exists
+because it needs every step, the median and the revert point; the figure needs the last one, and a walk that size
+every five seconds would cost the session view for a number the header can get from one page. The clock runs only
+while the header's timeline is the one on screen: the slot stays mounted with a cached timeline, and a read there
+is a read for a view nobody is looking at; coming back to it reads at once rather than on the next tick.
+
 ## Where it lives in the window
 
 `Panel "tps"`, side region, declared width 360, `closable: "hover"` — a thing you look at, not a dashboard that

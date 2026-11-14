@@ -1,15 +1,17 @@
 // oc-tps-meter — GUI half: a side panel drawing tokens per second for every closed step of the session on
 // screen, as a histogram, with the figures around it. The metric is `metrics.ts`.
-import { Command, MenuItem, Panel, Plugin, Style, createKeyed, type MountedSession, type PanelTab } from "@opencode/plugin/gui"
+import { Command, MenuItem, Panel, Plugin, Slot, Style, createKeyed, type MountedSession, type PanelTab, type SlotMap } from "@opencode/plugin/gui"
 import { For, Show, createSignal, onCleanup, onMount } from "solid-js"
 
 import {
 	BAR_PX,
 	atRightEnd,
+	closed,
 	followAfter,
 	byModel,
 	isSlow,
 	revertCut,
+	stepOf,
 	STEP_PX,
 	summarise,
 	visibleRange,
@@ -20,6 +22,10 @@ import {
 } from "./metrics.ts"
 
 const REFRESH_MS = 2_000
+/** The header's own clock and page: the newest few messages, never the panel's 2,000-message walk. Ten, so a
+ *  short reply or a tool-only step does not push the last measured one out of the page. */
+const HEADER_REFRESH_MS = 5_000
+const HEADER_PAGE = 10
 /** The panel's width, re-applied at every open. */
 const PANEL_WIDTH = 360
 /** The drawing's height in pixels, where a bar's top is measured from the baseline of a 0-based scale. */
@@ -76,6 +82,23 @@ const CSS = `
 .tpsm-total > :first-child { color: var(--v2-text-text-faint); }
 .tpsm-amount { font-variant-numeric: tabular-nums; }
 .tpsm-note { padding: 12px; color: var(--v2-text-text-faint); }
+/* The figure in the session header: the app's own toolbar button, hand-written with the budget figure's and
+   the coffee cup's geometry — the three sit side by side, so a different height or plate would show. */
+.tpsh { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 6px;
+  border: 0; border-radius: 6px;
+  background: none; color: var(--v2-text-text-faint); font: inherit; font-size: 13px; font-weight: 440;
+  letter-spacing: -0.04px; font-variant-numeric: tabular-nums; cursor: pointer; }
+.tpsh:hover, .tpsh:focus-visible {
+  background: color-mix(in srgb, var(--v2-text-text-base) 8%, transparent);
+  color: var(--v2-text-text-base);
+}
+.tpsh-glyph { display: block; flex: 0 0 auto; }
+/* A figure and its unit never break: the header's other figures guard the same line. */
+.tpsh-label { white-space: nowrap; }
+/* No colour of its own: the figure and its unit inherit the button's, so the whole element is faint at rest
+   and white on hover — the header's grammar, where a number is a label until you reach for its control. */
+/* A slow step is the one thing that breaks that grey: the danger on the figure and the glyph alike. */
+.tpsh-slow { color: var(--v2-state-fg-danger); }
 `
 
 type Reading = {
@@ -172,6 +195,11 @@ const Figures = (props: { pieces: Piece[] }) => (
 export default Plugin.define({
 	setup(ctx) {
 		const current = () => ctx.sessions.current()
+		/** What the open panel last computed, tagged with its session: while it is there the header reads it
+		 *  instead of its own one-page read, so the two figures cannot disagree. The step may be `undefined` —
+		 *  "the panel is open and has no measured step", which is a value, not a missing one — and the tag keeps
+		 *  another session's panel from answering this header. */
+		const [panelShare, setPanelShare] = createSignal<{ key: string; step: Step | undefined } | undefined>(undefined)
 
 		const View = () => {
 			const [reading, setReading] = createSignal<Reading | undefined>(undefined)
@@ -204,6 +232,7 @@ export default Plugin.define({
 					setReading(undefined)
 					setFailure(undefined)
 					setLoading(true)
+					setPanelShare(undefined)
 					// A new session inherits no offset: the right end, no hover, and following back on.
 					setHovered(undefined)
 					setScrolled(0)
@@ -220,15 +249,18 @@ export default Plugin.define({
 							const cut = revertCut(page.messages, revert)
 							// Assistant messages only are steps; the user and compaction ones existed for the cut.
 							const kept = cut.messages.filter((message) => message.type === "assistant")
+							const computed = summarise(kept)
 							// The content is about to change width: any scroll event until the layout settles is
 							// the browser's, not the user's.
 							programmaticUntil = performance.now() + 150
 							setReading({
 								readAt: Date.now(),
-								summary: summarise(kept),
+								summary: computed,
 								truncated: page.truncated,
 								revertLost: revert !== undefined && !cut.found && page.truncated,
 							})
+							// What the header draws while this panel is open: one figure, from one read.
+							setPanelShare({ key, step: computed.last })
 							setFailure(undefined)
 							requestAnimationFrame(() => settle())
 						} catch (error) {
@@ -248,6 +280,7 @@ export default Plugin.define({
 					onCleanup(() => {
 						live = false
 						clearInterval(timer)
+						setPanelShare(undefined)
 					})
 				},
 				{
@@ -257,6 +290,7 @@ export default Plugin.define({
 						setLoading(false)
 						setHovered(undefined)
 						setScrolled(0)
+						setPanelShare(undefined)
 						follow = true
 					},
 				},
@@ -622,11 +656,185 @@ export default Plugin.define({
 			render: () => <View />,
 		})
 
-		const toggle = () => {
-			const session = current()
+		const toggleOf = (session: MountedSession | undefined) => {
 			if (!session) return
 			ctx.layout.toggle(`${ctx.id}:tps`, session)
 		}
+		const toggle = () => toggleOf(current())
+
+		/** The figure in the session header: the speed of the last measured step, and the panel it toggles.
+		 *  It reads the newest messages only, ten deep, so a short reply or a tool-only step cannot hide the
+		 *  figure the session last produced. */
+		const HeaderTps = (props: { input: SlotMap["session.header"] }) => {
+			/** This timeline's own read. */
+			const [latest, setLatest] = createSignal<Step | undefined>(undefined)
+			/** When the last read succeeded, and whether the one after it failed: a figure has to say it is old. */
+			const [okAt, setOkAt] = createSignal<number | undefined>(undefined)
+			const [failed, setFailed] = createSignal(false)
+			/** A revert the panel would cut and this page cannot. */
+			const [reverted, setReverted] = createSignal(false)
+			/** The instant the age is read against, moved by the poll so it never freezes. */
+			const [now, setNow] = createSignal(Date.now())
+
+			// Keyed by `session.key`, as the panel is: another session is another read, it starts blank, and
+			// this run's timer and `live` flag die with the key. The slot stays mounted while a timeline is
+			// cached and hidden, so a tick on an inactive one asks the client nothing.
+			createKeyed(
+				() => props.input.session.key,
+				(key: string) => {
+					let live = true
+					/** This key's reads, in the order they started: only the latest may write. */
+					let sequence = 0
+					// A figure of the session before is never drawn under this one's name.
+					setLatest(undefined)
+					setOkAt(undefined)
+					setFailed(false)
+					setReverted(false)
+
+					const read = async () => {
+						const session = props.input.session
+						if (!live || !props.input.active || session.key !== key) return
+						const mine = (sequence += 1)
+						const fresh = () => live && mine === sequence && props.input.session.key === key
+						try {
+							const [page, revert] = await Promise.all([
+								session.server.client.message.list({
+									sessionID: session.id,
+									limit: HEADER_PAGE,
+									order: "desc",
+								}),
+								revertOf(session),
+							])
+							if (!fresh()) return
+							const measured = page.data
+								.filter((message) => message.type === "assistant" && closed(message))
+								.map(stepOf)
+								.find((step) => step.tps !== undefined)
+							// A page with no measured step is not a zero: the figure it already has is the last one
+							// the session produced, and blanking it would be a lie about a session that is working.
+							if (measured) setLatest(measured)
+							setReverted(revert !== undefined)
+							setOkAt(Date.now())
+							setFailed(false)
+						} catch {
+							// The figure stays; the hint says how old it is.
+							if (fresh()) setFailed(true)
+						}
+					}
+					// Coming back to this timeline reads at once, not up to five seconds later. `createKeyed`, not
+					// `createEffect`: a GUI half may not import Solid's effect, because the SDK's keyed run follows
+					// the plugin's lifetime and a raw effect does not (docs/gui-plugins.md).
+					createKeyed(
+						() => (props.input.active ? "on" : "off"),
+						(state: string) => {
+							if (state === "on") void read()
+						},
+					)
+					const timer = setInterval(() => {
+						// The clock moves only where the element is on screen: a hidden timeline asks nothing and
+						// shows nothing, so it has no age to keep fresh.
+						if (props.input.active) setNow(Date.now())
+						void read()
+					}, HEADER_REFRESH_MS)
+					onCleanup(() => {
+						live = false
+						clearInterval(timer)
+					})
+				},
+			)
+
+			/** The panel's own figure while it is open, this session's only: its read is deeper and carries the
+			 *  revert cut. `undefined` here means "no panel is answering", never "the panel found nothing". */
+			const shared = () => {
+				const share = panelShare()
+				return share && share.key === props.input.session.key ? share : undefined
+			}
+			/** A staged revert this page cannot locate: what is here may be work the panel has dropped. */
+			const undone = () => shared() === undefined && reverted()
+			const shown = () => {
+				const share = shared()
+				if (share) return share.step
+				return undone() ? undefined : latest()
+			}
+			/** Whether the figure on screen is this element's own read, and so whether its age applies. */
+			const own = () => shared() === undefined
+			const figure = () => {
+				const value = shown()?.tps
+				return value === undefined ? "—" : speed(value)
+			}
+			const open = () => ctx.layout.state(`${ctx.id}:tps`, props.input.session) !== "closed"
+			/** The model's own name, without the provider: some providers carry a second one in the id
+			 *  (`openrouter/deepseek/…`), and the tooltip has no room for a prefix nobody reads there. */
+			const modelName = () => {
+				const model = shown()?.model
+				if (!model) return undefined
+				const slash = model.indexOf("/")
+				return slash === -1 ? model : model.slice(slash + 1)
+			}
+			/** The second line: the model, and why the figure is what it is. */
+			const after = () => {
+				const parts: string[] = []
+				const name = modelName()
+				if (name) parts.push(name)
+				if (undone()) parts.push("a revert is staged")
+				const at = okAt()
+				// Only a figure this element read itself can be old: the panel's own carries the panel's clock.
+				if (own() && failed() && at !== undefined) parts.push("last read " + age(now() - at))
+				return parts
+			}
+			/** One string for the accessible name, because a screen reader reads text and not a line break. */
+			const hint = () => ["TPS: " + figure() + " t/s", ...after()].join(" · ")
+			const slow = () => isSlow(shown()?.ttft)
+
+			return (
+				<ctx.ui.Tooltip
+					value={
+						<>
+							<span>TPS: {figure()} t/s</span>
+							<Show when={after().length > 0}>
+								<br />
+								<span>{after().join(" · ")}</span>
+							</Show>
+						</>
+					}
+					placement="bottom"
+				>
+					<button
+						type="button"
+						class="tpsh"
+						aria-label={hint()}
+						aria-expanded={open()}
+						onClick={() => toggleOf(props.input.session)}
+					>
+						{/* A tachometer, drawn here: the SDK's icon set has no gauge and an absent name draws a
+						    plus with no error, as the coffee cup records. */}
+						<svg
+							class={slow() ? "tpsh-glyph tpsh-slow" : "tpsh-glyph"}
+							viewBox="0 0 16 16"
+							width="14"
+							height="14"
+							fill="none"
+							aria-hidden="true"
+						>
+							<path
+								d="M2.2 12.2a5.8 5.8 0 0 1 11.6 0"
+								stroke="currentColor"
+								stroke-width="1.5"
+								stroke-linecap="round"
+							/>
+							<path d="M8 12.2 10.9 8" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" />
+							<circle cx="8" cy="12.2" r="1" stroke="currentColor" stroke-width="1.2" />
+						</svg>
+						<Show when={!props.input.compact}>
+							<span class={slow() ? "tpsh-label tpsh-slow" : "tpsh-label"}>{figure()}</span>
+							<span class="tpsh-label"> t/s</span>
+						</Show>
+					</button>
+				</ctx.ui.Tooltip>
+			)
+		}
+
+		ctx.add(Slot, { at: "session.header", order: 12, render: (input) => <HeaderTps input={input} /> })
 
 		ctx.add(Command, (): Command => ({
 			id: "open",
