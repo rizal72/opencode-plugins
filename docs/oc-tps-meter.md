@@ -1,8 +1,8 @@
 # oc-tps-meter — the record
 
 Tokens per second, per step, in a side panel: one bar per step of the session on screen — the model behind each
-bar, and the totals around them. **Not published**: it is installed from this repository by
-path, `~/.config/opencode/opencode.jsonc` -> `plugins: [...]`.
+bar, and the totals around them. **Published** as `@rizal72/oc-tps-meter`: `opencode plugin add` is the whole
+install, and the sources are here.
 
 ## A GUI half and nothing else
 
@@ -49,6 +49,13 @@ without `streamed` is a gap — 331 of the assistant rows on this machine on 202
 `select data from session_message where type = 'assistant'` in `$XDG_DATA_HOME/opencode/opencode.db`,
 read-only — and nothing can measure it, because the end of the stream is the one instant with no substitute.
 
+Where the *wait* sits, measured 2026-11-14 over every assistant message carrying `firstToken` — 1,251 of
+21,476, with `select json_extract(data,'$.time.firstToken') - json_extract(data,'$.time.created') from
+session_message where type = 'assistant'` in the same database, read-only: median **4.3 s**, p90 7.1 s, p95
+**8.1 s**, p99 22.3 s, max 61.9 s. Above ten seconds there are **40** (3.2%), above five 479 (38%) — which is
+why the bar turns red at ten and not at five. The denominator is messages with a `firstToken`, not bars: a bar
+exists only for a measured step, so the share of *drawn* bars painted red is not this share, and it is smaller.
+
 The same measurement lives in `oc-models-pro/tps.ts`; the two are separate copies on purpose, because a plugin
 package has no runtime to share and a shared one would make one plugin depend on the other being installed.
 That copy carried the wider fallback for a while — any timed part, tool parts included — which read those rows
@@ -82,6 +89,7 @@ session, and a session with more than 2,000 messages loses the oldest end of its
 | bars, not a line | a histogram reads a distribution at a glance; the line exists in the reference plugin only for the live 60 s | none |
 | one block, not two | the rollover used to write a second block under the chart, so the same step was described in two places and the eye had to travel down and back; the block above now serves both roles, and at rest it keeps the headline | the described step's time moved into the label, and panning back no longer says which bar is last in the window |
 | a figure is white | the median, the peak and the time to first token are what the panel is opened for, so each is drawn in `--v2-text-text-base` bold while the words around it keep the faint — one `.tpsm-num` wherever they appear, in the counts line, the per-model rows and the header | three numbers shout at once in a session with several models; the labels are what orders them |
+| a red bar is a wait | the time to first token, not the speed, is what says the request is queued behind others, and a red bar is read from across the panel without pointing: ten seconds, `SLOW_TTFT_MS`, sits above the p95 measured above | colour is the third thing one bar says, after its height and its cap, and the two can contradict: a fast step after a long queue is the tallest and the reddest at once, so only the figure separates them. The tone is the danger mixed with the surface — what the bar had at 45% alpha — so at rest a slow bar is dimmer than an ordinary one, and it shows the pointer by brightening its fill instead of its opacity, because its opacity is already 1. The figure above carries the danger unmixed, since the muted tone would not be readable at eleven pixels |
 
 ## Traps found while building it
 

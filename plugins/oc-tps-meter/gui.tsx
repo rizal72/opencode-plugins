@@ -8,6 +8,7 @@ import {
 	atRightEnd,
 	followAfter,
 	byModel,
+	isSlow,
 	revertCut,
 	STEP_PX,
 	summarise,
@@ -55,6 +56,13 @@ const CSS = `
 /* A figure the line exists for — a median, a peak, a time to first token: white and bold, the words around
    it keeping the faint they had. */
 .tpsm-num { color: var(--v2-text-text-base); font-weight: 600; }
+/* A slow step wears the theme's danger at the weight it had at 45% alpha — mixed with the surface, because the
+   bar's opacity is 1 — and the pointer raises a bar to the danger itself. The figure above wears that danger
+   unmixed: eleven pixels of text at the muted tone would not be readable, and the figure is what is read.
+   Kept after the num rule on purpose: same specificity, so the later one wins. */
+.tpsm-slow { color: var(--v2-state-fg-danger); }
+.tpsm-hot { fill: color-mix(in srgb, var(--v2-state-fg-danger) 45%, var(--v2-background-bg-base)); }
+.tpsm-hot-on { fill: var(--v2-state-fg-danger); }
 .tpsm-counts { margin-top: 6px; color: var(--v2-text-text-faint); line-height: 1.4; font-variant-numeric: tabular-nums; }
 .tpsm-warn { margin-top: 4px; color: var(--v2-text-text-faint); line-height: 1.4; }
 .tpsm-models { margin-top: 6px; }
@@ -459,7 +467,10 @@ export default Plugin.define({
 									<Show when={ttft()}>
 										{(pair) => (
 											<>
-												{model() ? " · " : ""}TTFT <span class="tpsm-num">{pair()[0]}</span>
+												{model() ? " · " : ""}TTFT{" "}
+												<span class={isSlow(shown()?.ttft) ? "tpsm-num tpsm-slow" : "tpsm-num"}>
+													{pair()[0]}
+												</span>
 												{pair()[1]}
 											</>
 										)}
@@ -485,13 +496,30 @@ export default Plugin.define({
 												if (tps === undefined) return null
 												return (
 													<>
+														{/* Red when that step waited too long for its first token: the bar's height is the
+														    speed, so the colour carries the wait, which is the other reason to switch provider.
+														    A slow bar is filled with the muted red and keeps full opacity, so the pointer
+														    has to show itself through the fill instead — hence the brighter class below. */}
 														<rect
 															x={chartLeft() + index() * STEP_PX}
 															y={y(tps)}
 															width={BAR_PX}
 															height={HEIGHT - y(tps)}
 															fill="currentColor"
-															opacity={index() === hovered() ? 1 : index() === steps().length - 1 ? 0.9 : 0.45}
+															class={
+																isSlow(step.ttft)
+																	? index() === hovered()
+																		? "tpsm-hot tpsm-hot-on"
+																		: "tpsm-hot"
+																	: undefined
+															}
+															opacity={
+																isSlow(step.ttft) || index() === hovered()
+																	? 1
+																	: index() === steps().length - 1
+																		? 0.9
+																		: 0.45
+															}
 														/>
 														{/* Cut at the top: a bright cap says the bar goes on, and the block above
 														    still carries its real figure when pointed at. */}

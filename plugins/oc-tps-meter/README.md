@@ -6,11 +6,27 @@ and what the session spent in tokens.
 
 ## Install
 
-Not on npm yet, so it is installed by hand — one absolute path in `~/.config/opencode/opencode.jsonc`:
+```sh
+opencode plugin add @rizal72/oc-tps-meter
+```
+
+Or by hand, one line in `~/.config/opencode/opencode.jsonc`:
 
 ```jsonc
-"plugins": ["/Users/riccardosallusti/Documents/_PROGETTI/opencode-plugins/plugins/oc-tps-meter"]
+"plugins": ["@rizal72/oc-tps-meter"]
 ```
+
+## Update
+
+V2 checks package plugins at startup and never applies the update, so a package only moves when you ask:
+
+```sh
+opencode plugin check     # which of the installed packages are behind
+opencode plugin update    # apply them, and let the server reload
+```
+
+Or install [`@rizal72/oc-plugin-updates`](https://www.npmjs.com/package/@rizal72/oc-plugin-updates): the
+count appears in a pill above the composer, with the update one click away.
 
 ## GUI
 
@@ -26,9 +42,11 @@ were measured, its median and its peak; and the totals, cache included.
 
 The chart scrolls sideways: two fingers on the trackpad, shift and the wheel, or the scrollbar, and the small
 hint between the two times says which way there is more. A time carries its date once it is not today's, at
-the ends of the axis and in the label alike. Bar heights follow the fastest step — only a step more than twice
-the 95th percentile is cut at the top edge, and it keeps its real figure in the block above when it is pointed
-at — so one exceptional step does not flatten the rest.
+the ends of the axis and in the label alike. A bar turns red when that step waited more than ten seconds for
+its first token — and the wait in the block above turns red too — because that wait, not the speed, is what
+says you are queued. Bar heights follow the fastest step — only a step more than twice the 95th percentile is
+cut at the top edge, and it keeps its real figure in the block above when it is pointed at — so one exceptional
+step does not flatten the rest.
 
 ## What it leaves out
 

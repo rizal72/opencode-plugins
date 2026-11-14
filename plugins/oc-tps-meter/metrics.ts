@@ -5,6 +5,13 @@
 export const MIN_TOKENS = 20
 export const MIN_SPAN_MS = 200
 
+/** The wait for a first token above which a step is read as queued rather than merely slow: above the 95th
+ *  percentile of everything measured on this machine, so a flagged step is never ordinary slowness. The
+ *  measurement behind it is in `docs/oc-tps-meter.md`, *a red bar is a wait* — the number is not repeated here. */
+export const SLOW_TTFT_MS = 10_000
+
+export const isSlow = (ttft: number | undefined) => ttft !== undefined && ttft > SLOW_TTFT_MS
+
 export type MessageTime = {
 	created?: number
 	firstToken?: number

@@ -8,11 +8,13 @@ import {
 	BAR_PX,
 	byModel,
 	followAfter,
+	isSlow,
 	MIN_SPAN_MS,
 	MIN_TOKENS,
 	p95,
 	scaleOf,
 	revertCut,
+	SLOW_TTFT_MS,
 	STEP_PX,
 	stepOf,
 	summarise,
@@ -334,4 +336,11 @@ test("only the user's own scroll moves the follow latch", () => {
 	assert.equal(followAfter(false, { user: false, ...at(600) }), false)
 	// A resize that lands at the right end is the same.
 	assert.equal(followAfter(false, { user: false, ...at(0) }), false)
+})
+
+test("a wait is slow only above the threshold, and a missing wait never is", () => {
+	assert.equal(isSlow(SLOW_TTFT_MS), false)
+	assert.equal(isSlow(SLOW_TTFT_MS + 1), true)
+	assert.equal(isSlow(SLOW_TTFT_MS * 4), true)
+	assert.equal(isSlow(undefined), false)
 })
