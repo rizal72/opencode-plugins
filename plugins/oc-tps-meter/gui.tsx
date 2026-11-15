@@ -522,12 +522,23 @@ export default Plugin.define({
 										onPointerMove={point}
 										onPointerLeave={() => setHovered(undefined)}
 									>
-										{/* One drawing for every step, in real pixels: an unmeasured step leaves its slot empty, and the
-										    two dashed lines are strokes at one pixel over the whole width. */}
+										{/* One drawing for every step, in real pixels: an unmeasured step wears the same 2 px the cut
+										    bar wears, at the baseline instead of the top, so the slot says a step happened without a
+										    speed worth drawing. The two dashed lines are strokes at one pixel over the whole width. */}
 										<For each={steps()}>
 											{(step: Step, index) => {
 												const tps = step.tps
-												if (tps === undefined) return null
+												if (tps === undefined)
+													return (
+														<rect
+															x={chartLeft() + index() * STEP_PX}
+															y={HEIGHT - 2}
+															width={BAR_PX}
+															height={2}
+															fill="currentColor"
+															opacity={index() === hovered() ? 1 : 0.45}
+														/>
+													)
 												return (
 													<>
 														{/* Red when that step waited too long for its first token: the bar's height is the

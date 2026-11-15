@@ -179,7 +179,7 @@ test("the average is a median, and the peak is the maximum", () => {
 	assert.equal(even.median, (20 + 100) / 2)
 })
 
-test("an unmeasured step is still a step: it counts, it is drawn as a gap, and it has no speed", () => {
+test("an unmeasured step is still a step: it counts, it is drawn as a baseline mark, and it has no speed", () => {
 	const summary = summarise([
 		message({ id: "a" }),
 		message({ id: "b", time: { created: 5_000, completed: 5_100 } }),

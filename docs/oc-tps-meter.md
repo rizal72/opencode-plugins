@@ -137,8 +137,9 @@ session, and a session with more than 2,000 messages loses the oldest end of its
 - **The revert cut needs every message type.** `session.revert.messageID` points at a message that may be a
   user one, so reading `type: "assistant"` only would never find the boundary. Reading every type costs steps
   per page, since the cap is on messages: 2,000 of them, newest first, `truncated` when it stops there.
-- **An unmeasured step still owns its 4 px**, and pointing at it turns the block above into a dash: a gap in the
-  histogram would otherwise read the same as a session that did nothing for a while.
+- **An unmeasured step still owns its 4 px, and wears a 2 px mark at the baseline** — the same mark a cut bar wears
+  at the top — so the slot says a step happened without a speed worth drawing, instead of reading like a session
+  that did nothing for a while. Pointing at it turns the block above into a dash.
 
 ## The header figure
 

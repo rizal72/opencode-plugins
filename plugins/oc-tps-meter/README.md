@@ -49,7 +49,8 @@ A tab in the session's side panel: the `+` menu beside the tabs, the command pal
 Top to bottom: the speed of the last step it could measure, with the model that produced it and the wait for
 the first token; the histogram, one bar per step, newest on the right, a dashed line at the median and one at
 the top of the drawing, where the tallest bar ends — and, when the peak is beyond the scale, a bright cap on
-the bars that cross it — and a gap where a step could not be measured. Pointing at a bar turns the block at the
+the bars that cross it — and, where a step could not be measured, the same 2 px mark at the baseline instead of a
+bar. Pointing at one turns the block at the
 top into that step, its time in place of the label. Then a pair of lines per model with how many of its steps
 were measured, its median and its peak; and the totals, cache included.
 
