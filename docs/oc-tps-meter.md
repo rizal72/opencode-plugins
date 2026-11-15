@@ -62,6 +62,17 @@ That copy carried the wider fallback for a while — any timed part, tool parts 
 high; `0.4.2` narrowed it to the reasoning part, the rule this panel uses. What it cost, and the numbers:
 [`oc-models-pro`](oc-models-pro.md), *Speed, measured*.
 
+## The app's tok/s is the turn, this is the step
+
+The `tok/s` the app prints at the end of a turn is that turn: every step of the prompt summed into one
+division, tokens over generation time, and it appears only once the turn closes. This half measures `tok/s`
+one step at a time — the element draws it as `t/s`, because the header is narrow and the word costs two
+characters there — so a slow step and its wait stay visible instead of being averaged into a turn. When the
+two differ they answer different questions, and the panel is the one that can say a single wait was long.
+
+The app's `tok/s` is conservative towards the provider, not towards the wait: it is announced as a choice not
+to flatter providers, and no two harnesses agree on the method. The wait before the first token is not in it.
+
 ## Reading the session
 
 Every two seconds while the tab is open, and nothing while it is closed: the app pushes no change event for
@@ -132,8 +143,9 @@ session, and a session with more than 2,000 messages loses the oldest end of its
 ## The header figure
 
 `Slot "session.header"`, order 12 — after the app's own figures and before its display control, the place
-[`oc-budget`](oc-budget.md)'s figure takes. It is a button with a tachometer and the speed, a click toggles the
-panel, and the header's `compact` flag drops it to the glyph alone. The hint reads `TPS: 91.2 t/s`, with the
+[`oc-budget`](oc-budget.md)'s figure takes. It is a button with a gauge and the speed; a click shows the panel
+or hides it and leaves its tab in the strip ([`gui-plugins.md`](gui-plugins.md), *Traps*), and the header's
+`compact` flag drops it to the glyph alone. The hint reads `TPS: <speed> t/s`, with the
 model's own name on a second line — the provider prefix is dropped, because some providers carry a second one
 (`openrouter/deepseek/…`) and the row has no room for it — and the reason appended when the figure is old or a
 revert is staged, so nothing is lost when only the glyph is drawn. The button declares its state to a screen reader

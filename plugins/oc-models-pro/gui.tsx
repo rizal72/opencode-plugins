@@ -472,10 +472,15 @@ export default Plugin.define({
 			focus: () => void load(false),
 		})
 
+		/** Show the table, or hide it and leave the tab in the strip: the app no longer closes the side region
+		 *  when its last tab goes (docs/gui-plugins.md, *Traps*). `hide`/`open` rather than `toggle`, so a fix
+		 *  upstream cannot change what this shortcut does. */
 		const toggle = () => {
 			const session = current()
 			if (!session) return
-			ctx.layout.toggle(`${ctx.id}:main`, session)
+			const key = `${ctx.id}:main`
+			if (ctx.layout.state(key, session) === "visible") ctx.layout.hide(key, session)
+			else ctx.layout.open(key, session)
 			void load(false)
 		}
 

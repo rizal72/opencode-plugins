@@ -30,13 +30,18 @@ count appears in a pill above the composer, with the update one click away.
 
 ## GUI
 
-A figure in the session header shows the speed of the last measured step, and a click toggles this panel.
+The last measured step's `tok/s` sits in the session header — the element draws it as `t/s` — and a click
+shows this panel or hides it, leaving its tab in the strip so the next click brings the same view back.
 
-The tachometer sits in the header beside the app's own context ring and cost, with the number: `91.2 t/s`,
-faint like the app's own figures and white under the pointer. It turns red when that step waited more than
+The gauge sits in the header beside the app's own context ring and cost, with the speed next to it in
+`t/s`, faint like the app's own figures and white under the pointer. It turns red when that step waited more than
 ten seconds for its first token, because that wait, not the speed, is what says you are queued — and it is
-the only thing that breaks the grey at rest. Hovering names the figure and, on a second line, the model it came
-from; when the header runs out of room only the glyph stays, and the hint keeps both.
+the only thing that breaks the grey at rest. Hovering names the speed in `tok/s` and, on a second line, the
+model it came from; when the header runs out of room only the glyph stays, and the hint keeps both.
+
+The `tok/s` the app prints at the end of a turn is that turn's average, and it only appears once the turn
+closes. This meter measures `tok/s` for every step, so a slow step and its wait stay visible instead of being
+averaged away.
 
 A tab in the session's side panel: the `+` menu beside the tabs, the command palette, or `/tps`. It opens
 360 px wide every time; drag it wider when a model name needs the room.

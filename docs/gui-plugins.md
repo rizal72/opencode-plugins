@@ -316,6 +316,14 @@ file is already open, never as a campaign.
 
 ## Traps
 
+- **The side region no longer closes with its last tab** (measured 2026-11-15): closing the last panel leaves
+  the region open on its new-tab page, where it used to collapse, and the app's own context figure does the
+  same — the host, not a plugin's call. The SDK still documents the old rule for `toggle` ("closing the last
+  panel the side region was opened for also closes the region"). So `oc-tps-meter`'s header element and
+  `oc-models-pro`'s shortcut call `hide` while the pane shows and `open` otherwise: the region collapses and
+  the tab stays in the strip, which is what those controls want — a panel closed for room, not a tab thrown
+  away. `hide` is the contract the behaviour still honours, and a fix upstream cannot change these two
+  controls, because they no longer call `toggle`.
 - **Adding `./gui-experimental` to a plugin that is already loaded stays invisible**, however often the
   plugin is reloaded: the set of parts is resolved once per source, when the plugin first appears, and
   neither a file nor a config change recomputes it. A new plugin with the same shape resolves at once;

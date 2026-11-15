@@ -656,9 +656,15 @@ export default Plugin.define({
 			render: () => <View />,
 		})
 
+		/** Show the panel, or hide it and leave the tab in the strip: the app no longer closes the side region
+		 *  when its last tab goes, it leaves it open on its new-tab page (docs/gui-plugins.md, *Traps*), and a
+		 *  collapsed pane with the tab still there is what the click asked for. `hide`/`open` rather than
+		 *  `toggle`, so a fix upstream cannot change what this control does. */
 		const toggleOf = (session: MountedSession | undefined) => {
 			if (!session) return
-			ctx.layout.toggle(`${ctx.id}:tps`, session)
+			const key = `${ctx.id}:tps`
+			if (ctx.layout.state(key, session) === "visible") ctx.layout.hide(key, session)
+			else ctx.layout.open(key, session)
 		}
 		const toggle = () => toggleOf(current())
 
@@ -762,7 +768,7 @@ export default Plugin.define({
 				const value = shown()?.tps
 				return value === undefined ? "—" : speed(value)
 			}
-			const open = () => ctx.layout.state(`${ctx.id}:tps`, props.input.session) !== "closed"
+			const open = () => ctx.layout.state(`${ctx.id}:tps`, props.input.session) === "visible"
 			/** The model's own name, without the provider: some providers carry a second one in the id
 			 *  (`openrouter/deepseek/…`), and the tooltip has no room for a prefix nobody reads there. */
 			const modelName = () => {
