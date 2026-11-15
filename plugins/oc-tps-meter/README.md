@@ -1,8 +1,8 @@
 # oc-tps-meter
 
 Tokens per second, step by step: how fast each answer in the session came, in a panel of the desktop app.
-A bar per step — the session scrolls sideways when it outgrows the panel — the model behind it,
-and what the session spent in tokens.
+A bar chart, one bar per step — it scrolls sideways when the session outgrows the panel — the model behind
+each step, and what the session spent in tokens.
 
 ## Install
 

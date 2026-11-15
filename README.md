@@ -11,14 +11,14 @@ agent calls). One plugin, one state, two surfaces, GUI and TUI:
 | plugin | what it does | TUI | GUI | npm |
 |---|---|---|---|---|
 | [`@rizal72/oc-models-pro`](plugins/oc-models-pro/README.md) | `/models-pro`: every model with its price, context, intelligence index, tok/s and the Go credit | ✓ | ✓ | ✓ |
-| [`@rizal72/oc-budget`](plugins/oc-budget/README.md) | the paying provider's budget: sidebar, footer, `/budget` | sidebar, footer, `/budget` | the figure in the session header, with a popover | ✓ |
+| [`@rizal72/oc-budget`](plugins/oc-budget/README.md) | the paying provider's budget: sidebar, footer, `/budget` | sidebar, footer, `/budget` | the Go percentage and its ring in the session header, with a popover | ✓ |
 | [`@rizal72/oc-plugin-updates`](plugins/oc-plugin-updates/README.md) | update OpenCode plugins: one by one or all of them at once | a line in the sidebar, and a dialog on `/plugin-updates` | a pill above the composer | ✓ |
 | [`@rizal72/oc-notify`](plugins/oc-notify/README.md) | a notification on the phone when a turn ends | — | a settings page for the four choices | ✓ |
 | [`@rizal72/oc-git`](plugins/oc-git/README.md) | the repository: branch, the three counts, ahead/behind | sidebar, and the counts in the footer while dirty | a pill above the composer | ✓ |
 | [`@rizal72/oc-coffee`](plugins/oc-coffee/README.md) | keeps the Mac awake while the agent or a command is working (macOS only) | cup badge in the footer, `/coffee` | a cup in the session header, with the four levels | ✓ |
 | [`@rizal72/oc-ponytail-widget`](plugins/oc-ponytail-widget/README.md) | the ponytail level | badge in the footer | a pill, and the only selector | ✓ |
 | [`@rizal72/oc-session-search`](plugins/oc-session-search/README.md) | `session_search`: keyword search over the transcripts of past sessions | — | — | ✓ |
-| [`@rizal72/oc-tps-meter`](plugins/oc-tps-meter/README.md) | tokens per second: how fast each step answered, with the median, the peak and the wait for the first token | — | a figure in the session header, and a side panel with a bar per step and the session's totals | ✓ |
+| [`@rizal72/oc-tps-meter`](plugins/oc-tps-meter/README.md) | tokens per second, step by step: each step's speed, with the median, the peak and the wait for the first token | — | a gauge in the session header, and a side panel with a bar chart — one bar per step, scrolls sideways | ✓ |
 | [`oc-context`](plugins/oc-context/README.md) | the Context block in the sidebar, with the window its percent is a percent of | sidebar | — | — redraws a built-in |
 | [`oc-donsetch`](plugins/oc-donsetch/README.md) | keeps the `donsetch` binary current | — | — | — needs that binary |
 
