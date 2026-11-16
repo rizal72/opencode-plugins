@@ -5,7 +5,7 @@ the mobile, close the phone, and know when it is over. A paired Apple Watch mirr
 off.
 
 It drives [ntfy](https://ntfy.sh), a free push channel for iOS and Android: the app is the notification, and
-the Watch needs nothing installed of its own. The channel is external by necessity — iOS delivers a web push
+the Watch needs nothing installed of its own. The channel is external by necessity: iOS delivers a web push
 only to a site installed in the home screen, and nothing in OpenCode's own window can push at all.
 
 ## Install
@@ -21,13 +21,13 @@ Or by hand, one line in `~/.config/opencode/opencode.jsonc`:
 ```
 
 The settings page lives in the GUI half, which ships compiled in the package: nothing to build. A checkout
-loaded by path is the exception — build `dist/` once with `node scripts/build-gui.mjs oc-notify`. Without the
-bundle the plugin still notifies, and the file below is the whole interface.
+loaded by path is the exception: build `dist/` once with `node scripts/build-gui.mjs oc-notify`. Without
+the bundle the plugin still notifies, and the file below is the whole interface.
 
 Then, on the phone: install **ntfy** from the App Store or Google Play, allow its notifications, and subscribe
-to the topic you put in the configuration below. Under *Settings → Instant notifications* leave the default on
-— that is what makes a message arrive with the app closed. Leave *Use another server* off unless you run your
-own.
+to the topic you put in the configuration below. Under *Settings → Instant notifications* leave the default
+on: that is what makes a message arrive with the app closed. Leave *Use another server* off unless you run
+your own.
 
 ## Configure
 
@@ -37,8 +37,8 @@ writes the file, and the file is what the server reads. Pick whichever matches t
 **In the desktop app**: three choices for when to notify, the minutes that count as away, the switch for the
 session's title, and the topic.
 
-**In the file**, which is also the only way for an install with no desktop app — a terminal-only setup needs
-nothing else. `~/.config/opencode/oc-notify.json`, or `$XDG_CONFIG_HOME/opencode/oc-notify.json` if that is
+**In the file**, which is also the only way for an install with no desktop app (a terminal-only setup needs
+nothing else). `~/.config/opencode/oc-notify.json`, or `$XDG_CONFIG_HOME/opencode/oc-notify.json` if that is
 set:
 
 ```json
@@ -53,18 +53,18 @@ set:
 
 | key | default | what it does |
 |---|---|---|
-| `topic` | — | the ntfy topic to subscribe to. No file, no topic, no notification. `[-_A-Za-z0-9]`, up to 64 |
+| `topic` | none | the ntfy topic to subscribe to. No file, no topic, no notification. `[-_A-Za-z0-9]`, up to 64 |
 | `mode` | `always` | `always`, `away`, or `off` |
 | `awayAfter` | `5` | minutes of no keyboard or mouse input that count as "away" |
 | `includeTitle` | `false` | send the session's title, which is what says *which* session finished |
 | `server` | `https://ntfy.sh` | a self-hosted ntfy instead; only the file takes this one |
 
 The topic works as a password: whoever knows it can read what arrives on it. Treat it as one, and change it
-if it leaks — then subscribe to the new one in the app.
+if it leaks. Then subscribe to the new one in the app.
 
 The file is read at every turn end and on every `rpc` call, so an edit applies at the next turn with no restart. No
 file, no channel: the absence of the file is the switch. A file that does not parse keeps the last settings
-that did, and the notification's body ends with `config error` — a typo must not look like a quiet agent.
+that did, and the notification's body ends with `config error`: a typo must not look like a quiet agent.
 
 ## Update
 
@@ -75,16 +75,16 @@ app.
 
 ## How it decides
 
-- **`always`** — every finished turn notifies.
-- **`away`** — notifies when neither the start of the turn nor its end found you at the computer. Launching
+- **`always`**: every finished turn notifies.
+- **`away`**: notifies when neither the start of the turn nor its end found you at the computer. Launching
   from the phone means the computer has been idle, so the turn counts as started away; launching at the desk
   and then leaving still notifies, because the end is away. Sitting and watching notifies nothing. `away` reads
   macOS's own idle counter, so outside macOS it degrades to `always`.
-- **`off`** — nothing.
+- **`off`**: nothing.
 
 A turn that is interrupted or fails sends nothing, and neither does a compaction: the hook only runs when a
-session really finishes model work. A background shell or subagent does not notify early — the hook runs again
-when that work ends — and a subagent's own session never notifies, only the turn it belongs to.
+session really finishes model work. A background shell or subagent does not notify early (the hook runs again
+when that work ends), and a subagent's own session never notifies, only the turn it belongs to.
 
 ## What leaves the machine
 

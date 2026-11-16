@@ -13,7 +13,7 @@ level for a package that is not there.
 opencode plugin add @rizal72/oc-ponytail-widget
 ```
 
-Or by hand, one line in `~/.config/opencode/opencode.jsonc` — **after `oc-coffee`**, if you have it, so the
+Or by hand, one line in `~/.config/opencode/opencode.jsonc` (**after `oc-coffee`**, if you have it), so the
 glyph lands to the right of the cup:
 
 ```jsonc
@@ -34,12 +34,12 @@ count appears in a pill above the composer, with the update one click away.
 
 ## TUI
 
-A horse glyph in the footer, right of the coffee cup, then the level word — `off`, `lite`, `full`, `ultra`.
+A horse glyph in the footer, right of the coffee cup, then the level word: `off`, `lite`, `full`, `ultra`.
 The glyph is `md-horse_variant`, because Nerd Fonts has no ponytail glyph.
 
 ## GUI
 
-A pill above the composer: the level as the capsule, the four levels as its rows — a selector the terminal
+A pill above the composer: the level as the capsule, the four levels as its rows, a selector the terminal
 never had. Picking one writes `~/.config/opencode/.ponytail-active`, the file `/ponytail <level>` writes
 too, so the next turn reads that level.
 
@@ -47,8 +47,8 @@ too, so the next turn reads that level.
 
 The level comes from the same two sources ponytail reads, in the same order:
 
-1. `~/.config/opencode/.ponytail-active` — what `/ponytail <level>` writes;
-2. `~/.config/ponytail/config.json` — the shared default that pi and OpenCode both read.
+1. `~/.config/opencode/.ponytail-active`: what `/ponytail <level>` writes;
+2. `~/.config/ponytail/config.json`: the shared default that pi and OpenCode both read.
 
 With neither, it shows the package's own default, `full`. Both surfaces re-read every two seconds, so a
 level set in the terminal appears in the window and the other way round.

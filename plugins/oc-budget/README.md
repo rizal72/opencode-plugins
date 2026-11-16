@@ -1,6 +1,6 @@
 # oc-budget
 
-How much credit is left on the account behind the model you are using — a percentage for the Go subscription,
+How much credit is left on the account behind the model you are using: a percentage for the Go subscription,
 a dollar balance for the Console's credits, DeepSeek or OpenRouter. It appears in the sidebar, in the footer,
 in the desktop app's session header, and as `/budget` in the terminal.
 
@@ -54,17 +54,17 @@ count appears in a pill above the composer, with the update one click away.
 | `DS $x.xx` | the native DeepSeek balance | a DeepSeek key | green above $2, yellow at or below, red at 0 |
 | `OR $x.xx` | OpenRouter credits | an OpenRouter key | green above $5, yellow at or below, red at 0 |
 
-Go prints a bar for each of its three windows, with the reset on the next line under it — `5h ████████████████████ 2%`
-and its countdown below — and, when more than one Console account is connected, the workspace it is reading, by
-name. The colour is the window that stops the subscription first: green while all three are under 90, yellow
-once any is at 90, red once any is spent. The **figure** stays the month, because the three percentages are
-shares of three different limits (the 5 hour window is 20% of the monthly limit, the week 50%), so a 5 hour
-window at 62% is a month at 12%; the hover hint names the window that is sounding. In a header too narrow for
-the label only the mark is drawn, and the hover hint then carries the figure as well, so the number is never
-lost to the width.
+Go prints a bar for each of its three windows, with the reset on the next line under it (`5h ████████████████████
+2%` and its countdown below), and, when more than one Console account is connected, the workspace it is
+reading, by name. The colour is the window that stops the subscription first: green while all three are under
+90, yellow once any is at 90, red once any is spent. The **figure** stays the month, because the three
+percentages are shares of three different limits (the 5 hour window is 20% of the monthly limit, the week
+50%), so a 5 hour window at 62% is a month at 12%; the hover hint names the window that is sounding. In a
+header too narrow for the label only the mark is drawn, and the hover hint then carries the figure as well, so
+the number is never lost to the width.
 
 Reaching any of the three limits stops the subscription's requests, unless the Console's **Extra Usage**
-toggle is on — off by default on Go and Go Plus — in which case they continue on the prepaid balance. The
+toggle is on (off by default on Go and Go Plus), in which case they continue on the prepaid balance. The
 widget cannot see that toggle, so it never claims the credits are paying: a spent window is red, and the
 credits keep their own line.
 
@@ -90,7 +90,7 @@ direction.
 
 ## Adding a provider of your own
 
-The snapshot is a list of wallets, and both surfaces draw whatever it carries — so a new wallet is one
+The snapshot is a list of wallets, and both surfaces draw whatever it carries. A new wallet is one
 resolver in the server half (`index.ts`: where to read it, which integration holds the key), one entry in the
 threshold table and one name in the paying-wallet rule (`budget.ts`). Fork the repository, add those three,
 and the surfaces follow without being touched.
@@ -98,7 +98,7 @@ and the surfaces follow without being touched.
 ## Limits
 
 - The four wallets are the four implemented. A provider outside them is not shown, and its model's row is the
-  model's name without a figure — the plugin never guesses a balance.
+  model's name without a figure. The plugin never guesses a balance.
 - OpenCode Go's numbers come from the Console when it is connected and from the public usage endpoint
   otherwise; the two round differently by a percent, and the public one rounds down.
 - Every figure is read from the provider's own endpoint, so a change on their side arrives as a fault on that

@@ -1,7 +1,7 @@
 # @rizal72/oc-git
 
 The repository's state, in the terminal and in the desktop app: the branch, then what has something to
-commit — added, modified, untracked — then ahead/behind, which appears only when an upstream exists.
+commit (added, modified, untracked), then ahead/behind, which appears only when an upstream exists.
 
 Each count is grey at zero and warning-yellow when it is not, so a clean repository reads quietly. The
 branch being behind its upstream is the one other warning: it is never a resting state, so it turns the
@@ -40,8 +40,8 @@ where a narrow window has no sidebar left.
 ## GUI
 
 A pill above the composer, with the whole state in its label: `desktop +0 ±1 ?1`, then `↑1` / `↓2` at the
-end only when there is something to push or pull — a zero there says nothing. Its rows spell out what the
-figures are — added, changed, untracked — plus the upstream when there is one.
+end only when there is something to push or pull. A zero there says nothing. Its rows spell out what the
+figures are (added, changed, untracked), plus the upstream when there is one.
 
 ## How it works
 

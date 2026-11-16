@@ -41,7 +41,7 @@ does not match everything through "the". A query carrying regex syntax is used a
 Each result gives date, project, session id, title, role and a snippet, and the header says how many
 sessions contain a match.
 
-Narrow it when you remember roughly when — the search gets cheaper and quieter:
+Narrow it when you remember roughly when. The search gets cheaper and quieter:
 
 | input | what it does |
 |---|---|
@@ -52,12 +52,12 @@ Narrow it when you remember roughly when — the search gets cheaper and quieter
 | `limit` | max hits, default 10, max 40 |
 
 It reads the database at `$OPENCODE_DB`, else `$XDG_DATA_HOME/opencode/opencode.db`, else
-`~/.local/share/opencode/opencode.db` — opened read-only. SQLite comes from the host itself
+`~/.local/share/opencode/opencode.db`, opened read-only. SQLite comes from the host itself
 (`bun:sqlite`), so no external binary is needed; the `sqlite3` CLI is only a fallback.
 
 Nothing is written, and there is no index to build or keep in sync: the whole corpus is scanned per search,
 in chunks, so a long search does not freeze the server. The price is that a search costs what the corpus
-costs — a fraction of a second today, seconds once the transcripts are large. Pass `since`/`until` when you
+costs: a fraction of a second today, seconds once the transcripts are large. Pass `since`/`until` when you
 can.
 
 Two honest limits: an empty result may mean the schema moved rather than no match, and the message table is

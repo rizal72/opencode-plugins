@@ -3,7 +3,7 @@
 Keeps the [`donsetch`](https://www.npmjs.com/package/donsetch) binary current: **once a day**, on the first
 prompt after the date changes.
 
-**Terminal and desktop alike** — it draws nothing. It is a tool the agent calls, not a surface.
+**Terminal and desktop alike**: it draws nothing. It is a tool the agent calls, not a surface.
 
 ## Install
 
@@ -26,7 +26,7 @@ It resolves the binary as `DONSETCH_BINARY` if set, otherwise `donsetch` on `PAT
 
 `donsetch update` has no daemon and no config knob, so something has to run it. Not the service start: that
 happens once a month on a machine that stays up. Not every prompt: that would be a network check per
-message. Once a day, on the first prompt after the local date changes — the check happens while the tool is
+message. Once a day, on the first prompt after the local date changes: the check happens while the tool is
 about to be used, and never on an idle clock.
 
 The stamp is `~/.cache/oc-donsetch/last-check` (or `$XDG_CACHE_HOME/oc-donsetch/last-check`), holding the

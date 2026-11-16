@@ -44,13 +44,13 @@ there moves the same level the terminal shows, because both ask the server rathe
 | level | what is blocked |
 |---|---|
 | `off` | nothing |
-| `idle` | idle sleep — `caffeinate -i` |
-| `display` | idle and display sleep — `-i -d` |
-| `system` | everything, and the user is declared active — `-i -d -s -u` |
+| `idle` | idle sleep: `caffeinate -i` |
+| `display` | idle and display sleep: `-i -d` |
+| `system` | everything, and the user is declared active: `-i -d -s -u` |
 
 The level and the child belong to the server half: one `caffeinate` runs, however many windows are open and
-whichever client changed it. The keep-awake exists only while there is work — the agent's run, and any
-command still running after the run has finished — and the child is bound to the server's process
+whichever client changed it. The keep-awake exists only while there is work (the agent's run, and any command
+still running after the run has finished), and the child is bound to the server's process
 (`caffeinate -w`), so it cannot outlive the thing that owns it. A closed window is not the signal; the end
 of the work is. The host reports that leftover work when a session goes idle, which it does not after an
 interruption or a failure: a command from an abandoned turn holds nothing, and a report is replaced only by

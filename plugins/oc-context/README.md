@@ -17,18 +17,18 @@ $2.18 spent
 Not a package on npm: it **replaces a built-in**, so it takes two lines, one in each file.
 
 ```jsonc
-// ~/.config/opencode/cli.json — switch the built-in off, or the sidebar would carry both
+// ~/.config/opencode/cli.json: switch the built-in off, or the sidebar would carry both
 "plugins": ["-opencode.sidebar.context"]
 ```
 
 ```jsonc
-// ~/.config/opencode/opencode.jsonc — load this one from the clone
+// ~/.config/opencode/opencode.jsonc: load this one from the clone
 "plugins": ["../opencode-plugins/plugins/oc-context"]
 ```
 
 A built-in is one unit: it can be switched off or taken over, never added to. This one costs nothing,
-because the whole block is redrawn here — unlike the prompt footer, where switching off the built-in
-would take the child-session chip and the `agents` and `esc` hints with it.
+because the whole block is redrawn here (unlike the prompt footer, where switching off the built-in would
+take the child-session chip and the `agents` and `esc` hints with it).
 
 ## What it shows
 
@@ -46,7 +46,7 @@ With nothing measured and nothing spent the block does not appear, which is the 
 
 ## Colour
 
-Green normally, yellow from **60%** of the window, red from **80%** — a percent, so a smaller window warns
+Green normally, yellow from **60%** of the window, red from **80%**, a percentage, so a smaller window warns
 on its own scale. Only the count and the percent take the colour; the labels, the heading and the cost stay
 muted, and the window wears the theme's accent. The tokens are the ones `oc-budget` uses, so the sidebar
 has one palette and not one per widget.
