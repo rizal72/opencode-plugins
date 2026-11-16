@@ -56,3 +56,22 @@ message has been sent (measured 2026-10-30: the line appeared with the first pro
 footer is the opposite case — it is on the start screen too, which is why `home.footer` and
 `home.footer.status` exist — and a plugin that has to be visible earlier uses one of those, or
 `window.bottom` in the desktop; none of ours does today.
+
+## Child processes
+
+Every child a server half starts carries `windowsHide: true`, and the reason is one failure, reported on
+2026-11-16 as issue #5: on Windows 11 with the desktop app, `oc-plugin-updates` opened console windows
+while it polled, because Node defaults that option to `false` and the flag was simply not passed. A console
+window from a background check steals the focus from whatever the user is typing into.
+
+Three call sites were wrong: the single `execFile` that posts to the app's own API in `oc-plugin-updates`,
+and two in `oc-donsetch` — the `spawnSync` probe for `--version` at setup and the detached `spawn` of its
+daily self-update. Neither `detached` nor `stdio: "ignore"` suppresses the window; the flag is the only
+switch, and it does nothing on the other platforms.
+
+The trap is the platform: a plugin written for macOS still **loads** on Windows, and anything a server half
+runs before its `process.platform` guard runs there too. `oc-coffee` was reaping its own `caffeinate`
+with `ps` before the guard, which is the same window from a plugin that can never work on that machine.
+
+The cost is a version: a one-line flag still changes the tarball, so each package whose spawn is touched is
+published again. Two were, for this.
