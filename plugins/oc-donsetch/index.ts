@@ -28,7 +28,8 @@ const STAMP = join(CACHE_DIR, "oc-donsetch", "last-check")
 function resolveBinary(): { binary: string; configError?: string } | undefined {
 	const candidates = [process.env.DONSETCH_BINARY, "donsetch"].filter((value): value is string => !!value)
 	for (const candidate of candidates) {
-		const run = spawnSync(candidate, ["--version"], { encoding: "utf8", timeout: 5000 })
+		// `windowsHide`: the probe runs at setup, and a console window there is one the user never asked for.
+		const run = spawnSync(candidate, ["--version"], { encoding: "utf8", timeout: 5000, windowsHide: true })
 		// A binary that will not answer is not a binary: spawnSync reports a non-zero exit without
 		// throwing, where execFileSync did throw.
 		if (run.error || run.status !== 0) continue
@@ -50,7 +51,9 @@ async function checkUpdate(binary: string): Promise<void> {
 		await writeFile(STAMP, today)
 		// `--yes`, or a major release is silently skipped: with no terminal on stdin the binary
 		// answers "Not a terminal: re-run with --yes" and exits 0 without installing anything.
-		spawn(binary, ["update", "--yes"], { detached: true, stdio: "ignore" }).unref()
+		// `windowsHide` for the same reason as the probe: this one is detached, so an unset flag leaves a
+		// console window behind with nothing in it to close.
+		spawn(binary, ["update", "--yes"], { detached: true, stdio: "ignore", windowsHide: true }).unref()
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error)
 		console.error(`[oc-donsetch] could not start the update check: ${message}`)

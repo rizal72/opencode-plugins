@@ -64,6 +64,9 @@ async function api(path: string, body: unknown, timeout: number): Promise<unknow
 			const { stdout } = await exec(candidate, ["api", "post", path, "-d", JSON.stringify(body)], {
 				timeout,
 				maxBuffer: 8 * 1024 * 1024,
+				// Windows opens a console window for a console-subsystem child unless this is set, and a
+				// check that runs in the background must not steal the focus. Nothing on the other platforms.
+				windowsHide: true,
 			})
 			binary = candidate
 			const text = stdout.trim()

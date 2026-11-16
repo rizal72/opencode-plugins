@@ -41,18 +41,22 @@ async function start(ctx: any): Promise<Machine> {
 	// macOS only: skipped rather than failed, so the plugin stays loaded elsewhere.
 	const supported = process.platform === "darwin"
 
-	// Reaped before any spawn: an orphan is ours by construction, its `-w` is this process.
-	try {
-		const suffix = `-w ${process.pid}`
-		const table = execFileSync("ps", ["-A", "-o", "pid=", "-o", "command="], { encoding: "utf8" })
-		for (const line of table.split("\n")) {
-			const match = /^\s*(\d+)\s+caffeinate\b.*\s-w\s+\d+\s*$/.exec(line)
-			if (!match || !line.trimEnd().endsWith(suffix)) continue
-			try {
-				process.kill(Number(match[1]), "SIGTERM")
-			} catch {}
-		}
-	} catch {}
+	// Reaped before any spawn: an orphan is ours by construction, its `-w` is this process. Guarded by
+	// the platform the whole plugin is for, because `ps` on a Windows PATH is a program that opens a
+	// console window for a result nothing there reads.
+	if (supported) {
+		try {
+			const suffix = `-w ${process.pid}`
+			const table = execFileSync("ps", ["-A", "-o", "pid=", "-o", "command="], { encoding: "utf8" })
+			for (const line of table.split("\n")) {
+				const match = /^\s*(\d+)\s+caffeinate\b.*\s-w\s+\d+\s*$/.exec(line)
+				if (!match || !line.trimEnd().endsWith(suffix)) continue
+				try {
+					process.kill(Number(match[1]), "SIGTERM")
+				} catch {}
+			}
+		} catch {}
+	}
 
 	let level: Level = DEFAULT
 	const stored = await ctx.storage.get(KEY).catch(() => undefined)
