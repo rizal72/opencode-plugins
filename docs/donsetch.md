@@ -1,7 +1,7 @@
 # DonSeTch — the record
 
-The escape hatch for pages that refuse an agent: 403s, Cloudflare walls, JS-only shells, and the route for
-the agent's own research, which never runs as the owner.
+The escape hatch for pages that refuse an agent, and since 2026-11-16 the only page reader an agent has: 403s,
+Cloudflare walls, JS-only shells, and the route for the agent's own research, which never runs as the owner.
 Its **CLI** is the path for the agent; the MCP server is not registered, and the binary is kept current by
 **`oc-donsetch`**, our plugin, which checks the binary's update once a day.
 
@@ -109,6 +109,12 @@ switching one on changes the request and invalidates the session's prompt cache,
 is read again — a cost one fetch does not earn. Uncommenting the entry brings the MCP back: the config
 file is watched, so the running session picks the change up without a reload and without a restart, and
 its tools arrive on the next step. The owner's `/mcps` panel does the same.
+
+**The CLI is now the only page reader.** `webfetch` is denied in the global `permissions` of `opencode.jsonc`
+(2026-11-16), so no agent and no child session reaches it: a deny removes the tool from the catalogue, where
+a line in `CORE.md` would only ask. Measured the same day, `status.deepseek.com`: `webfetch` returned 19
+characters, `donsetch fetch` 680 with the real uptime figures, and on a docs page 15.8 KB paged by `offset`
+against 178 KB handed over whole.
 
 Measured 2026-10-21: the first prompt of a clean session carries **4,084 characters less** with the
 server off than with it on, about 931 tokens at the gateway's ratio. The four tool signatures and the
