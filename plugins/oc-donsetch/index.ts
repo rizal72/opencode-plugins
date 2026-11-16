@@ -48,7 +48,9 @@ async function checkUpdate(binary: string): Promise<void> {
 	try {
 		await mkdir(dirname(STAMP), { recursive: true })
 		await writeFile(STAMP, today)
-		spawn(binary, ["update"], { detached: true, stdio: "ignore" }).unref()
+		// `--yes`, or a major release is silently skipped: with no terminal on stdin the binary
+		// answers "Not a terminal: re-run with --yes" and exits 0 without installing anything.
+		spawn(binary, ["update", "--yes"], { detached: true, stdio: "ignore" }).unref()
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error)
 		console.error(`[oc-donsetch] could not start the update check: ${message}`)

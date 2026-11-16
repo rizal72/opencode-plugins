@@ -47,7 +47,11 @@ binary to exist and only updates it. Installing it is one command, once:
 
 ```sh
 npm i -g donsetch
+donsetch doctor
 ```
+
+`doctor` completes the install: the first command downloads the release asset and verifies its SHA256. Upstream keeps the CLI and the MCP on the same engine, so nothing here depends on
+which one you call.
 
 The plugin resolves it as `DONSETCH_BINARY`, else `donsetch` on PATH, and checks it answers
 (`--version`): that is the binary it updates. The one on PATH is a shim that needs `node`; the CLI runs
@@ -114,7 +118,8 @@ the server is on.
 
 What the plugin does at load, in order: resolve the binary (skip and warn when absent), then arm the
 update check on the prompt hook. Both were observed through a wrapper binary: `called: --version`,
-`called: update`.
+`called: update`. The probe is not free: `--version` carries a three-second-bounded online check of its
+own, so a load can wait on the network for it, and `DONSETCH_NO_UPDATE_CHECK` removes it.
 
 ## Updates
 
@@ -132,6 +137,13 @@ yesterday produced one and rewrote the stamp to today; a further prompt the same
 The accepted trade-off: a machine where OpenCode is never opened never checks, and a machine left open
 without prompts checks only once the next prompt arrives. Pi's copy is kept current by Pi's own extension
 manager, independently.
+
+**A major release asks on stdin, and the plugin answers `--yes`.** The binary prints what a major changes
+and waits for a confirmation; a detached spawn has no terminal, so the binary prints `Not a terminal:
+re-run with --yes`, exits 0 and installs nothing, while the stamp has already moved to today. Without the
+flag the check would stop for good at the next major, silently. The plugin passes it and accepts an
+unattended major: a major can retire a toml key, and that error reaches the log at the next load, where a
+stale binary reached nothing.
 
 **A broken config makes the daily check a no-op.** `donsetch update` loads the same toml, so an invalid
 key kills the update as surely as it kills a fetch, while the probe the plugin ran to decide the binary

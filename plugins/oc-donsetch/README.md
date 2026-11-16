@@ -37,6 +37,10 @@ The one failure that is not transient is the config file: `donsetch update` read
 kills every update while `--version` still answers 0 over the same file. The probe therefore reads that
 command's stderr and logs the config error, instead of calling a dead tool healthy.
 
+The update is spawned with `--yes`. A major release prints what it changes and asks on stdin, and a
+detached spawn has no terminal to ask: without the flag the binary declines, exits 0 and installs
+nothing.
+
 ## The MCP server is not here
 
 `donsetch` as an MCP server is a **config entry**, off by default: a server that is always connected costs
