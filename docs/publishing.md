@@ -179,8 +179,10 @@ entry as the workaround.
   `check-source` refuses a `tui.js` beside its `tui.tsx`, so the repository cannot hold a half nobody can
   edit.
 - **The gate runs before the commit, not after.** `scripts/preflight.sh` refuses a package whose content
-  moved while its version did not. The workflow cannot do that job: by the time it sees the push, npm may
-  already be behind, and the mistake reads as a bug that was fixed. The same gate installs the lock with
+  moved while its version did not. The exemption is an allowlist: a `*.md`, a `*.test.ts` or a
+  `*.test.tsx` at the package root changes nothing that runs and nothing imports, so it travels with the
+  next version of that package and needs no release now. The workflow cannot do that job: by the time it
+  sees the push, npm may already be behind, and the mistake reads as a bug that was fixed. The same gate installs the lock with
   `npm ci --dry-run`: the workflow's first step is a real `npm ci`, which stops dead on a lock that does
   not satisfy it — what an install run with `--legacy-peer-deps` leaves behind, since that flag prunes the
   peers the lock still names (measured 2026-10-30: the run failed 16 s in, after the push).

@@ -38,9 +38,10 @@ npm ci --dry-run --no-audit --no-fund >/dev/null 2>&1 || {
 	exit 1
 }
 
-changed=$(git diff --name-only "$base"...HEAD)
+changed=$(git diff --name-only --no-renames "$base"...HEAD)
 
 blocked=""
+exempt=""
 for dir in plugins/*/; do
 	plugin=$(basename "$dir")
 	name=$(node -p "require('./${dir}package.json').name")
@@ -52,6 +53,17 @@ for dir in plugins/*/; do
 			node -e 'let s="";process.stdin.on("data",(d)=>(s+=d)).on("end",()=>{try{console.log(JSON.parse(s).version||"")}catch{console.log("")}})'
 	)
 	[ "$shipped" != "$version" ] && continue
+	# An allowlist, not "anything that is not TypeScript": a manifest, a build config or an asset can still
+	# change what ships, while a README or a test at the package root changes neither. Those travel with the
+	# next version of that package and need no decision now.
+	shipping=$(printf '%s\n' "$changed" |
+		grep -E "^plugins/$plugin/" |
+		grep -vE "^plugins/$plugin/[^/]+\.(md|test\.ts|test\.tsx)$" |
+		head -1)
+	if [ -z "$shipping" ]; then
+		exempt="$exempt $plugin@$version"
+		continue
+	fi
 	blocked="$blocked $plugin@$version"
 done
 
@@ -68,4 +80,7 @@ if [ -n "$blocked" ]; then
 	exit 1
 fi
 
-echo "preflight ok: every changed package carries a new version"
+for entry in $exempt; do
+	echo "exempt, it changes nothing that runs: $entry"
+done
+echo "preflight ok: every changed package carries a new version, or changes nothing that runs"

@@ -10,6 +10,7 @@
 	"license": "MIT",
 	"files": [
 		"*.ts",
+		"!*.test.ts",
 		"tui.js",
 		"README.md",
 		"dist"
