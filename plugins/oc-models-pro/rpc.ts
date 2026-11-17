@@ -21,6 +21,7 @@ const Row = {
 		context: Count,
 		/** Monthly limit ÷ the plan price. */
 		credit: Count,
+		/** @deprecated Never produced; kept in the public schema so an existing reader still compiles. */
 		promo: Count,
 		peak: Count,
 		int: Count,

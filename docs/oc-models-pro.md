@@ -64,8 +64,8 @@ screen.
 favourite exactly where the native dialog does it; `f` alone cannot be a key, it would be typed into the
 search.
 
-A line of its own under the title carries the legend, in parentheses — `×N = Go credit`, `peak*2 = the tariff doubles at peak`,
-`+Nx = promotion` — because a column of `×8` and `peak*2` means nothing on its own.
+A line of its own under the title carries the legend, in parentheses — `×N = Go credit`,
+`peak*2 = the tariff doubles at peak` — because a column of `×8` and `peak*2` means nothing on its own.
 | `<leader>p` (`Ctrl+X` then `p`) | open the panel from anywhere |
 
 The keys live in a layer registered inside the panel component (`enabled: () => panel.focused`), so
@@ -85,7 +85,7 @@ running (see *How the switch reaches the client*).
 
 Columns are 85 characters in all at the panel's widest: `NAME = 32` plus 53 of
 fixed cells — in 6, out 6, ctx 5, int 5, `tok/s` 6, cred 4, note 6, the marker and the tag, and the nine
-separators. The note cell holds a peak (`peak*2`) or a promotion note (`+4x`), and the marker cell holds
+separators. The note cell holds a peak (`peak*2`), and the marker cell holds
 `●` for the model in use and `*` for a favourite (a row can carry both). The star is not drawn inside
 the `favorites` scope, where nearly every row is one — the exception is the model in use, which the
 scope keeps even when it is not a favourite, and that row stays unstarred. Every cell is cut to its
@@ -221,7 +221,7 @@ falls.
 is what the choice actually turns on. The name stops at 24 characters — below that a model name is unreadable and a column
 is worth more. The table fills the panel again after each drop, so a column leaving returns its space to
 the name; the trade is a step up in name width at each threshold. The legend shortens to
-`×N credit · peak*2 · +4x promo` under 72 columns rather than being cut mid-sentence.
+`×N credit · peak*2` under 72 columns rather than being cut mid-sentence.
 
 ## Scopes, and where the free models go
 
@@ -291,9 +291,14 @@ untouched by the rule.
   `in↑` would be the same sort as effective. **Peak is not in the ordering**: the catalogue price is the
   off-peak one and the order stays on it whatever the hour, with `peak*2` in the note saying the tariff
   doubles. Peak hours themselves live in `oc-budget`.
-- **Peak is one fact per plugin, deliberately duplicated.** `peak*N` is the Go plan's **measured** ratio
-  (`peak.input ÷ off.input`) and it reaches only `opencode-go` rows, because it comes from the Go credit
-  table. The catalogue lists a single price per model, so nothing there can report a second tariff; the
+- **Peak is one fact per plugin, deliberately duplicated.** `peak*N` reaches only `opencode-go` rows, and
+  it is the catalogue's own **declared** step: the largest `cost.multipliers[].factor` the model carries
+  inside a **recurring hour window** (2 for both DeepSeek models, with the UTC hours attached, which this
+  plugin does not read). A factor whose guard carries a **`date`** is a price change scheduled upstream for
+  that day, not a tariff that steps up during it, and its row keeps today's price with no note — the same
+  when the guard carries both a date and hours. A step of `1` is no note either. Both are fixtures in
+  `multipliers.test.ts`, because the shapes are what matter, not which model carries one today. The
+  catalogue lists a single price per model, so nothing there can report a second tariff on its own; the
   rows whose *list* price doubles get the ratio from `nativePeak()` in `multipliers.ts` instead. Two copies
   of one fact, one per package, because they are published apart and neither may import the other: each
   has to work alone. `oc-budget/peak.ts` owns the hour and the wallet; this plugin owns only which list
@@ -303,15 +308,46 @@ untouched by the rule.
   truth and not a guess. Zen is excluded by the rule itself (its DeepSeek price is flat), and so is
   OpenRouter (its prices are its own).
 - **The Go plan** — `plugins/oc-models-pro/multipliers.ts`, from
-  `https://opencode.ai/v2/docs/console/go/` (server-rendered, no auth), cached one day at
+  `https://opencode.ai/inference/go/v1/models` (JSON, no auth), cached one day at
   `$XDG_CACHE_HOME/oc-models-pro/go-limits.json`, else `~/.cache/oc-models-pro/go-limits.json`.
-  The credit is the monthly limit ÷ the $10 plan, matched **by model id and only on
-  `opencode-go`** — the ids there are bare (`opencode-go/deepseek-v4.1-flash`), so
-  the page's display name and the id meet after `key()` normalisation; by name alone, OpenRouter's
-  "DeepSeek V4.1 Flash" inherited the Go credit. The page repeats its table per plan (`go`,
-  `go-plus`) and the first occurrence wins, so every figure is the standard plan's. The `.mdx` on
-  GitHub is stale by design — never cache from it. Self-check:
-  `node plugins/oc-models-pro/multipliers.ts --self-check`.
+  The credit is `go.monthly_usage.go` ÷ the $10 plan, on `opencode-go` only. The catalogue writes the
+  **id** (`opencode-go/glm-5.3`), not a display name, and those ids match the host catalogue's `modelID`
+  exactly (32 of 32 measured 2026-11-17; the host carries two models the endpoint does not, which simply
+  get no credit), so the lookup is exact and the old display-name normalisation is gone: by name alone,
+  OpenRouter's "DeepSeek V4.1 Flash" inherited the Go credit. A free model carries no `monthly_usage` and
+  no row. **The allowance is already the promoted figure**: GLM-5.3 reads $100 here while the obsolete
+  table said $15, and the catalogue has no struck-through base, so there is no promotion note to draw and
+  none is computed. The field that carried it (`promo`, in `rows.ts` and in the `./rpc` schema) stays as
+  **deprecated and never set**: `./rpc` is a public export, so a reader written against it keeps
+  compiling, and nothing draws the mark any more. The plan **price** is the one thing this endpoint does
+  not carry: it is read from the
+  plan row whose first cell says `Go` on `https://opencode.ai/v2/docs/console/go/` — not the first
+  `$/month` on the page, which a table reordered to put Go Plus first would turn into a doubled price for
+  every credit. That page is all the plan table is used for since 2026-11-17: the per-model table it used
+  to hold went away that day and a fetch of it parsed 0 rows, which is what moved the source. The `.mdx`
+  on GitHub is stale by design — never cache from it. A cache written before the catalogue source is
+  ignored (it holds `limits` by display name), so the switch costs one refetch.
+- **A kept copy is served, and it says so.** `goPlan()` answers a one-day cache without fetching, and on a
+  failed read it serves the copy it has; what it also returns is the **day** the figures were fetched and
+  whether they are stale. The desktop warns under the header (`go plan: cached copy from <day>`), the
+  terminal puts `· credits stale <day>` in the title, and with no copy at all the fallback stays what it
+  was: `credits n/a` and every credit at 1. A source that moves silently is the failure this closes: the
+  per-model table vanished, every fetch failed, and weeks of stale allowances were served as if they were
+  today's.
+- **A half-read catalogue is a failed read, not a fresh one.** A model offered on no Go plan simply has
+  no `monthly_usage` and is skipped. A `monthly_usage.go` that is there but is not a positive number, or
+  an id appearing twice, throws instead: the refresh then keeps yesterday's copy and marks it stale, which
+  is the difference between a column that says it is old and a column with a silent hole where one model's
+  credit should be.
+- **Two guards, two jobs.** `multipliers.test.ts` pins the rules (`node:test`, no network, synthetic
+  payloads, no model named), and it is what CI runs; the live self-check
+  (`node plugins/oc-models-pro/multipliers.ts --self-check`) is a release probe on the real source, with
+  the same 20 s timeout as the plugin: every paid row must arrive and must be the row it came from, every
+  credit must follow that row's own allowance, and ids must be unique. It names no model and asserts no
+  figure: a probe that pins today's catalogue is a probe that fails for the wrong reason when the
+  catalogue moves. The count of peak tariffs is **printed, not asserted** — a flat catalogue is not a
+  fault, so a `0` there is a prompt to look at the field by hand, and that is the limit of this probe: a
+  renamed `cost.multipliers` looks exactly like a catalogue with no peak tariffs.
 - **Intelligence** — `plugins/oc-models-pro/bench.ts`, from `https://catalog.stencil.so/models.json`,
   cached 6 h at `$XDG_CACHE_HOME/oc-models-pro/bench.json` (else `~/.cache`). 4612 of 9050 entries
   carry `int`; **`tps` is on none of them** today (measured 2026-10-19; the same URL served it for 1004 of 1191 models on 2026-10-14 —
@@ -379,11 +415,12 @@ untouched by the rule.
   with a **blank** cell instead of a claimed `0`, and blanks sort last in every order.
 - **A credit other than 1 is always shown**, including below 1: the effective order divides by it, so a
   hidden `×0.5` would be a number the row moves by and never prints.
-- **Failures are visible, not silent**: each fetch carries its own timeout (catalogue 20 s, plan page
+- **Failures are visible, not silent**: each fetch carries its own timeout (Go catalogue 20 s, plan page
   20 s, Artificial Analysis 5 s), a plan that could not be read (and no cache to fall back on) puts
-  `credits n/a` in the title rather than passing every credit off as 1, an unreadable `model.json` leaves
-  a line in the trace, and the three caches are written to a `.tmp` file and renamed, so a torn write
-  cannot destroy the stale copy the failure path returns.
+  `credits n/a` in the title rather than passing every credit off as 1, a copy served in place of a failed
+  read names its day on both surfaces, an unreadable `model.json` leaves a line in the trace, and the
+  three caches are written to a `.tmp` file and renamed, so a torn write cannot destroy the copy the
+  failure path returns.
 - **The keyboard layer is disposed by the host, measured**: each mount logs how many `models-pro.*`
   commands the keymap exposes — three openings in a row read 10 each time, never 20, so no layer
   survives its panel. The same line is the alarm if that ever changes.
@@ -445,6 +482,8 @@ untouched by the rule.
 - `plugins/oc-models-pro/rows.ts` — what a row means to both surfaces, and what a list of them becomes: effective price, free, the orders, and `arrange`; `--self-check`.
 - `plugins/oc-models-pro/prefs.ts` — `model.json`: read, write, toggle.
 - `plugins/oc-models-pro/multipliers.ts` — the Go plan and the credits.
+- `plugins/oc-models-pro/multipliers.test.ts` — the rules behind that column, on synthetic payloads; no network, no model named.
+- `plugins/oc-models-pro/stale.test.ts` — the kept copy: served, and the day it comes from travels with it.
 - `plugins/oc-models-pro/bench.ts` — the intelligence index.
 - `plugins/oc-models-pro/tps.ts` — this machine's measured speed.
 - `plugins/oc-models-pro/aa.ts` — the borrowed speed, under a key.

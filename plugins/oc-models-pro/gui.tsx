@@ -114,11 +114,9 @@ const tokens = (value: number | undefined) => {
 }
 
 /**
- * The terminal's two notes in four characters, with a line underneath spelling the marks out.
- * shortcut: one mark per row, peak first — a model carrying both shows only the peak, the one that
- * changes what it costs today. Widen the cell when a second mark appears.
+ * The terminal's note in four characters, with a line underneath spelling the mark out.
  */
-const note = (row: Row) => (row.peak ? "*" + row.peak : row.promo ? "+" + row.promo : "")
+const note = (row: Row) => (row.peak ? "*" + row.peak : "")
 
 const id = (row: Row) => row.providerID + "/" + row.modelID
 
@@ -405,7 +403,7 @@ export default Plugin.define({
 						<div class="omp-warn">{value()?.problems?.join(" · ")}</div>
 					</Show>
 					<Show when={value() && !value()!.credits}>
-						<div class="omp-warn">Go credit unknown: the plan page could not be read.</div>
+						<div class="omp-warn">Go credit unknown: the plan catalogue could not be read.</div>
 					</Show>
 					<div class="omp-head">
 						{head("name", "model")}
@@ -449,7 +447,7 @@ export default Plugin.define({
 							)}
 						</For>
 					</div>
-					<div class="omp-fine">*N = the tariff at peak · +N = a promotion</div>
+					<div class="omp-fine">*N = the tariff at peak</div>
 				</div>
 			)
 		}

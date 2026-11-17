@@ -16,7 +16,8 @@ export interface Row {
 	context?: number
 	/** Monthly limit ÷ the plan price: the ordering multiplier. */
 	credit: number
-	/** Allowance ÷ its normal one, when the page marks a promotion. */
+	/** @deprecated Nothing feeds it since the Go catalogue replaced the plan table: the allowance it
+	 *  would divide now arrives already promoted. Kept so a consumer of `./rpc` still compiles; never set. */
 	promo?: number
 	/** Peak price ÷ off-peak price, for a model with two tariffs. */
 	peak?: number

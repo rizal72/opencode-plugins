@@ -55,7 +55,7 @@ by it, a star to favourite, a row to switch. The search box, the scope buttons a
 | int | catalog.stencil.so, cached 6 h |
 | tok/s | this machine's own sessions: last 7 days, or all history when that window is thin |
 | ~tok/s | Artificial Analysis, with a free key |
-| cred | the Go plan page, cached 1 day, `opencode-go` only |
+| cred | the Go catalogue, cached 1 day, `opencode-go` only |
 
 Favourites and recents are the native picker's (`~/.local/state/opencode/model.json`), so both agree. The
 switch is the app's own path, never a write to the session or that file.

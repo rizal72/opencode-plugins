@@ -3,7 +3,7 @@ import { Plugin } from "@opencode/plugin"
 
 import { aaIndex } from "./aa.ts"
 import { benchFor, benchIndex, benchKey, type Bench } from "./bench.ts"
-import { credits, goPlan, key as creditKey, nativePeak, type Credits } from "./multipliers.ts"
+import { credits, goPlan, nativePeak, type Credits } from "./multipliers.ts"
 import { prefKey, readFavourites, toggleFavorite } from "./prefs.ts"
 import { tagsFor } from "./tags.ts"
 import { speedIndex } from "./tps.ts"
@@ -41,8 +41,10 @@ export default Plugin.define({
 			])
 			const out: Sources = { creditsKnown: false }
 			if (plan.status === "fulfilled" && plan.value) {
-				out.credits = credits(plan.value)
+				out.credits = credits(plan.value.plan)
 				out.creditsKnown = true
+				// Served, but the live read failed: say the day the figures come from.
+				if (plan.value.stale) problems.push("go plan: cached copy from " + plan.value.fetched)
 			} else problems.push("go plan: no credit multipliers")
 			if (bench.status === "fulfilled") out.bench = bench.value
 			else problems.push("bench: no intelligence")
@@ -85,8 +87,8 @@ export default Plugin.define({
 						? (src.estimated?.get(benchKey(model.name)) ?? src.estimated?.get(benchKey(model.modelID)) ?? score?.tps)
 						: undefined
 				if (mine !== undefined || theirs !== undefined) withSpeed += 1
-				// The plan page's measured ratio first, the native rule second.
-				const planPeak = isGo(model.providerID) ? src.credits?.get(creditKey(model.modelID))?.peak : undefined
+				// The catalogue's declared tariff step first, the native rule second.
+				const planPeak = isGo(model.providerID) ? src.credits?.get(model.modelID)?.peak : undefined
 				const peak = planPeak ?? nativePeak(model.providerID)
 				rows.push({
 					providerID: model.providerID,
@@ -97,10 +99,7 @@ export default Plugin.define({
 					...(typeof cost?.input === "number" ? { input: cost.input } : {}),
 					...(typeof cost?.output === "number" ? { output: cost.output } : {}),
 					...(typeof limit.context === "number" ? { context: limit.context } : {}),
-					credit: isGo(model.providerID) ? (src.credits?.get(creditKey(model.modelID))?.credit ?? 1) : 1,
-					...(isGo(model.providerID) && src.credits?.get(creditKey(model.modelID))?.promo !== undefined
-						? { promo: src.credits.get(creditKey(model.modelID))!.promo }
-						: {}),
+					credit: isGo(model.providerID) ? (src.credits?.get(model.modelID)?.credit ?? 1) : 1,
 					...(peak !== undefined ? { peak } : {}),
 					...(score?.int !== undefined ? { int: score.int } : {}),
 					...(theirs !== undefined ? { tps: theirs } : {}),

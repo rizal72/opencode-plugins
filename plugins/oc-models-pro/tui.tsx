@@ -7,7 +7,7 @@ import { join } from "node:path"
 import { benchFor, benchIndex, benchKey, type Bench } from "./bench.ts"
 import { aaIndex } from "./aa.ts"
 import { speedIndex } from "./tps.ts"
-import { credits, goPlan, key, nativePeak, type Credits } from "./multipliers.ts"
+import { credits, goPlan, nativePeak, type Credits } from "./multipliers.ts"
 import { LEGEND_MIN, fit, hintLines, rowWidth, type Fit } from "./fit.ts"
 import { tagsFor } from "./tags.ts"
 import { prefKey, readFavourites, readPrefs, toggleFavorite, writeFavourites, PREFS_FILE, type Prefs } from "./prefs.ts"
@@ -98,7 +98,7 @@ function rowParts(
 	favourite: boolean,
 	f: Fit,
 ): { before: string; speed: string; after: string } {
-	const notes = [row.peak ? "peak*" + row.peak : "", row.promo ? "+" + row.promo + "x" : ""].filter(Boolean)
+	const note = row.peak ? "peak*" + row.peak : ""
 	const head = [
 		(mine ? "●" : " ") + (favourite ? "*" : " "),
 		padTag(row.tag),
@@ -110,7 +110,7 @@ function rowParts(
 	]
 	const tail = [
 		cell(row.credit !== 1 ? "×" + row.credit : "", 4),
-		...(f.note ? [cell(notes.join(" "), 6)] : []),
+		...(f.note ? [cell(note, 6)] : []),
 	]
 	const speed = speedCell(row, f)
 	if (!speed) return { before: head.concat(tail).join(" "), speed: "", after: "" }
@@ -189,6 +189,8 @@ export default Plugin.define({
 		let estimated = new Map<string, number>()
 		/** False when the Go page could not be read and no cache was there. */
 		let creditsKnown = false
+		/** The day of the copy served because today's read failed; undefined when the figures are today's. */
+		let creditsStale: string | undefined
 		const [sort, setSort] = createSignal<SortKey>("effective")
 		const [grouped, setGrouped] = createSignal(true)
 		const [scope, setScope] = createSignal<Scope>("all")
@@ -254,10 +256,9 @@ export default Plugin.define({
 					input: typeof cost?.input === "number" ? cost.input : undefined,
 					output: typeof cost?.output === "number" ? cost.output : undefined,
 					context: typeof limit.context === "number" ? limit.context : undefined,
-					credit: isGo(model.providerID) ? (creditIndex.get(key(model.modelID))?.credit ?? 1) : 1,
-					promo: isGo(model.providerID) ? creditIndex.get(key(model.modelID))?.promo : undefined,
+					credit: isGo(model.providerID) ? (creditIndex.get(model.modelID)?.credit ?? 1) : 1,
 					peak:
-						(isGo(model.providerID) ? creditIndex.get(key(model.modelID))?.peak : undefined) ??
+						(isGo(model.providerID) ? creditIndex.get(model.modelID)?.peak : undefined) ??
 						nativePeak(model.providerID),
 					int: score?.int,
 					tps: theirs,
@@ -283,9 +284,11 @@ export default Plugin.define({
 		async function open(): Promise<void> {
 			prefs = readPrefs()
 			await warm()
-			// One fetch a day at most; a failure only costs the credit column and the effective ordering.
-			const plan = await goPlan()
-			creditIndex = plan ? credits(plan) : new Map()
+			// One fetch a day at most; a failure only costs the credit column and the effective ordering,
+			// and says so in the title when it falls back on the copy it kept.
+			const snapshot = await goPlan()
+			creditIndex = snapshot ? credits(snapshot.plan) : new Map()
+			creditsStale = snapshot?.stale ? snapshot.fetched : undefined
 			// The three reads run together: the panel waits for the slowest, not for their sum.
 			const started = Date.now()
 			const [benchmarks, speeds, estimates] = await Promise.all([benchIndex(), speedIndex(), aaIndex()])
@@ -322,7 +325,7 @@ export default Plugin.define({
 					" bench=" +
 					bench.size +
 					" plan=" +
-					(plan ? "$" + plan.price + " " + plan.limits.length + " rows" : "none") +
+					(snapshot ? "$" + snapshot.plan.price + " " + snapshot.plan.models.length + " models" : "none") +
 					" credits=" +
 					creditIndex.size +
 					" prefs=" +
@@ -706,14 +709,17 @@ export default Plugin.define({
 							<b>{scope()}</b>
 						</text>
 						<text fg={DIM} wrapMode="none">
-							{" · " + (grouped() ? "grouped" : "flat") + (creditsKnown ? "" : " · credits n/a")}
+							{" · " +
+								(grouped() ? "grouped" : "flat") +
+								(creditsKnown ? "" : " · credits n/a") +
+								(creditsStale ? " · credits stale " + creditsStale : "")}
 						</text>
 					</box>
 					<box height={1} flexShrink={0}>
 						<text fg={DIM} wrapMode="none">
 							{compactLegend()
-								? "×N credit · peak*2 · +4x promo"
-								: "(×N = Go credit · peak*2 = the tariff doubles at peak · +Nx = promotion)"}
+								? "×N credit · peak*2"
+								: "(×N = Go credit · peak*2 = the tariff doubles at peak)"}
 						</text>
 					</box>
 					<box
