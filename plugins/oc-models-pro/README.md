@@ -46,6 +46,7 @@ count appears in a pill above the composer, with the update one click away.
 
 The same table as a side panel: `mod+shift+m`, `/models-pro`, or the session menu. Click a column to sort
 by it, a star to favourite, a row to switch. The search box, the scope buttons and a refresh sit above it.
+The refresh re-reads Go's catalogue too, not just the table: the credit column follows it.
 
 ## How it works
 
@@ -55,7 +56,7 @@ by it, a star to favourite, a row to switch. The search box, the scope buttons a
 | int | catalog.stencil.so, cached 6 h |
 | tok/s | this machine's own sessions: last 7 days, or all history when that window is thin |
 | ~tok/s | Artificial Analysis, with a free key |
-| cred | the Go catalogue, cached 1 day, `opencode-go` only |
+| cred | the Go catalogue, cached 1 day, the GUI's refresh refetches, `opencode-go` only |
 
 Favourites and recents are the native picker's (`~/.local/state/opencode/model.json`), so both agree. The
 switch is the app's own path, never a write to the session or that file.

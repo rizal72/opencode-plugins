@@ -32,9 +32,9 @@ export default Plugin.define({
 		let cache: { at: number; value: ModelsSnapshot } | undefined
 
 		/** The four sources, each failure named instead of swallowed. */
-		async function sources(problems: string[]): Promise<Sources> {
+		async function sources(problems: string[], force: boolean): Promise<Sources> {
 			const [plan, bench, estimates, speeds] = await Promise.allSettled([
-				goPlan(),
+				goPlan(force),
 				benchIndex(),
 				aaIndex(),
 				speedIndex(),
@@ -63,7 +63,7 @@ export default Plugin.define({
 			const [models, providers, src] = await Promise.all([
 				ctx.model.list({}),
 				ctx.provider.list({}),
-				sources(problems),
+				sources(problems, force),
 			])
 			const offers: any[] = (models as any)?.data ?? (models as any) ?? []
 			const names = new Map<string, string>(

@@ -4,7 +4,7 @@
 // What it pins is the difference the first version of this plugin lost: a kept copy is served, but the
 // day it comes from travels with it, because a source that moved once must not stay invisible.
 import assert from "node:assert/strict"
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { test } from "node:test"
@@ -44,4 +44,40 @@ test("a failed read serves the kept copy, and names the day it comes from", asyn
 test("no copy and no read is no figures at all, not an empty column", async () => {
 	rmSync(file)
 	assert.equal(await offline(() => goPlan()), undefined)
+})
+
+/** A fetch that answers both sources: the catalogue with one model, the price page with one plan row. */
+async function served<T>(run: () => Promise<T>): Promise<T> {
+	const original = globalThis.fetch
+	globalThis.fetch = ((url: string) =>
+		Promise.resolve(
+			url.includes("/models")
+				? { ok: true, text: () => Promise.resolve(JSON.stringify({ data: [{ id: "fresh", go: { monthly_usage: { go: 500 } } }] })) }
+				: { ok: true, text: () => Promise.resolve("<table><tr><td>Go</td><td>$10 / month</td></tr></table>") },
+		)) as typeof fetch
+	try {
+		return await run()
+	} finally {
+		globalThis.fetch = original
+	}
+}
+
+test("a forced read refreshes today's copy; a failed one keeps it", async () => {
+	writeFileSync(
+		file,
+		JSON.stringify({ fetched: new Date().toLocaleDateString("en-CA"), plan: { price: 10, models: [{ id: "kept", limit: 100 }] } }),
+	)
+	// Today's copy, no force: served as is, no network needed.
+	const kept = await offline(() => goPlan())
+	assert.equal(kept?.stale, false)
+	assert.deepEqual(kept?.plan.models, [{ id: "kept", limit: 100 }])
+	// Force over a live source: the new figures, and the file rewritten.
+	const fresh = await served(() => goPlan(true))
+	assert.equal(fresh?.stale, false)
+	assert.deepEqual(fresh?.plan.models, [{ id: "fresh", limit: 500 }])
+	assert.deepEqual(JSON.parse(readFileSync(file, "utf8")).plan.models, [{ id: "fresh", limit: 500 }])
+	// Force against a dead source: the copy just written is kept, served, and named.
+	const fallen = await offline(() => goPlan(true))
+	assert.equal(fallen?.stale, true)
+	assert.deepEqual(fallen?.plan.models, [{ id: "fresh", limit: 500 }])
 })

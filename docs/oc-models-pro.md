@@ -309,7 +309,8 @@ untouched by the rule.
   OpenRouter (its prices are its own).
 - **The Go plan** — `plugins/oc-models-pro/multipliers.ts`, from
   `https://opencode.ai/inference/go/v1/models` (JSON, no auth), cached one day at
-  `$XDG_CACHE_HOME/oc-models-pro/go-limits.json`, else `~/.cache/oc-models-pro/go-limits.json`.
+  `$XDG_CACHE_HOME/oc-models-pro/go-limits.json`, else `~/.cache/oc-models-pro/go-limits.json`, a day the
+  GUI's Refresh skips on demand.
   The credit is `go.monthly_usage.go` ÷ the $10 plan, on `opencode-go` only. The catalogue writes the
   **id** (`opencode-go/glm-5.3`), not a display name, and those ids match the host catalogue's `modelID`
   exactly (32 of 32 measured 2026-11-17; the host carries two models the endpoint does not, which simply
@@ -327,7 +328,8 @@ untouched by the rule.
   to hold went away that day and a fetch of it parsed 0 rows, which is what moved the source. The `.mdx`
   on GitHub is stale by design — never cache from it. A cache written before the catalogue source is
   ignored (it holds `limits` by display name), so the switch costs one refetch.
-- **A kept copy is served, and it says so.** `goPlan()` answers a one-day cache without fetching, and on a
+- **A kept copy is served, and it says so.** `goPlan()` answers a one-day cache without fetching (the GUI's
+  Refresh passes `force` to skip the day and read Go now), and on a
   failed read it serves the copy it has; what it also returns is the **day** the figures were fetched and
   whether they are stale. The desktop warns under the header (`go plan: cached copy from <day>`), the
   terminal puts `· credits stale <day>` in the title, and with no copy at all the fallback stays what it

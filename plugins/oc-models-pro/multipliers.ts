@@ -161,10 +161,11 @@ async function cached(): Promise<{ fetched: string; plan: GoPlan } | undefined> 
 }
 
 /** A day of grace, and the day is named: a copy older than today is served, but the caller has to say
- *  so, or a source that moved once stays invisible forever. */
-export async function goPlan(): Promise<GoPlanSnapshot | undefined> {
+ *  so, or a source that moved once stays invisible forever. `force` skips the grace and reads Go now;
+ *  a failed read still keeps the copy, never deletes it first. */
+export async function goPlan(force = false): Promise<GoPlanSnapshot | undefined> {
 	const previous = await cached()
-	if (previous?.fetched === today()) return { plan: previous.plan, fetched: previous.fetched, stale: false }
+	if (!force && previous?.fetched === today()) return { plan: previous.plan, fetched: previous.fetched, stale: false }
 	const day = today()
 	try {
 		const [models, price] = await Promise.all([
@@ -178,8 +179,10 @@ export async function goPlan(): Promise<GoPlanSnapshot | undefined> {
 		if (list.length === 0 || !planPrice) throw new Error("source shape changed")
 		const plan = { price: planPrice, models: list }
 		await mkdir(dirname(CACHE), { recursive: true })
-		await writeFile(CACHE + ".tmp", JSON.stringify({ fetched: day, plan }))
-		await rename(CACHE + ".tmp", CACHE)
+		// The desktop and the terminal are two processes sharing this file; a per-pid tmp name keeps
+		// one rename from taking the other's write out from under it.
+		await writeFile(CACHE + "." + process.pid + ".tmp", JSON.stringify({ fetched: day, plan }))
+		await rename(CACHE + "." + process.pid + ".tmp", CACHE)
 		return { plan, fetched: day, stale: false }
 	} catch (error) {
 		console.error(`[oc-models-pro] Go plan not refreshed: ${error instanceof Error ? error.message : String(error)}`)
