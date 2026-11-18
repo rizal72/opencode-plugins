@@ -47,7 +47,7 @@ async function start(ctx: any): Promise<Machine> {
 	if (supported) {
 		try {
 			const suffix = `-w ${process.pid}`
-			const table = execFileSync("ps", ["-A", "-o", "pid=", "-o", "command="], { encoding: "utf8" })
+			const table = execFileSync("ps", ["-A", "-o", "pid=", "-o", "command="], { encoding: "utf8", windowsHide: true })
 			for (const line of table.split("\n")) {
 				const match = /^\s*(\d+)\s+caffeinate\b.*\s-w\s+\d+\s*$/.exec(line)
 				if (!match || !line.trimEnd().endsWith(suffix)) continue
@@ -86,6 +86,7 @@ async function start(ctx: any): Promise<Machine> {
 		if (wanted && !child) {
 			const spawned = spawn("caffeinate", [...FLAGS[level as Exclude<Level, "off">], "-w", String(process.pid)], {
 				stdio: "ignore",
+				windowsHide: true,
 			})
 			child = spawned
 			childLevel = level

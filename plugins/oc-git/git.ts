@@ -46,7 +46,7 @@ export function read(directory: string): Promise<Status | undefined> {
 		execFile(
 			"git",
 			["status", "--porcelain=v2", "--branch"],
-			{ cwd: directory, maxBuffer: 8 * 1024 * 1024 },
+			{ cwd: directory, maxBuffer: 8 * 1024 * 1024, windowsHide: true },
 			(error, stdout) => resolve(error ? undefined : parse(stdout)),
 		)
 	})

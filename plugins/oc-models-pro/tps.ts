@@ -69,7 +69,7 @@ async function read(database: string): Promise<Array<{ data: string; at: number;
 				"-json",
 				"select data, time_created as at, session_id as sid from session_message where type = 'assistant'",
 			],
-			{ maxBuffer: 256 * 1024 * 1024 },
+			{ maxBuffer: 256 * 1024 * 1024, windowsHide: true },
 			(error, stdout) => (error ? reject(error) : resolve(JSON.parse(stdout || "[]"))),
 		)
 	})

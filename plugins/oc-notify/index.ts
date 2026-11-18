@@ -104,7 +104,7 @@ async function save(machine: Machine, input: any): Promise<Snapshot> {
 function idleSeconds(): number | undefined {
 	if (process.platform !== "darwin") return undefined
 	try {
-		const table = execFileSync("ioreg", ["-c", "IOHIDSystem"], { encoding: "utf8", timeout: 2_000 })
+		const table = execFileSync("ioreg", ["-c", "IOHIDSystem"], { encoding: "utf8", timeout: 2_000, windowsHide: true })
 		const match = /"HIDIdleTime"\s*=\s*(\d+)/.exec(table)
 		return match ? Number(match[1]) / 1e9 : undefined
 	} catch {

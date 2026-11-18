@@ -186,7 +186,7 @@ async function openStore(database: string): Promise<Store> {
 				execFile(
 					"sqlite3",
 					["file:" + database + "?mode=ro", "-json", sql],
-					{ maxBuffer: 64 * 1024 * 1024 },
+					{ maxBuffer: 64 * 1024 * 1024, windowsHide: true },
 					(error, stdout) => (error ? reject(error) : resolve(JSON.parse(stdout || "[]"))),
 				)
 			}),
