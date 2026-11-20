@@ -148,6 +148,23 @@ const piecesText = (pieces: Piece[]) => pieces.map((piece) => (typeof piece === 
 /** A speed, or the dash a line shows where it has none. */
 const tps = (value: number | undefined) => (value === undefined ? "—" : speed(value))
 
+/** A time to first token, or the dash where there is none, split into its figure and its unit so the caller
+ *  can colour the figure alone: milliseconds below a second, where the digits mean something, seconds above,
+ *  where they do not. One shape for the panel's sub-line and the header's tooltip, so the wait reads the
+ *  same wherever it appears. */
+const ttftParts = (value: number | undefined) =>
+	value === undefined
+		? undefined
+		: value < 1000
+			? ([String(Math.round(value)), " ms"] as const)
+			: ([(value / 1000).toFixed(1), " s"] as const)
+
+/** The same wait as one string, for the line that speaks it rather than draws it. */
+const ttftText = (value: number | undefined) => {
+	const pair = ttftParts(value)
+	return pair ? pair[0] + pair[1] : "—"
+}
+
 /** Every message of the session, assistant and otherwise, handed back oldest first: the revert cut has to find
  *  the message it points at, which is usually a user one. */
 const readAll = async (session: MountedSession): Promise<{ messages: StepMessage[]; truncated: boolean }> => {
@@ -409,12 +426,7 @@ export default Plugin.define({
 				return step?.tps === undefined ? "—" : speed(step.tps)
 			}
 			const model = () => shown()?.model ?? ""
-			const ttft = () => {
-				const value = shown()?.ttft
-				// Milliseconds below a second, where the digits mean something; seconds above, where they do not.
-				if (value === undefined) return undefined
-				return value < 1000 ? ([String(Math.round(value)), " ms"] as const) : ([(value / 1000).toFixed(1), " s"] as const)
-			}
+			const ttft = () => ttftParts(shown()?.ttft)
 			/** Absolute local times at the two ends of the visible window. A window that crosses midnight dates
 			 *  both ends — 23:58 and 00:08 alone would not say the day changed — and an end that is not today's
 			 *  carries its date, so panned back onto yesterday the axis cannot be mistaken for this morning. */
@@ -498,17 +510,11 @@ export default Plugin.define({
 								<div class="tpsm-figure">{figure()}<span class="tpsm-unit"> t/s</span></div>
 								<div class="tpsm-sub">
 									<span class="tpsm-smodel">{model()}</span>
-									<Show when={ttft()}>
-										{(pair) => (
-											<>
-												{model() ? " · " : ""}TTFT{" "}
-												<span class={isSlow(shown()?.ttft) ? "tpsm-num tpsm-slow" : "tpsm-num"}>
-													{pair()[0]}
-												</span>
-												{pair()[1]}
-											</>
-										)}
-									</Show>
+									{/* The wait always keeps its line, a dash when the step carries none: a line that
+									    disappears reads as a thing the panel stopped doing. */}
+									{model() ? " · " : ""}TTFT{" "}
+									<span class={isSlow(shown()?.ttft) ? "tpsm-num tpsm-slow" : "tpsm-num"}>{ttft()?.[0] ?? "—"}</span>
+									{ttft()?.[1] ?? ""}
 								</div>
 							</div>
 							<div class="tpsm-block">
@@ -788,7 +794,7 @@ export default Plugin.define({
 				const slash = model.indexOf("/")
 				return slash === -1 ? model : model.slice(slash + 1)
 			}
-			/** The second line: the model, and why the figure is what it is. */
+			/** The third line: the model, and why the figure is what it is. */
 			const after = () => {
 				const parts: string[] = []
 				const name = modelName()
@@ -799,8 +805,10 @@ export default Plugin.define({
 				if (own() && failed() && at !== undefined) parts.push("last read " + age(now() - at))
 				return parts
 			}
+			/** The wait, in the panel's own shape: the figure is coloured alone, the unit keeps the faint. */
+			const ttft = () => ttftParts(shown()?.ttft)
 			/** One string for the accessible name, because a screen reader reads text and not a line break. */
-			const hint = () => ["TPS: " + figure() + " t/s", ...after()].join(" · ")
+			const hint = () => ["TPS: " + figure() + " t/s", "TTFT: " + ttftText(shown()?.ttft), ...after()].join(" · ")
 			const slow = () => isSlow(shown()?.ttft)
 
 			return (
@@ -808,6 +816,11 @@ export default Plugin.define({
 					value={
 						<>
 							<span>TPS: {figure()} t/s</span>
+							<br />
+							<span>
+								TTFT: <span class={slow() ? "tpsm-num tpsm-slow" : "tpsm-num"}>{ttft()?.[0] ?? "—"}</span>
+								{ttft()?.[1] ?? ""}
+							</span>
 							<Show when={after().length > 0}>
 								<br />
 								<span>{after().join(" · ")}</span>

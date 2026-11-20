@@ -99,8 +99,9 @@ session, and a session with more than 2,000 messages loses the oldest end of its
 | no quota, no usage | that is [`oc-budget`](oc-budget.md)'s, and it is the only part that needs a credential and the network | zero network calls |
 | bars, not a line | a histogram reads a distribution at a glance; the line exists in the reference plugin only for the live 60 s | none |
 | one block, not two | the rollover used to write a second block under the chart, so the same step was described in two places and the eye had to travel down and back; the block above now serves both roles, and at rest it keeps the headline | the described step's time moved into the label, and panning back no longer says which bar is last in the window |
-| a figure is white | the median, the peak and the time to first token are what the panel is opened for, so each is drawn in `--v2-text-text-base` bold while the words around it keep the faint — one `.tpsm-num` wherever they appear, in the counts line, the per-model rows and the header | three numbers shout at once in a session with several models; the labels are what orders them |
-| a red bar is a wait | the time to first token, not the speed, is what says the request is queued behind others, and a red bar is read from across the panel without pointing: ten seconds, `SLOW_TTFT_MS`, sits above the p95 measured above | colour is the third thing one bar says, after its height and its cap, and the two can contradict: a fast step after a long queue is the tallest and the reddest at once, so only the figure separates them. The tone is the danger mixed with the surface — what the bar had at 45% alpha — so at rest a slow bar is dimmer than an ordinary one, and it shows the pointer by brightening its fill instead of its opacity, because its opacity is already 1. The figure above carries the danger unmixed, since the muted tone would not be readable at eleven pixels |
+| a figure is white | the median, the peak and the time to first token are what the panel is opened for, so each is drawn in `--v2-text-text-base` bold while the words around it keep the faint — one `.tpsm-num` wherever they appear, in the counts line, the per-model rows and the header's tooltip | three numbers shout at once in a session with several models; the labels are what orders them |
+| a red bar is a wait | the time to first token, not the speed, is what says the request is queued behind others, and a red bar is read from across the panel without pointing: ten seconds, `SLOW_TTFT_MS`, sits above the p95 measured above | colour is the third thing one bar says, after its height and its cap, and the two can contradict: a fast step after a long queue is the tallest and the reddest at once, so only the figure separates them. The tone is the danger mixed with the surface — what the bar had at 45% alpha — so at rest a slow bar is dimmer than an ordinary one, and it shows the pointer by brightening its fill instead of its opacity, because its opacity is already 1. The figure above carries the danger unmixed, since the muted tone would not be readable at eleven pixels — and the header's tooltip reads the same wait with the same unmixed figure, so the two surfaces never tell it two ways |
+| the wait is always drawn | a TTFT the step cannot measure is a dash, never a line that disappears, in the panel's sub-line and in the header's tooltip alike — the same rule the speed's dash already follows | one line that is sometimes only a dash |
 
 ## Traps found while building it
 
@@ -146,10 +147,11 @@ session, and a session with more than 2,000 messages loses the oldest end of its
 `Slot "session.header"`, order 12 — after the app's own figures and before its display control, the place
 [`oc-budget`](oc-budget.md)'s figure takes. It is a button with a gauge and the speed; a click shows the panel
 or hides it and leaves its tab in the strip ([`gui-plugins.md`](gui-plugins.md), *Traps*), and the header's
-`compact` flag drops it to the glyph alone. The hint reads `TPS: <speed> t/s`, with the
-model's own name on a second line — the provider prefix is dropped, because some providers carry a second one
-(`openrouter/deepseek/…`) and the row has no room for it — and the reason appended when the figure is old or a
-revert is staged, so nothing is lost when only the glyph is drawn. The button declares its state to a screen reader
+`compact` flag drops it to the glyph alone. The hint reads `TPS: <speed> t/s`, then the wait as `TTFT: <time>`
+on the second line — a dash when the step carries none, its figure red past ten seconds, the panel's own
+grammar — and the model's own name on the third, the provider prefix dropped, because some providers carry a
+second one (`openrouter/deepseek/…`) and the row has no room for it. The reason is appended to the third line
+when the figure is old or a revert is staged, so nothing is lost when only the glyph is drawn. The button declares its state to a screen reader
 with `aria-expanded`, and draws no plate of its own: the panel lives in the side region, so the header control
 looks untouched once the pointer leaves it — the app's own controls keep no background after a click either. It has no colour of its own: faint like the app's
 own figures, white with the hover, and red only when the wait was a queue — the one thing that breaks that grey
