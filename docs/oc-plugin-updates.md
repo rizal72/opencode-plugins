@@ -7,13 +7,19 @@ gesture the user has to know exists, and neither the window nor the terminal say
 2026-10-29 on this machine: `github-panel` ran 0.1.0 with 0.2.0 published, through several app updates and
 service restarts, and nothing surfaced it.
 
-**Since OpenCode version 2.4.0 the domain is narrower.** A package that names what to follow, `@latest`, a range or a Git
-branch, is checked at startup and every 24 hours, installed and reloaded in place, so it never reaches the
-pill; a bare name, a tag, a Git tag and an exact version still stay put and still need it. One job is worth
-the plugin on its own: a newer version that fails to load leaves the previous one running, silently, and the
-pill is the only thing that says the package is behind. Our config now lets its three third-party plugins
-follow upstream, and this pill is what is left to report anything that does not (measured 2026-11-23 on
-OpenCode 2.4.0: a changed spec in `opencode.jsonc` appears in `opencode plugin list` with no restart).
+**Since OpenCode version 2.4.0 the domain is narrower.** A package that names what to follow, `@latest`,
+a range or a Git branch, is checked at startup and every 24 hours, installed and reloaded in place, so it
+never reaches the pill; a bare name, a tag, a Git tag and an exact version still stay put and still need
+it. One job is worth the plugin on its own: a newer version that fails to load leaves the previous one
+running, silently, and the pill is the only thing that says the package is behind. Our config now lets
+its three third-party plugins follow upstream, and this pill is what is left to report anything that
+does not (measured 2026-11-23 on OpenCode 2.4.0: a changed spec in `opencode.jsonc` appears in
+`opencode plugin list` with no restart).
+
+**Evaluating deprecation.** What keeps it alive is the one thing nothing else reports: a version that
+failed to load. The day the app itself says, or `plugin check` says, that a version failed to load, the
+pill has no job of its own, and the package is deprecated on npm with its record archived, rather than
+maintained.
 
 ## The two calls
 
