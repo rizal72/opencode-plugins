@@ -7,6 +7,14 @@ gesture the user has to know exists, and neither the window nor the terminal say
 2026-10-29 on this machine: `github-panel` ran 0.1.0 with 0.2.0 published, through several app updates and
 service restarts, and nothing surfaced it.
 
+**Since OpenCode version 2.4.0 the domain is narrower.** A package that names what to follow, `@latest`, a range or a Git
+branch, is checked at startup and every 24 hours, installed and reloaded in place, so it never reaches the
+pill; a bare name, a tag, a Git tag and an exact version still stay put and still need it. One job is worth
+the plugin on its own: a newer version that fails to load leaves the previous one running, silently, and the
+pill is the only thing that says the package is behind. Our config now lets its three third-party plugins
+follow upstream, and this pill is what is left to report anything that does not (measured 2026-11-23 on
+OpenCode 2.4.0: a changed spec in `opencode.jsonc` appears in `opencode plugin list` with no restart).
+
 ## The two calls
 
 Both are the server's own routes; the CLI is only the client that knows how to reach them.
@@ -30,10 +38,10 @@ contract*, learned it the same way).
 therefore cannot deadlock against the server it calls — and the one client that knows how the local server
 authenticates.
 
-**Unpinned only.** An exact version and a range are both reported `current`: the app treats a pin as
-deliberate, which is the documented behaviour and was measured on 2026-10-30 (`@0.1.0` and `@~0.1.0` both
-`current` while `0.2.0` was published). So a pinned package can never appear in the pill, and pinning is not
-a way to test it.
+**Bare names and pins only.** An exact version is reported `current`: the app treats a pin as deliberate,
+measured 2026-10-30 (`@0.1.0` `current` while `0.2.0` was published), so a pinned package never appears in
+the pill, and pinning is not a way to test it. A range was `current` on that same measurement for the same
+reason; since OpenCode 2.4.0 it moves itself, so it does not arrive here either.
 
 ## The surface: `rows`, not `menu`
 

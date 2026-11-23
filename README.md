@@ -43,6 +43,10 @@ opencode plugin add @rizal72/oc-session-search
 opencode plugin add @rizal72/oc-tps-meter
 ```
 
+These install the version current today and keep it. Add `@latest` to a name, or a range such as
+`@^1.2.0`, and the package follows its own releases instead, which OpenCode applies by itself from OpenCode
+version 2.4.0 on; a Git plugin follows a `#branch` the same way (`Update` below).
+
 Each plugin directory is a package of its own: a `package.json`, an `index.ts` for the server half, a
 `tui.tsx` for the terminal and a `gui.tsx` for the desktop app where one exists. The server half owns the
 state; the two halves that draw only display it, which is why the same facts hold on both surfaces.
@@ -50,7 +54,13 @@ state; the two halves that draw only display it, which is why the same facts hol
 
 ## Update
 
-V2 checks package plugins at startup and never applies the update, so a package only moves when you ask:
+Until OpenCode version 2.4.0, V2 checked package plugins at startup and never applied the update, so a
+package only moved when you asked. From OpenCode version 2.4.0 a plugin that names what to follow moves by
+itself: `name@latest`, a range such as
+`name@^1.2.0`, or a Git branch such as `github:acme/plugin#main` is checked at startup and every 24 hours,
+installed and reloaded in place, and a version that fails to load leaves the previous one running.
+
+A bare name, a tag such as `@next`, a Git tag and an exact version stay where they are, and those move by hand:
 
 ```sh
 opencode plugin check     # which of the installed packages are behind

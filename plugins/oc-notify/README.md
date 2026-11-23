@@ -68,7 +68,7 @@ that did, and the notification's body ends with `config error`: a typo must not 
 
 ## Update
 
-V2 checks package plugins at startup and never applies the update, so a package only moves when you ask:
+V2 applies an update by itself only to a package that names what to follow (`@latest`, a range, a `#branch`), from OpenCode version 2.4.0 on; anything else waits until you ask:
 `opencode plugin check`, then `opencode plugin update`. Or install
 [`@rizal72/oc-plugin-updates`](https://www.npmjs.com/package/@rizal72/oc-plugin-updates) for the count in the
 app.

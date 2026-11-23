@@ -8,6 +8,12 @@ reports, `plugin update` is a command the user has to know exists, and the windo
 That is how a machine runs a plugin three versions old without a hint. This plugin is the missing signal,
 and the act behind it: the same two calls the CLI makes, in one click.
 
+From OpenCode version 2.4.0 a package that names what to follow, `@latest`, a range or a `#branch`, updates
+itself, and it
+never appears here. A bare name, a tag and an exact version stay where they are, so the pill is what tells
+you, and one case is worth it on its own: a new version that fails to load leaves the previous one running
+and nothing says so.
+
 ## Install
 
 ```sh
@@ -22,7 +28,7 @@ Or by hand, one line in `~/.config/opencode/opencode.jsonc`:
 
 ## Update
 
-V2 checks package plugins at startup and never applies the update, so a package only moves when you ask:
+V2 applies an update by itself only to a package that names what to follow (`@latest`, a range, a `#branch`), from OpenCode version 2.4.0 on; anything else waits until you ask:
 
 ```sh
 opencode plugin check     # which of the installed packages are behind

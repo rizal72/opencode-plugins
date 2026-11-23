@@ -18,7 +18,7 @@ Or by hand, one line in `~/.config/opencode/opencode.jsonc`:
 
 ## Update
 
-V2 checks package plugins at startup and never applies the update, so a package only moves when you ask:
+V2 applies an update by itself only to a package that names what to follow (`@latest`, a range, a `#branch`), from OpenCode version 2.4.0 on; anything else waits until you ask:
 
 ```sh
 opencode plugin check     # which of the installed packages are behind
